@@ -4,7 +4,7 @@
 
 namespace gf::basic::cu
 {
-    CudaRuntimeError::CudaRuntimeError(cudaError_t err, std::source_location loc)
+    CudaRuntimeError::CudaRuntimeError(cudaError_t err, const std::source_location& loc)
         : std::runtime_error(
             std::format(
                 "====CUDA RUNTIME ERROR====\n\tdescription:{}\n\tlocation: {}:{}\n", 
@@ -16,7 +16,7 @@ namespace gf::basic::cu
 
     const char* CudaRuntimeError::what() const noexcept { return std::runtime_error::what(); }
 
-    void check(cudaError_t err, std::source_location loc)
+    void check(cudaError_t err, const std::source_location& loc)
     {
         if(err != cudaSuccess) throw CudaRuntimeError(err, loc);
     }

@@ -9,5 +9,5 @@ target_link_libraries(single_dev_expt PUBLIC lbm_core blocking_core)
 target_compile_options(
     single_dev_expt 
     PRIVATE
-    $<$<COMPILE_LANGUAGE:CUDA>:-Xptxas=-v --keep -lineinfo>
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xptxas=-v -lineinfo>
 )

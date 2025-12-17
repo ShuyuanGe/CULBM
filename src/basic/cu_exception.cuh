@@ -9,12 +9,12 @@ namespace gf::basic::cu
     class CudaRuntimeError : public std::runtime_error
     {
         public:
-            CudaRuntimeError(cudaError_t err, std::source_location loc = std::source_location::current());
+            CudaRuntimeError(cudaError_t err, const std::source_location& loc = std::source_location::current());
 
             const char* what() const noexcept;
     };
 
-    void check(cudaError_t err, std::source_location loc = std::source_location::current());
+    void check(cudaError_t err, const std::source_location& loc = std::source_location::current());
 }
 
 #define CU_CHECK(err) gf::basic::cu::check(err, std::source_location::current())
