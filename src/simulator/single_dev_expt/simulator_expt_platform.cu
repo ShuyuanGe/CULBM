@@ -87,6 +87,24 @@ namespace gf::simulator::single_dev_expt
             //the following parameters are valid.
             real_t* _swapDDFBuf = nullptr;
 
+            void initFlag()
+            {
+                CU_CHECK(cudaMalloc(&_flagBuf, sizeof(flag_t)*getDomainSize()));
+                if(std::ifstream f (_initStateFolder+"/flag.dat", std::ios::binary) ; f)
+                {
+                    std::vector<flag_t> flag (getDomainSize(), 0);
+                    f.read((char*)flag.data(), flag.size()*sizeof(flag_t));
+                    CU_CHECK(cudaMemcpy((void*)_flagBuf, (const void*)flag.data(), flag.size()*sizeof(flag_t), cudaMemcpyHostToDevice));
+                    std::cout << std::format("Init flag successfully, from file: {}/flag.dat.", _initStateFolder) << std::endl;
+                }
+                else
+                {
+                    throw std::runtime_error(
+                        std::format("File: {}/flag.dat doesn't exist!", _initStateFolder)
+                    );
+                }
+            }
+
             void initBlockingFlag()
             {
                 const auto blockingDim = getBlockingDim();
@@ -287,11 +305,17 @@ namespace gf::simulator::single_dev_expt
                     initBlockingFlag();
                 }
 
+                if(_optPolicy==OptPolicy::NONE)
+                {
+                    initFlag();
+                }
+
                 initRhoU();
 
                 if(
                     _streamPolicy==StreamPolicy::PULL_STREAM or
-                    (_streamPolicy==StreamPolicy::INPLACE_STREAM and _optPolicy==OptPolicy::HALO_BLOCKING_DYNAMIC_L2)
+                    (_streamPolicy==StreamPolicy::INPLACE_STREAM and _optPolicy==OptPolicy::HALO_BLOCKING_DYNAMIC_L2) or
+                    (_streamPolicy==StreamPolicy::INPLACE_STREAM and _optPolicy==OptPolicy::HALO_BLOCKING_STATIC_L2)
                 )
                 {
                     initDoubleDDFBuf();
@@ -353,7 +377,8 @@ namespace gf::simulator::single_dev_expt
 
                 if(
                     _streamPolicy==StreamPolicy::PULL_STREAM or
-                    (_streamPolicy==StreamPolicy::INPLACE_STREAM and _optPolicy==OptPolicy::HALO_BLOCKING_DYNAMIC_L2)
+                    (_streamPolicy==StreamPolicy::INPLACE_STREAM and _optPolicy==OptPolicy::HALO_BLOCKING_DYNAMIC_L2) or
+                    (_streamPolicy==StreamPolicy::INPLACE_STREAM and _optPolicy==OptPolicy::HALO_BLOCKING_STATIC_L2)
                 )
                 {
                     CU_CHECK(cudaFree(_srcDDFBuf));
@@ -365,6 +390,11 @@ namespace gf::simulator::single_dev_expt
                     _optPolicy==OptPolicy::HALO_BLOCKING_L1L2 or
                     _optPolicy==OptPolicy::HALO_BLOCKING_DYNAMIC_L2
                 )
+                {
+                    CU_CHECK(cudaFree(_flagBuf));
+                }
+
+                if(_optPolicy==OptPolicy::NONE)
                 {
                     CU_CHECK(cudaFree(_flagBuf));
                 }
@@ -433,7 +463,15 @@ namespace gf::simulator::single_dev_expt
     Simulator::Simulator(int argc, char** argv) :
         _data(std::make_unique<Data>(argc, argv))
     {
-        CU_CHECK(cudaFuncSetAttribute((const void*)&HaloBlockingL1L2D3Q27PullKernel, cudaFuncAttributeMaxDynamicSharedMemorySize, sizeof(real_t)*_data->_blockDim.x*_data->_blockDim.y*_data->_blockDim.z*24));
+        if(_data->_streamPolicy==Data::StreamPolicy::PULL_STREAM and _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_L1L2)
+        {
+            CU_CHECK(cudaFuncSetAttribute((const void*)&HaloBlockingL1L2D3Q27PullKernel, cudaFuncAttributeMaxDynamicSharedMemorySize, sizeof(real_t)*_data->_blockDim.x*_data->_blockDim.y*_data->_blockDim.z*24));
+        }
+
+        if(_data->_streamPolicy==Data::StreamPolicy::INPLACE_STREAM and _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_STATIC_L2)
+        {
+            CU_CHECK(cudaDeviceSetCacheConfig(cudaFuncCache::cudaFuncCachePreferL1));
+        }
     }
 
     void Simulator::run()
@@ -500,14 +538,14 @@ namespace gf::simulator::single_dev_expt
             }
         };
 
-        auto haloBlockingL1L2D3Q27PullRun = [dumpRes, this]()->void
+        auto haloBlockingL1L2PullRun = [dumpRes, this]()->void
         {
             HaloBlockingL1L2Param param
             {
                 .invTau = _data->_invTau, 
                 .nloop = _data->_innerLoop, 
                 .offx = 0, .offy = 0, .offz = 0, 
-                .glbnx = _data->_domDim.x, .glbny = _data->_domDim.y, .glbnz = _data->_domDim.z, 
+                .glbnx = static_cast<idx_t>(_data->_domDim.x), .glbny = static_cast<idx_t>(_data->_domDim.y), .glbnz = static_cast<idx_t>(_data->_domDim.z), 
                 .blkFlagBuf = nullptr, 
                 .glbRhoBuf = _data->_rhoBuf, 
                 .glbVxBuf = _data->_vxBuf, 
@@ -570,14 +608,14 @@ namespace gf::simulator::single_dev_expt
             }
         };
 
-        auto haloBlockingStaticL2D3Q27PullRun = [dumpRes, this]()->void
+        auto haloBlockingStaticL2PullRun = [dumpRes, this]()->void
         {
             HaloBlockingStaticL2Param param
             {
                 .invTau = _data->_invTau, 
                 .nloop  = _data->_innerLoop, 
                 .offx = 0, .offy = 0, .offz = 0, 
-                .glbnx = _data->_domDim.x, .glbny = _data->_domDim.y, .glbnz = _data->_domDim.z,
+                .glbnx = static_cast<idx_t>(_data->_domDim.x), .glbny = static_cast<idx_t>(_data->_domDim.y), .glbnz = static_cast<idx_t>(_data->_domDim.z),
                 .blkFlagBuf = nullptr, 
                 .glbRhoBuf = _data->_rhoBuf, 
                 .glbVxBuf = _data->_vxBuf, 
@@ -641,13 +679,13 @@ namespace gf::simulator::single_dev_expt
             }
         };
 
-        auto haloBlockingDynamicL2D3Q27InplaceRun = [dumpRes, this]()->void
+        auto haloBlockingDynamicL2InplaceRun = [dumpRes, this]()->void
         {
             HaloBlockingDynamicL2InplaceParam param
             {
                 .invTau = _data->_invTau, 
                 .offx = 0, .offy = 0, .offz = 0, 
-                .glbnx = _data->_domDim.x, .glbny = _data->_domDim.y, .glbnz = _data->_domDim.z, 
+                .glbnx = static_cast<idx_t>(_data->_domDim.x), .glbny = static_cast<idx_t>(_data->_domDim.y), .glbnz = static_cast<idx_t>(_data->_domDim.z), 
                 .blkFlagBuf = nullptr, 
                 .glbRhoBuf = _data->_rhoBuf, 
                 .glbVxBuf = _data->_vxBuf, 
@@ -749,12 +787,131 @@ namespace gf::simulator::single_dev_expt
             }
         };
 
+        auto haloBlockingStaticL2InplaceRun = [dumpRes, this]()->void
+        {
+            HaloBlockingStaticL2InplaceParam param
+            {
+                .invTau = _data->_invTau, 
+                .nloop = _data->_innerLoop, 
+                .offx = 0, .offy = 0, .offz = 0, 
+                .glbnx = static_cast<idx_t>(_data->_domDim.x), .glbny = static_cast<idx_t>(_data->_domDim.y), .glbnz = static_cast<idx_t>(_data->_domDim.z), 
+                .blkFlagBuf = nullptr, 
+                .glbRhoBuf = _data->_rhoBuf, 
+                .glbVxBuf = _data->_vxBuf, 
+                .glbVyBuf = _data->_vyBuf, 
+                .glbVzBuf = _data->_vzBuf, 
+                .glbSrcDDFBuf = _data->_srcDDFBuf, 
+                .glbDstDDFBuf = _data->_dstDDFBuf, 
+                .blkDDFBuf = _data->_l2DDFBuf0
+            };
+
+            const dim3 gridDim {_data->_gridDim.x, _data->_gridDim.y, _data->_gridDim.z};
+            const dim3 blockDim {_data->_blockDim.x, _data->_blockDim.y, _data->_blockDim.z};
+            void* kernelArgs[1] = { (void*)&param };
+
+            const auto blockingDim = _data->getBlockingDim();
+            const auto blockingNumDim = _data->getBlockingNumDim();
+            const std::uint32_t blockingNum = blockingNumDim.x * blockingNumDim.y * blockingNumDim.z;
+
+            while(_data->_step < _data->_nStep)
+            {
+                std::uint32_t locStep = 0;
+                CU_CHECK(cudaEventRecord(_data->_start, _data->_stream));
+                for( ; locStep<_data->_dStep ; locStep += _data->_innerLoop )
+                {
+                    for(std::uint32_t blkIdx=0 ; blkIdx<blockingNum ; ++blkIdx)
+                    {
+                        const idx_t blkIdxX = blkIdx % blockingNumDim.x;
+                        const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
+                        const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
+                        param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                        param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                        param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                        param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
+                        CU_CHECK(cudaLaunchCooperativeKernel((const void*)&HaloBlockingStaticL2D3Q27InplaceKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                    }
+                    std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
+                }
+                CU_CHECK(cudaEventRecord(_data->_end, _data->_stream));
+                CU_CHECK(cudaEventSynchronize(_data->_end));
+                float ms;
+                CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
+                const float mlups = static_cast<float>(_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) / (1024*1024) / (ms / 1000) * locStep;
+                std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
+                _data->_step += locStep;
+
+                for(std::uint32_t blkIdx=0 ; blkIdx<blockingNum ; ++blkIdx)
+                {
+                    const idx_t blkIdxX = blkIdx % blockingNumDim.x;
+                    const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
+                    const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
+                    param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                    param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                    param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                    param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
+                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingStaticL2D3Q27InplaceDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                }
+
+                CU_CHECK(cudaStreamSynchronize(_data->_stream));
+                dumpRes();
+            }
+        };
+
+        auto staticPullRun = [dumpRes, this]()->void
+        {
+            StaticPullParam param
+            {
+                .invTau = _data->_invTau, 
+                .glbFlagBuf = _data->_flagBuf, 
+                .glbRhoBuf  = _data->_rhoBuf, 
+                .glbVxBuf   = _data->_vxBuf, 
+                .glbVyBuf   = _data->_vyBuf, 
+                .glbVzBuf   = _data->_vzBuf, 
+                .glbSrcDDFBuf = _data->_srcDDFBuf, 
+                .glbDstDDFBuf = _data->_dstDDFBuf
+            };
+
+            const dim3 gridDim = {_data->_gridDim.x, _data->_gridDim.y, _data->_gridDim.z};
+            const dim3 blockDim = {_data->_blockDim.x, _data->_blockDim.y, _data->_blockDim.z};
+            const auto blockingDim = _data->getBlockingDim();
+
+            if(blockingDim.x!=_data->_domDim.x or blockingDim.y!=_data->_domDim.y or blockingDim.z!=_data->_domDim.z)
+            {
+                throw std::runtime_error(
+                    std::format("Dimension of domain doesn't match computation grid!")
+                );
+            }
+
+            void *kernelArgs[1] = { (void*)&param };
+
+            while(_data->_step < _data->_nStep)
+            {
+                CU_CHECK(cudaEventRecord(_data->_start, _data->_stream));
+                for(std::uint32_t locStep=0 ; locStep<_data->_dStep ; ++locStep)
+                {
+                    CU_CHECK(cudaLaunchKernel((const void*)&StaticD3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                    std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
+                }
+                CU_CHECK(cudaEventRecord(_data->_end, _data->_stream));
+                CU_CHECK(cudaEventSynchronize(_data->_end));
+                float ms;
+                CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
+                const float mlups = static_cast<float>(_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) / (1024*1024) / (ms / 1000) * _data->_dStep;
+                std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;;
+                _data->_step += _data->_dStep;
+
+                CU_CHECK(cudaLaunchKernel((const void*)&StaticD3Q27PullDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                CU_CHECK(cudaStreamSynchronize(_data->_stream));
+                dumpRes();
+            }
+        };
+
         if(
             _data->_streamPolicy==Data::StreamPolicy::PULL_STREAM and
             _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_L1L2
         )
         {
-            haloBlockingL1L2D3Q27PullRun();
+            haloBlockingL1L2PullRun();
         }
 
         if(
@@ -762,7 +919,7 @@ namespace gf::simulator::single_dev_expt
             _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_STATIC_L2
         )
         {
-            haloBlockingStaticL2D3Q27PullRun();
+            haloBlockingStaticL2PullRun();
         }
 
         if(
@@ -770,7 +927,23 @@ namespace gf::simulator::single_dev_expt
             _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_DYNAMIC_L2
         )
         {
-            haloBlockingDynamicL2D3Q27InplaceRun();
+            haloBlockingDynamicL2InplaceRun();
+        }
+
+        if(
+            _data->_streamPolicy==Data::StreamPolicy::INPLACE_STREAM and 
+            _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_STATIC_L2
+        )
+        {
+            haloBlockingStaticL2InplaceRun();
+        }
+
+        if(
+            _data->_streamPolicy==Data::StreamPolicy::PULL_STREAM and
+            _data->_optPolicy==Data::OptPolicy::NONE
+        )
+        {
+            staticPullRun();
         }
     }
 
