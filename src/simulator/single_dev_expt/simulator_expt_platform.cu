@@ -90,19 +90,26 @@ namespace gf::simulator::single_dev_expt
             void initFlag()
             {
                 CU_CHECK(cudaMalloc(&_flagBuf, sizeof(flag_t)*getDomainSize()));
-                if(std::ifstream f (_initStateFolder+"/flag.dat", std::ios::binary) ; f)
+                std::vector<flag_t> flag (getDomainSize(), 0);
+                if(_initStateFolder.empty())
                 {
-                    std::vector<flag_t> flag (getDomainSize(), 0);
-                    f.read((char*)flag.data(), flag.size()*sizeof(flag_t));
-                    CU_CHECK(cudaMemcpy((void*)_flagBuf, (const void*)flag.data(), flag.size()*sizeof(flag_t), cudaMemcpyHostToDevice));
-                    std::cout << std::format("Init flag successfully, from file: {}/flag.dat.", _initStateFolder) << std::endl;
+                    std::fill_n(flag.data(), flag.size(), LOAD_DDF_BIT | COLLIDE_BIT | STORE_DDF_BIT | DUMP_RHO_BIT | DUMP_VX_BIT | DUMP_VY_BIT | DUMP_VZ_BIT);
                 }
                 else
                 {
-                    throw std::runtime_error(
-                        std::format("File: {}/flag.dat doesn't exist!", _initStateFolder)
-                    );
+                    if(std::ifstream f (_initStateFolder+"/flag.dat", std::ios::binary) ; f)
+                    {
+                        f.read((char*)flag.data(), flag.size()*sizeof(flag_t));
+                        std::cout << std::format("Init flag successfully, from file: {}/flag.dat.", _initStateFolder) << std::endl;
+                    }
+                    else
+                    {
+                        throw std::runtime_error(
+                            std::format("File: {}/flag.dat doesn't exist!", _initStateFolder)
+                        );
+                    }
                 }
+                CU_CHECK(cudaMemcpy((void*)_flagBuf, (const void*)flag.data(), flag.size()*sizeof(flag_t), cudaMemcpyHostToDevice));
             }
 
             void initBlockingFlag()
@@ -112,70 +119,77 @@ namespace gf::simulator::single_dev_expt
                 const std::uint32_t blockingSize = blockingDim.x * blockingDim.y * blockingDim.z;
                 const std::uint32_t blockingNum = blockingNumDim.x * blockingNumDim.y * blockingNumDim.z;
                 CU_CHECK(cudaMalloc(&_flagBuf, sizeof(flag_t)*blockingNum * blockingSize));
-
-                if(std::ifstream f (_initStateFolder+"/flag.dat", std::ios::binary) ; f)
+                std::vector<flag_t> orgFlag(getDomainSize(), 0);
+                if(_initStateFolder.empty())
                 {
-                    std::vector<flag_t> orgFlag (getDomainSize(), 0);
-                    f.read((char*)orgFlag.data(), orgFlag.size()*sizeof(flag_t));
-                    std::vector<flag_t> blockingFlag (blockingNum * blockingSize, 0);
-                    std::int32_t istIdx = 0;
-                    for(std::int32_t blkIdxZ=0 ; blkIdxZ<blockingNumDim.z ; ++blkIdxZ)
-                    {
-                        const std::int32_t blkZStBegin = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxZ  , blockingDim.z, blockingNumDim.z, _innerLoop, _domDim.z);
-                        const std::int32_t blkZStEnd   = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxZ+1, blockingDim.z, blockingNumDim.z, _innerLoop, _domDim.z);
-                        const std::int32_t blkZLdBegin  = std::max<std::int32_t>(blkZStBegin-(_innerLoop-1), 0);
-                        const std::int32_t blkZLdEnd    = std::min<std::int32_t>(blkZStEnd+(_innerLoop-1), _domDim.z);
-                        for(std::int32_t blkIdxY=0 ; blkIdxY<blockingNumDim.y ; ++blkIdxY)
-                        {
-                            const std::int32_t blkYStBegin = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxY  , blockingDim.y, blockingNumDim.y, _innerLoop, _domDim.y);
-                            const std::int32_t blkYStEnd   = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxY+1, blockingDim.y, blockingNumDim.y, _innerLoop, _domDim.y);
-                            const std::int32_t blkYLdBegin  = std::max<std::int32_t>(blkYStBegin-(_innerLoop-1), 0);
-                            const std::int32_t blkYLdEnd    = std::min<std::int32_t>(blkYStEnd+(_innerLoop-1), _domDim.y);
-                            for(std::int32_t blkIdxX=0 ; blkIdxX<blockingNumDim.x ; ++blkIdxX)
-                            {
-                                const std::int32_t blkXStBegin = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxX  , blockingDim.x, blockingNumDim.x, _innerLoop, _domDim.x);
-                                const std::int32_t blkXStEnd   = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxX+1, blockingDim.x, blockingNumDim.x, _innerLoop, _domDim.x);
-                                const std::int32_t blkXLdBegin  = std::max<std::int32_t>(blkXStBegin-(_innerLoop-1), 0);
-                                const std::int32_t blkXLdEnd    = std::min<std::int32_t>(blkXStEnd+(_innerLoop-1), _domDim.x);
-
-                                for(std::int32_t blkOffZ=0, glbOffZ=blkZLdBegin ; glbOffZ<blkZLdEnd ; ++blkOffZ, ++glbOffZ)
-                                {
-                                    for(std::int32_t blkOffY=0, glbOffY=blkYLdBegin ; glbOffY<blkYLdEnd ; ++blkOffY, ++glbOffY)
-                                    {
-                                        for(std::int32_t blkOffX=0, glbOffX=blkXLdBegin ; glbOffX<blkXLdEnd ; ++blkOffX, ++glbOffX)
-                                        {
-                                            const std::int32_t glbOff = glbOffX + _domDim.x * (glbOffY + _domDim.y * glbOffZ);
-                                            const std::int32_t blkOff = blkOffX + blockingDim.x * (blkOffY + blockingDim.y * blkOffZ);
-                                            if(
-                                                blkZStBegin<=glbOffZ and glbOffZ<blkZStEnd and
-                                                blkYStBegin<=glbOffY and glbOffY<blkYStEnd and 
-                                                blkXStBegin<=glbOffX and glbOffX<blkXStEnd
-                                            )
-                                            {
-                                                blockingFlag[istIdx+blkOff] = orgFlag[glbOff] | CORRECT_BIT;
-                                            }
-                                            else
-                                            {
-                                                blockingFlag[istIdx+blkOff] = orgFlag[glbOff];
-                                            }
-                                        }
-                                    }
-                                }
-
-                                istIdx += blockingSize;
-                            }
-                        }
-                    }
-
-                    CU_CHECK(cudaMemcpy(_flagBuf, blockingFlag.data(), sizeof(flag_t)*blockingNum*blockingSize, cudaMemcpyHostToDevice));
-                    std::cout << std::format("Init flag successfully, from file: {}/flag.dat.", _initStateFolder) << std::endl;
+                    std::fill_n(orgFlag.data(), orgFlag.size(), LOAD_DDF_BIT | COLLIDE_BIT | STORE_DDF_BIT | DUMP_RHO_BIT | DUMP_VX_BIT | DUMP_VY_BIT | DUMP_VZ_BIT);
                 }
                 else
                 {
-                    throw std::runtime_error(
-                        std::format("File: {}/flag.dat doesn't exist!", _initStateFolder)
-                    );
+                    if(std::ifstream f (_initStateFolder+"/flag.dat", std::ios::binary) ; f)
+                    {
+                       f.read((char*)orgFlag.data(), orgFlag.size()*sizeof(flag_t)); 
+                    }
+                    else
+                    {
+                        throw std::runtime_error(
+                            std::format("File: {}/flag.dat doesn't exist!", _initStateFolder)
+                        );
+                    }
                 }
+
+                std::vector<flag_t> blockingFlag (blockingNum * blockingSize, 0);
+                std::int32_t istIdx = 0;
+                for(std::int32_t blkIdxZ=0 ; blkIdxZ<blockingNumDim.z ; ++blkIdxZ)
+                {
+                    const std::int32_t blkZStBegin = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxZ  , blockingDim.z, blockingNumDim.z, _innerLoop, _domDim.z);
+                    const std::int32_t blkZStEnd   = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxZ+1, blockingDim.z, blockingNumDim.z, _innerLoop, _domDim.z);
+                    const std::int32_t blkZLdBegin  = std::max<std::int32_t>(blkZStBegin-(_innerLoop-1), 0);
+                    const std::int32_t blkZLdEnd    = std::min<std::int32_t>(blkZStEnd+(_innerLoop-1), _domDim.z);
+                    for(std::int32_t blkIdxY=0 ; blkIdxY<blockingNumDim.y ; ++blkIdxY)
+                    {
+                        const std::int32_t blkYStBegin = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxY  , blockingDim.y, blockingNumDim.y, _innerLoop, _domDim.y);
+                        const std::int32_t blkYStEnd   = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxY+1, blockingDim.y, blockingNumDim.y, _innerLoop, _domDim.y);
+                        const std::int32_t blkYLdBegin  = std::max<std::int32_t>(blkYStBegin-(_innerLoop-1), 0);
+                        const std::int32_t blkYLdEnd    = std::min<std::int32_t>(blkYStEnd+(_innerLoop-1), _domDim.y);
+                        for(std::int32_t blkIdxX=0 ; blkIdxX<blockingNumDim.x ; ++blkIdxX)
+                        {
+                            const std::int32_t blkXStBegin = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxX  , blockingDim.x, blockingNumDim.x, _innerLoop, _domDim.x);
+                            const std::int32_t blkXStEnd   = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxX+1, blockingDim.x, blockingNumDim.x, _innerLoop, _domDim.x);
+                            const std::int32_t blkXLdBegin  = std::max<std::int32_t>(blkXStBegin-(_innerLoop-1), 0);
+                            const std::int32_t blkXLdEnd    = std::min<std::int32_t>(blkXStEnd+(_innerLoop-1), _domDim.x);
+
+                            for(std::int32_t blkOffZ=0, glbOffZ=blkZLdBegin ; glbOffZ<blkZLdEnd ; ++blkOffZ, ++glbOffZ)
+                            {
+                                for(std::int32_t blkOffY=0, glbOffY=blkYLdBegin ; glbOffY<blkYLdEnd ; ++blkOffY, ++glbOffY)
+                                {
+                                    for(std::int32_t blkOffX=0, glbOffX=blkXLdBegin ; glbOffX<blkXLdEnd ; ++blkOffX, ++glbOffX)
+                                    {
+                                        const std::int32_t glbOff = glbOffX + _domDim.x * (glbOffY + _domDim.y * glbOffZ);
+                                        const std::int32_t blkOff = blkOffX + blockingDim.x * (blkOffY + blockingDim.y * blkOffZ);
+                                        if(
+                                            blkZStBegin<=glbOffZ and glbOffZ<blkZStEnd and
+                                            blkYStBegin<=glbOffY and glbOffY<blkYStEnd and 
+                                            blkXStBegin<=glbOffX and glbOffX<blkXStEnd
+                                        )
+                                        {
+                                            blockingFlag[istIdx+blkOff] = orgFlag[glbOff] | CORRECT_BIT;
+                                        }
+                                        else
+                                        {
+                                            blockingFlag[istIdx+blkOff] = orgFlag[glbOff];
+                                        }
+                                    }
+                                }
+                            }
+
+                            istIdx += blockingSize;
+                        }
+                    }
+                }
+
+                CU_CHECK(cudaMemcpy(_flagBuf, blockingFlag.data(), sizeof(flag_t)*blockingNum*blockingSize, cudaMemcpyHostToDevice));
+                std::cout << std::format("Init flag successfully, from file: {}/flag.dat.", _initStateFolder) << std::endl;
             }
 
             void initRhoU()
@@ -232,6 +246,16 @@ namespace gf::simulator::single_dev_expt
 
             void mapGlobalMem2PersistL2(void* basePtr, std::size_t numBytes)
             {
+                cudaDeviceProp prop;
+                cudaGetDeviceProperties(&prop, 0);
+                if (numBytes > prop.persistingL2CacheMaxSize) {
+                    std::cout << std::format(
+                        "Warning: Requested persisting L2 cache size {} exceeds the maximum allowed size {}. Capping to maximum.",
+                        numBytes, prop.persistingL2CacheMaxSize
+                    ) << std::endl;
+                    numBytes = prop.persistingL2CacheMaxSize;
+                }
+
                 CU_CHECK(cudaDeviceSetLimit(cudaLimit::cudaLimitPersistingL2CacheSize, numBytes));
                 cudaStreamAttrValue streamAttr;
                 streamAttr.accessPolicyWindow.base_ptr = basePtr;
@@ -277,8 +301,7 @@ namespace gf::simulator::single_dev_expt
                 app.add_option("--velSet", _velSet, "The velocity set of the solver.")
                     ->default_val(VelSet::D3Q27);
                 
-                app.add_option("--initStateFolder", _initStateFolder, "The folder contains initial state of the simulation.")
-                    ->default_val("data/left_inlet_right_outlet_256_256_256_init_state");
+                app.add_option("--initStateFolder", _initStateFolder, "The folder contains initial state of the simulation.");
 
                 app.add_option("--dumpFolder", _dumpFolder, "The folder contains final output.")
                     ->default_val("data/left_inlet_right_outlet_256_256_256_output");
@@ -445,7 +468,8 @@ namespace gf::simulator::single_dev_expt
              */
             gf::basic::Vec3<std::uint32_t> getBlockingNumDim() const
             {
-                using namespace gf::blocking_core;                const auto blockingDim = getBlockingDim();
+                using namespace gf::blocking_core;
+                const auto blockingDim = getBlockingDim();
                 const bool valid = 
                     validBlkAxisConfig<std::uint32_t>(_domDim.x, blockingDim.x, _innerLoop) and
                     validBlkAxisConfig<std::uint32_t>(_domDim.y, blockingDim.y, _innerLoop) and
