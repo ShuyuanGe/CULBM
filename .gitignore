@@ -1,6 +1,6 @@
 .vscode
 build
 test
-data
+*.dat
 *.png
 *.pkl
