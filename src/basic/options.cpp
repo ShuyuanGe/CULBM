@@ -16,7 +16,7 @@ namespace gf::basic
         using namespace block_based_config;
         auto pInstance = getInstance();
 
-        CLI::App app {"GSY Fluid Solver"};
+        CLI::App app { "CULBM Fluid Solver" };
 
         std::set<std::string> allowKernelType = {"Static", "Dynamic"};
         std::string kernelType;
