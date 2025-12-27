@@ -627,7 +627,7 @@ namespace gf::simulator::single_dev_expt
                 CU_CHECK(cudaEventSynchronize(_data->_end));
                 float ms;
                 CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
-                const float mlups = static_cast<float>(_data->_domDim.x*_data->_domDim.y*_data->_domDim.z) / (1024*1024) / (ms / 1000) * locStep;
+                const float mlups = (_data->_domDim.x*_data->_domDim.y*_data->_domDim.z) * 1e-6f / (ms / 1000) * locStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += locStep;
 
@@ -697,7 +697,7 @@ namespace gf::simulator::single_dev_expt
                 CU_CHECK(cudaEventSynchronize(_data->_end));
                 float ms;
                 CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
-                const float mlups = static_cast<float>(_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) / (1024*1024) / (ms / 1000) * locStep;
+                const float mlups = (_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) * 1e-6f / (ms / 1000) * locStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += locStep;
 
@@ -805,7 +805,7 @@ namespace gf::simulator::single_dev_expt
                 CU_CHECK(cudaEventSynchronize(_data->_end));
                 float ms;
                 CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
-                const float mlups = static_cast<float>(_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) / (1024*1024) / (ms / 1000) * locStep;
+                const float mlups = (_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) * 1e-6f / (ms / 1000) * locStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += locStep;
 
@@ -875,7 +875,7 @@ namespace gf::simulator::single_dev_expt
                 CU_CHECK(cudaEventSynchronize(_data->_end));
                 float ms;
                 CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
-                const float mlups = static_cast<float>(_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) / (1024*1024) / (ms / 1000) * locStep;
+                const float mlups = (_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) * 1e-6f / (ms / 1000) * locStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += locStep;
 
@@ -935,7 +935,7 @@ namespace gf::simulator::single_dev_expt
                 CU_CHECK(cudaEventSynchronize(_data->_end));
                 float ms;
                 CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
-                const float mlups = static_cast<float>(_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) / (1024*1024) / (ms / 1000) * _data->_dStep;
+                const float mlups = (_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) * 1e-6f / (ms / 1000) * _data->_dStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;;
                 _data->_step += _data->_dStep;
 

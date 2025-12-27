@@ -265,7 +265,7 @@ namespace gf::simulator::multi_dev
             float ms;
             CU_CHECK(cudaEventSynchronize(singleDevData.end));
             CU_CHECK(cudaEventElapsedTime(&ms, singleDevData.start, singleDevData.end));
-            const float mlups = (static_cast<float>(_data->getDomainSize())/(1024*1024)) / (ms/1000) * (stepBnd - _data->_step);
+            const float mlups = ((_data->getDomainSize())*1e-6f) / (ms/1000) * (stepBnd - _data->_step);
             LOG_INFO(logger, std::format("speed: {:.4f} (MLUPS)", mlups));
         };
 

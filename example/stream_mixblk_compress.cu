@@ -81,7 +81,7 @@ int main()
         CU_CHECK(cudaEventSynchronize(end));
         float ms;
         CU_CHECK(cudaEventElapsedTime(&ms, start, end));
-        const float mlups = (static_cast<float>(gridDim.x*gridDim.y*gridDim.z*blockDim.x*blockDim.y*blockDim.z) / (1024*1024)) / (ms / 1000);
+        const float mlups = ((gridDim.x*gridDim.y*gridDim.z*blockDim.x*blockDim.y*blockDim.z) * 1e-6f) / (ms / 1000);
         printf("speed = %.4f (MLUPS)\n", mlups);
 
         CU_CHECK(cudaEventDestroy(end));
