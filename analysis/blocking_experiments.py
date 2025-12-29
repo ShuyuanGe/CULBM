@@ -14,7 +14,7 @@ print(f"Working directory: {work_dir}")
 
 BINARY = work_dir / "build/src/single_dev_expt_main"    
 BLOCK_DIM = (32, 16, 2)
-GRID_DIM = (2, 6, 38)
+GRID_DIM = (8, 16, 114)
 STREAM_POLICY = 1
 OPT_POLICY = 3
 INNER_LOOPS = range(1, 16)
@@ -32,7 +32,7 @@ BLOCK_COUNTS = [
 ]
 print(f"Total block count configurations: {len(BLOCK_COUNTS)}")
 
-OUTPUT = Path(__file__).with_name(f"batch_experiment_results_s{STREAM_POLICY}o{OPT_POLICY}.pkl")
+OUTPUT = Path(__file__).with_name(f"blocking_experiment_results_s{STREAM_POLICY}o{OPT_POLICY}.pkl")
 
 
 TB_BLOCK_SHAPE = mul3(BLOCK_DIM, GRID_DIM)
