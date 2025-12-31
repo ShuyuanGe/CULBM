@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 #include "local_config.hpp"
 
-namespace gf::simulator::single_dev_expt
+namespace culbm::simulator::single_dev_expt
 {
     struct HaloBlockingL1L2Param
     {

@@ -4,7 +4,7 @@
 #include <iostream>
 #include <source_location>
 
-namespace gf::basic
+namespace culbm::basic
 {
     class Logger
     {

@@ -6,7 +6,7 @@
 
 namespace cg = cooperative_groups;
 
-namespace gf::simulator::single_dev::mix_block
+namespace culbm::simulator::single_dev::mix_block
 {
 
     constexpr std::uint32_t BLK_X_FRONT_BIT = 1 << 0;
@@ -41,7 +41,7 @@ namespace gf::simulator::single_dev::mix_block
     template<std::int32_t NDIR>
     struct StreamCore3D
     {
-        using VelSet = gf::basic::detail::VelSet3D<NDIR>;
+        using VelSet = culbm::basic::detail::VelSet3D<NDIR>;
 
         static __device__ __forceinline__ void stream(real_t* fn, real_t* blkDDFBuf, real_t* swapDDFBuf)
         {

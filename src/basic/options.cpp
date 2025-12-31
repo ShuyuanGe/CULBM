@@ -3,7 +3,7 @@
 #include "options.hpp"
 
 
-namespace gf::basic
+namespace culbm::basic
 {
     std::shared_ptr<Options> Options::getInstance()
     {
@@ -16,7 +16,7 @@ namespace gf::basic
         using namespace block_based_config;
         auto pInstance = getInstance();
 
-        CLI::App app { "CULBM Fluid Solver" };
+        CLI::App app { "cuda LBM Fluid Simulator" };
 
         std::set<std::string> allowKernelType = {"Static", "Dynamic"};
         std::string kernelType;

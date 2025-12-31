@@ -6,7 +6,7 @@
 
 namespace cg = cooperative_groups;
 
-namespace gf::core::L1L2StreamCore
+namespace culbm::core::L1L2StreamCore
 {
     constexpr std::uint32_t BLK_X_FRONT_BIT = 1 << 0;
     constexpr std::uint32_t BLK_X_BACK_BIT  = 1 << 1;
@@ -40,7 +40,7 @@ namespace gf::core::L1L2StreamCore
     template<std::int32_t NDIR>
     struct StreamCore3D
     {
-        using VelSet = gf::basic::detail::VelSet3D<NDIR>;
+        using VelSet = culbm::basic::detail::VelSet3D<NDIR>;
 
         static __device__ __forceinline__ void stream(real_t* fn, real_t* blkDDFBuf, real_t* swapDDFBuf)
         {

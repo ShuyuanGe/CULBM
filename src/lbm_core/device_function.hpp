@@ -6,16 +6,16 @@
 #include "literal.hpp"
 #include "velocity_set.hpp"
 
-namespace gf::lbm_core
+namespace culbm::lbm_core
 {
     namespace detail
     {
         template<
             u32 NDIR, 
             u32 DIR,
-            i32 DX = gf::basic::detail::VelSet3D<NDIR>::template getDx<DIR>(), 
-            i32 DY = gf::basic::detail::VelSet3D<NDIR>::template getDy<DIR>(), 
-            i32 DZ = gf::basic::detail::VelSet3D<NDIR>::template getDz<DIR>()
+            i32 DX = culbm::basic::detail::VelSet3D<NDIR>::template getDx<DIR>(), 
+            i32 DY = culbm::basic::detail::VelSet3D<NDIR>::template getDy<DIR>(), 
+            i32 DZ = culbm::basic::detail::VelSet3D<NDIR>::template getDz<DIR>()
         >
         constexpr i64 calcDirOff(i32 n, i32 ndx, i32 pdx, i32 ndy, i32 pdy, i32 ndz, i32 pdz, i32 nCell)
         {
@@ -165,7 +165,7 @@ namespace gf::lbm_core
             HOST_DEV_CONSTEXPR void calcEqu<15>(real_t rho, real_t vx, real_t vy, real_t vz, real_t* f)
             {
                 using std::fma;
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 constexpr real_t W0 = 2._r / 9._r;  //center
                 constexpr real_t WS = 1._r / 9._r;  //straight
@@ -230,7 +230,7 @@ namespace gf::lbm_core
             HOST_DEV_CONSTEXPR void calcEqu<19>(real_t rho, real_t vx, real_t vy, real_t vz, real_t* f)
             {
                 using std::fma;
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 constexpr real_t W0 = 1._r / 3._r;  //center
                 constexpr real_t WS = 1._r / 18._r; //straight
@@ -305,7 +305,7 @@ namespace gf::lbm_core
             HOST_DEV_CONSTEXPR void calcEqu<27>(real_t rho, real_t vx, real_t vy, real_t vz, real_t* f)
             {
                 using std::fma;
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 constexpr real_t W0 = 8._r / 27._r; //center
                 constexpr real_t WS = 2._r / 27._r; //straight
@@ -400,7 +400,7 @@ namespace gf::lbm_core
             template<>
             HOST_DEV_CONSTEXPR void calcRhoU<15>(real_t& rho, real_t& vx, real_t& vy, real_t& vz, const real_t* f)
             {
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 rho = (1._r + f[ 0]) + (f[ 1] + f[ 2]) + (f[ 3] + f[ 4]) + (f[ 5] + f[ 6]) +
                      (f[ 7] + f[ 8]) + (f[ 9] + f[10]) + (f[11] + f[12]) + (f[13] + f[14]);
@@ -419,7 +419,7 @@ namespace gf::lbm_core
             template<>
             HOST_DEV_CONSTEXPR void calcRhoU<19>(real_t& rho, real_t& vx, real_t& vy, real_t& vz, const real_t* f)
             {
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 rho = (1._r + f[ 0]) + (f[ 1] + f[ 2]) + (f[ 3] + f[ 4]) + (f[ 5] + f[ 6]) + (f[ 7] + f[ 8]) + 
                      (f[ 9] + f[10]) + (f[11] + f[12]) + (f[13] + f[14]) + (f[15] + f[16]) + (f[17] + f[18]);
@@ -438,7 +438,7 @@ namespace gf::lbm_core
             template<>
             HOST_DEV_CONSTEXPR void calcRhoU<27>(real_t& rho, real_t& vx, real_t& vy, real_t& vz, const real_t* f)
             {
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 rho = (1._r + f[ 0]) + (f[ 1] + f[ 2]) + (f[ 3] + f[ 4]) + (f[ 5] + f[ 6]) + (f[ 7] + f[ 8]) + (f[ 9] + f[10]) + (f[11] + f[12]) +
                      (f[13] + f[14]) + (f[15] + f[16]) + (f[17] + f[18]) + (f[19] + f[20]) + (f[21] + f[22]) + (f[23] + f[24]) + (f[25] + f[26]);
@@ -466,7 +466,7 @@ namespace gf::lbm_core
             HOST_DEV_CONSTEXPR void collision<15>(real_t invTau, real_t& rho, real_t& vx, real_t& vy, real_t& vz, real_t* f)
             {
                 using std::fma;
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 real_t vx_, vy_, vz_;
                 calcRhoU<15>(rho, vx_, vy_, vz_, f);
@@ -525,7 +525,7 @@ namespace gf::lbm_core
             HOST_DEV_CONSTEXPR void collision<19>(real_t invTau, real_t& rho, real_t& vx, real_t& vy, real_t& vz, real_t* f)
             {
                 using std::fma;
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 real_t vx_, vy_, vz_;
                 calcRhoU<19>(rho, vx_, vy_, vz_, f);
@@ -592,7 +592,7 @@ namespace gf::lbm_core
             HOST_DEV_CONSTEXPR void collision<27>(real_t invTau, real_t& rho, real_t& vx, real_t& vy, real_t& vz, real_t* f)
             {
                 using std::fma;
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 real_t vx_, vy_, vz_;
                 calcRhoU<27>(rho, vx_, vy_, vz_, f);
@@ -676,7 +676,7 @@ namespace gf::lbm_core
             HOST_DEV_CONSTEXPR void collision2<27>(real_t invTau, real_t* f)
             {
                 using std::fma;
-                using namespace gf::literal;
+                using namespace culbm::literal;
 
                 real_t rho_, vx_, vy_, vz_;
                 calcRhoU<27>(rho_, vx_, vy_, vz_, f);

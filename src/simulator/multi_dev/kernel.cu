@@ -175,7 +175,7 @@ namespace detail
         const std::array<ddf_t*, 27>& srcDDFBuf
     )
     {
-        using VelSet = gf::basic::detail::VelSet3D<27>;
+        using VelSet = culbm::basic::detail::VelSet3D<27>;
         constexpr int centDir = VelSet::getCentIdx();
 
         //load f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
@@ -245,7 +245,7 @@ namespace detail
         const std::array<ddf_t*, 27>& srcDDFBuf 
     )
     {
-        using VelSet = gf::basic::detail::VelSet3D<27>;
+        using VelSet = culbm::basic::detail::VelSet3D<27>;
         constexpr int centDir = VelSet::getCentIdx();
 
         //load f0 (x:-,y:-,z:-) from neighbor (x:-,y:-,z:-)
@@ -307,7 +307,7 @@ namespace detail
     }
 }
 
-namespace gf::simulator::multi_dev
+namespace culbm::simulator::multi_dev
 {
     __global__ __launch_bounds__(1024) void
     D3Q27BGKKernel(const KernelParam<27> __grid_constant__ param)
@@ -339,7 +339,7 @@ namespace gf::simulator::multi_dev
             {
                 detail::innerDeviceLoadDDF<27>(
                     idx, n, pdx, pdy, pdz, ndx, ndy, ndz, std::begin(fin), 
-                    param.srcDDFBuf[gf::basic::detail::VelSet3D<27>::getCentIdx()]
+                    param.srcDDFBuf[culbm::basic::detail::VelSet3D<27>::getCentIdx()]
                 );
             }
 
@@ -347,7 +347,7 @@ namespace gf::simulator::multi_dev
             {
                 detail::innerDeviceRevLoadDDF<27>(
                     idx, n, pdx, pdy, pdz, ndx, ndy, ndz, std::begin(fin),
-                    param.srcDDFBuf[gf::basic::detail::VelSet3D<27>::getCentIdx()]
+                    param.srcDDFBuf[culbm::basic::detail::VelSet3D<27>::getCentIdx()]
                 );
             }
 
@@ -388,23 +388,34 @@ namespace gf::simulator::multi_dev
             vxn  = param.vxBuf[idx];
             vyn  = param.vyBuf[idx];
             vzn  = param.vzBuf[idx];
-            gf::lbm_core::bgk::calcEqu<27>(rhon, vxn, vyn, vzn, std::begin(fin));
+            culbm::lbm_core::bgk::calcEqu<27>(rhon, vxn, vyn, vzn, std::begin(fin));
         }
 
         if((flagn&COLLIDE_BIT)==COLLIDE_BIT)
         {
-            gf::lbm_core::bgk::collision<27>(param.invTau, rhon, vxn, vyn, vzn, std::begin(fin));
+            culbm::lbm_core::bgk::collision<27>(param.invTau, rhon, vxn, vyn, vzn, std::begin(fin));
         }
 
         if((flagn&STORE_DDF_BIT)==STORE_DDF_BIT)
         {
-            gf::lbm_core::store<27>(false, idx, n, std::begin(fin), param.dstDDFBuf);
+            culbm::lbm_core::store<27>(false, idx, n, std::begin(fin), param.dstDDFBuf);
             param.rhoBuf[idx] = rhon;
             param.vxBuf[idx]  = vxn;
             param.vyBuf[idx]  = vyn;
             param.vzBuf[idx]  = vzn;
         }
     }
+
+    constexpr auto spherical_obstacle_params = []{
+        struct SphericalObstacleParams {
+            bool enabled = true;
+            int cx = 256;
+            int cy = 256;
+            int cz = 128;
+            int r = 80;
+        } params;
+        return params;
+    }();
 
     __global__ __launch_bounds__(1024) void
     D3Q27BGKInitKernel(const InitKernelParam<27> __grid_constant__ param)
@@ -424,6 +435,25 @@ namespace gf::simulator::multi_dev
         real_t vyn = 0;
         real_t vzn = 0;
         ddf_t fin[27];
+
+        // spherical obstacle
+        if constexpr (spherical_obstacle_params.enabled) {
+            constexpr int cx = spherical_obstacle_params.cx;
+            constexpr int cy = spherical_obstacle_params.cy;
+            constexpr int cz = spherical_obstacle_params.cz;
+            constexpr int r = spherical_obstacle_params.r;
+            constexpr int r2 = r * r;
+            const int gx = param.devIdx.x * nx + x;
+            const int gy = param.devIdx.y * ny + y;
+            const int gz = param.devIdx.z * nz + z;
+
+            if ((gx - cx) * (gx - cx) + (gy - cy) * (gy - cy) + (gz - cz) * (gz - cz) < r2) {
+                flagn = BOUNCE_BACK_FLAG;
+                vxn = 0;
+                vyn = 0;
+                vzn = 0;
+            }
+        }
 
         if(
             (param.devIdx.y==0 and y==0) or                     //front face
@@ -449,7 +479,7 @@ namespace gf::simulator::multi_dev
             flagn |= DEV_BND_BIT;                               //device boundary
         }
 
-        gf::lbm_core::bgk::calcEqu<27>(rhon, vxn, vyn, vzn, std::begin(fin));
+        culbm::lbm_core::bgk::calcEqu<27>(rhon, vxn, vyn, vzn, std::begin(fin));
 
         param.flagBuf[idx] = flagn;
         param.rhoBuf[idx] = rhon;

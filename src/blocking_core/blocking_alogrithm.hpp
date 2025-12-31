@@ -2,7 +2,7 @@
 
 #include "math.hpp"
 
-namespace gf::blocking_core
+namespace culbm::blocking_core
 {
     template<std::integral T>
     constexpr bool validBlkAxisConfig(T domLen, T blkLen, T blkIter)
@@ -23,7 +23,7 @@ namespace gf::blocking_core
         {
             return 2;
         }
-        return 2+gf::basic::divCeil<T>(domLen-2*(blkLen+1-blkIter), blkLen+2-2*blkIter);
+        return 2+culbm::basic::divCeil<T>(domLen-2*(blkLen+1-blkIter), blkLen+2-2*blkIter);
     }
 
     template<std::integral T>

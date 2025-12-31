@@ -23,9 +23,9 @@ __global__ void StreamNNNKernel(const StreamNNNKernelParam __grid_constant__ par
 
 template<
     u32 DIR, 
-    std::int32_t DX = gf::basic::VelSet3D::template getDx<DIR>(),
-    std::int32_t DY = gf::basic::VelSet3D::template getDy<DIR>(), 
-    std::int32_t DZ = gf::basic::VelSet3D::template getDz<DIR>()
+    std::int32_t DX = culbm::basic::VelSet3D::template getDx<DIR>(),
+    std::int32_t DY = culbm::basic::VelSet3D::template getDy<DIR>(), 
+    std::int32_t DZ = culbm::basic::VelSet3D::template getDz<DIR>()
 >
 __device__ __forceinline__ void check(
     ddf_t fn, 
@@ -113,7 +113,7 @@ StreamNNNKernel(const StreamNNNKernelParam __grid_constant__ param)
     std::fill_n(std::begin(fn), 27, std::bit_cast<ddf_t>(glbidx));
 
 
-    gf::simulator::single_dev::mix_block::StreamCore3D<27>::stream(std::begin(fn), blkDDFBuf, param.swapBuf);
+    culbm::simulator::single_dev::mix_block::StreamCore3D<27>::stream(std::begin(fn), blkDDFBuf, param.swapBuf);
 
 
     check< 0>(fn[ 0], glbx, glby, glbz, glbnx, glbny, glbnz);

@@ -14,7 +14,7 @@
 #include "blocking_alogrithm.hpp"
 #include "simulator_expt_platform.hpp"
 
-namespace gf::simulator::single_dev_expt
+namespace culbm::simulator::single_dev_expt
 {
     class Simulator::Data
     {
@@ -26,9 +26,9 @@ namespace gf::simulator::single_dev_expt
             std::uint32_t _dStep = 0;
             std::uint32_t _nStep = 0;
             real_t _invTau = 0;
-            gf::basic::Vec3<std::uint32_t> _blockDim;
-            gf::basic::Vec3<std::uint32_t> _gridDim;
-            gf::basic::Vec3<std::uint32_t> _domDim;
+            culbm::basic::Vec3<std::uint32_t> _blockDim;
+            culbm::basic::Vec3<std::uint32_t> _gridDim;
+            culbm::basic::Vec3<std::uint32_t> _domDim;
 
             enum struct StreamPolicy
             {
@@ -142,20 +142,20 @@ namespace gf::simulator::single_dev_expt
                 std::int32_t istIdx = 0;
                 for(std::int32_t blkIdxZ=0 ; blkIdxZ<blockingNumDim.z ; ++blkIdxZ)
                 {
-                    const std::int32_t blkZStBegin = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxZ  , blockingDim.z, blockingNumDim.z, _innerLoop, _domDim.z);
-                    const std::int32_t blkZStEnd   = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxZ+1, blockingDim.z, blockingNumDim.z, _innerLoop, _domDim.z);
+                    const std::int32_t blkZStBegin = culbm::blocking_core::calcValidPrev<std::int32_t>(blkIdxZ  , blockingDim.z, blockingNumDim.z, _innerLoop, _domDim.z);
+                    const std::int32_t blkZStEnd   = culbm::blocking_core::calcValidPrev<std::int32_t>(blkIdxZ+1, blockingDim.z, blockingNumDim.z, _innerLoop, _domDim.z);
                     const std::int32_t blkZLdBegin  = std::max<std::int32_t>(blkZStBegin-(_innerLoop-1), 0);
                     const std::int32_t blkZLdEnd    = std::min<std::int32_t>(blkZStEnd+(_innerLoop-1), _domDim.z);
                     for(std::int32_t blkIdxY=0 ; blkIdxY<blockingNumDim.y ; ++blkIdxY)
                     {
-                        const std::int32_t blkYStBegin = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxY  , blockingDim.y, blockingNumDim.y, _innerLoop, _domDim.y);
-                        const std::int32_t blkYStEnd   = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxY+1, blockingDim.y, blockingNumDim.y, _innerLoop, _domDim.y);
+                        const std::int32_t blkYStBegin = culbm::blocking_core::calcValidPrev<std::int32_t>(blkIdxY  , blockingDim.y, blockingNumDim.y, _innerLoop, _domDim.y);
+                        const std::int32_t blkYStEnd   = culbm::blocking_core::calcValidPrev<std::int32_t>(blkIdxY+1, blockingDim.y, blockingNumDim.y, _innerLoop, _domDim.y);
                         const std::int32_t blkYLdBegin  = std::max<std::int32_t>(blkYStBegin-(_innerLoop-1), 0);
                         const std::int32_t blkYLdEnd    = std::min<std::int32_t>(blkYStEnd+(_innerLoop-1), _domDim.y);
                         for(std::int32_t blkIdxX=0 ; blkIdxX<blockingNumDim.x ; ++blkIdxX)
                         {
-                            const std::int32_t blkXStBegin = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxX  , blockingDim.x, blockingNumDim.x, _innerLoop, _domDim.x);
-                            const std::int32_t blkXStEnd   = gf::blocking_core::calcValidPrev<std::int32_t>(blkIdxX+1, blockingDim.x, blockingNumDim.x, _innerLoop, _domDim.x);
+                            const std::int32_t blkXStBegin = culbm::blocking_core::calcValidPrev<std::int32_t>(blkIdxX  , blockingDim.x, blockingNumDim.x, _innerLoop, _domDim.x);
+                            const std::int32_t blkXStEnd   = culbm::blocking_core::calcValidPrev<std::int32_t>(blkIdxX+1, blockingDim.x, blockingNumDim.x, _innerLoop, _domDim.x);
                             const std::int32_t blkXLdBegin  = std::max<std::int32_t>(blkXStBegin-(_innerLoop-1), 0);
                             const std::int32_t blkXLdEnd    = std::min<std::int32_t>(blkXStEnd+(_innerLoop-1), _domDim.x);
 
@@ -232,7 +232,7 @@ namespace gf::simulator::single_dev_expt
                         CU_CHECK(cudaMalloc(&_srcDDFBuf, 27*sizeof(ddf_t)*domSize));
                         CU_CHECK(cudaMalloc(&_dstDDFBuf, 27*sizeof(ddf_t)*domSize));
                         ddf_t feq[27];
-                        gf::lbm_core::bgk::calcEqu<27>(1,0,0,0, std::begin(feq));
+                        culbm::lbm_core::bgk::calcEqu<27>(1,0,0,0, std::begin(feq));
                         for(std::int32_t dir=0 ; dir<27 ; ++dir)
                         {
                             thrust::fill_n(thrust::device_pointer_cast(_srcDDFBuf+dir*domSize), domSize, feq[dir]);
@@ -452,7 +452,7 @@ namespace gf::simulator::single_dev_expt
                 return _domDim.x * _domDim.y * _domDim.z;
             }
 
-            gf::basic::Vec3<std::uint32_t> getBlockingDim() const noexcept
+            culbm::basic::Vec3<std::uint32_t> getBlockingDim() const noexcept
             {
                 return {_gridDim.x*_blockDim.x, _gridDim.y*_blockDim.y, _gridDim.z*_blockDim.z};
             }
@@ -466,9 +466,9 @@ namespace gf::simulator::single_dev_expt
             /**
              * @brief This function is valid only if _optPolicy is `OptPolicy::HALO_BLOCKING_L2` or `OptPolicy::HALO_BLOCKING_L1L2`
              */
-            gf::basic::Vec3<std::uint32_t> getBlockingNumDim() const
+            culbm::basic::Vec3<std::uint32_t> getBlockingNumDim() const
             {
-                using namespace gf::blocking_core;
+                using namespace culbm::blocking_core;
                 const auto blockingDim = getBlockingDim();
                 const bool valid = 
                     validBlkAxisConfig<std::uint32_t>(_domDim.x, blockingDim.x, _innerLoop) and
@@ -589,9 +589,9 @@ namespace gf::simulator::single_dev_expt
                         const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                         const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                         const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
-                        param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
-                        param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
-                        param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                        param.offx = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                        param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                        param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                         param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
                         CU_CHECK(cudaLaunchCooperativeKernel((const void*)&HaloBlockingL1L2D3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), blkDDFBufSize, _data->_stream));
                     }
@@ -610,9 +610,9 @@ namespace gf::simulator::single_dev_expt
                     const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                     const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                     const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
-                    param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
-                    param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
-                    param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                    param.offx = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                    param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                    param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                     param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
                     CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingL1L2D3Q27DumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                 }
@@ -659,9 +659,9 @@ namespace gf::simulator::single_dev_expt
                         const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                         const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                         const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
-                        param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
-                        param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
-                        param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                        param.offx = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                        param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                        param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                         param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
                         CU_CHECK(cudaLaunchCooperativeKernel((const void*)&HaloBlockingStaticL2D3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                     }
@@ -680,9 +680,9 @@ namespace gf::simulator::single_dev_expt
                     const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                     const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                     const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
-                    param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
-                    param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
-                    param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                    param.offx = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                    param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                    param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                     param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
                     CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingStaticL2D3Q27DumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                 }
@@ -730,9 +730,9 @@ namespace gf::simulator::single_dev_expt
                         const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                         const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                         const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
-                        param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
-                        param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
-                        param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                        param.offx = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                        param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                        param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                         param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
                         
                         for(std::int32_t loop=0 ; loop < _data->_innerLoop ; ++loop)
@@ -788,9 +788,9 @@ namespace gf::simulator::single_dev_expt
                     const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                     const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                     const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
-                    param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
-                    param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
-                    param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                    param.offx = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                    param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                    param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                     param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
                     CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                 }
@@ -837,9 +837,9 @@ namespace gf::simulator::single_dev_expt
                         const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                         const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                         const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
-                        param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
-                        param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
-                        param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                        param.offx = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                        param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                        param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                         param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
                         CU_CHECK(cudaLaunchCooperativeKernel((const void*)&HaloBlockingStaticL2D3Q27InplaceKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                     }
@@ -858,9 +858,9 @@ namespace gf::simulator::single_dev_expt
                     const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                     const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                     const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
-                    param.offx = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
-                    param.offy = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
-                    param.offz = std::max<idx_t>(gf::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
+                    param.offx = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
+                    param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
+                    param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                     param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
                     CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingStaticL2D3Q27InplaceDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                 }

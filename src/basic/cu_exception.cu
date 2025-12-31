@@ -2,7 +2,7 @@
 #include "cu_exception.cuh"
 #include "cuda_runtime_api.h"
 
-namespace gf::basic::cu
+namespace culbm::basic::cu
 {
     CudaRuntimeError::CudaRuntimeError(cudaError_t err, const std::source_location& loc)
         : std::runtime_error(

@@ -3,7 +3,7 @@
 #include <array>
 #include "config.hpp"
 
-namespace gf::basic
+namespace culbm::basic
 {
     namespace detail
     {

@@ -6,7 +6,7 @@ int main(int argc, char** argv)
 {
     try
     {
-        using namespace gf::simulator::multi_dev;
+        using namespace culbm::simulator::multi_dev;
         Simulator simulator(argc, argv);
         simulator.run();
     }

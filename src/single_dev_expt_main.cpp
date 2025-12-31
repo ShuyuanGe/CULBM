@@ -6,7 +6,7 @@ int main(int argc, char** argv)
 {
     try
     {
-        gf::simulator::single_dev_expt::Simulator simulator(argc, argv);
+        culbm::simulator::single_dev_expt::Simulator simulator(argc, argv);
         simulator.run();
     }
     catch(const std::exception& e)

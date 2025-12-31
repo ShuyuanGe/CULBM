@@ -5,7 +5,7 @@
 #include <cuda_runtime.h>
 #include "device_function.hpp"
 
-namespace gf::lbm_core
+namespace culbm::lbm_core
 {
     namespace detail
     {

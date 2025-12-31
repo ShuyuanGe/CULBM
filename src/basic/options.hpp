@@ -6,7 +6,7 @@
 #include "types.hpp"
 #include "config.hpp"
 
-namespace gf::basic
+namespace culbm::basic
 {
     class Options
     {

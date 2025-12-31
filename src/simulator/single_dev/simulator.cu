@@ -11,7 +11,7 @@
 #include "blocking_alogrithm.hpp"
 #include "block_based_kernel.cuh"
 
-namespace gf::simulator::single_dev
+namespace culbm::simulator::single_dev
 {
     class Simulator::Data
     {
@@ -36,8 +36,8 @@ namespace gf::simulator::single_dev
 
             explicit Data(std::shared_ptr<Options> opts) : _opts(opts)
             {
-                using namespace gf::basic;
-                using namespace gf::blocking_core;
+                using namespace culbm::basic;
+                using namespace culbm::blocking_core;
                 using namespace block_based_config;
 
                 if(_opts->kernelType == Options::KernelType::staticKernel)
@@ -101,7 +101,7 @@ namespace gf::simulator::single_dev
 
             ~Data() noexcept
             {
-                using namespace gf::basic;
+                using namespace culbm::basic;
 
                 auto deAllocDevMem = [=, this]() -> void
                 {
@@ -129,11 +129,11 @@ namespace gf::simulator::single_dev
     Simulator::Simulator(std::shared_ptr<Options> opts)
         : _data(std::make_unique<Data>(opts))
     {
-        using namespace gf::basic;
+        using namespace culbm::basic;
 
         auto initRhoUEqu = [=, this]() -> void
         {
-            using namespace gf::lbm_core;
+            using namespace culbm::lbm_core;
             const idx_t domSize = _data->_opts->domDim.x * _data->_opts->domDim.y * _data->_opts->domDim.z;
             const real_t dftRho = 1, dftVx = 0, dftVy = 0, dftVz = 0;
             ddf_t fn[NDIR];
@@ -182,7 +182,7 @@ namespace gf::simulator::single_dev
         auto blockDomFlag = [=, this, &domFlag]() -> std::vector<flag_t>
         {
             using namespace block_based_config;
-            using namespace gf::blocking_core;
+            using namespace culbm::blocking_core;
             const u32 blkSize = _data->_blkDim.x * _data->_blkDim.y * _data->_blkDim.z;
             const u32 numBlk  = _data->_numBlk.x * _data->_numBlk.y * _data->_numBlk.z;
             std::vector<flag_t> blkFlagArr(numBlk * blkSize, 0);
@@ -247,9 +247,9 @@ namespace gf::simulator::single_dev
 
     void Simulator::run(idx_t batch_step)
     {
-        using namespace gf::basic;
-        using namespace gf::lbm_core;
-        using namespace gf::blocking_core;
+        using namespace culbm::basic;
+        using namespace culbm::lbm_core;
+        using namespace culbm::blocking_core;
         using namespace block_based_config;
 
         BlockBasedKernelParam param

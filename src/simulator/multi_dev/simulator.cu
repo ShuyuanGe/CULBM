@@ -14,7 +14,7 @@
 #include "cu_exception.cuh"
 #include <thrust/execution_policy.h>
 
-namespace gf::simulator::multi_dev
+namespace culbm::simulator::multi_dev
 {
     class Simulator::Data
     {
@@ -38,9 +38,9 @@ namespace gf::simulator::multi_dev
             std::uint32_t _dStep = 0;
             float _invTau = 0;
             std::uint32_t _nStep;
-            gf::basic::Vec3<std::uint32_t> _devDim;
-            gf::basic::Vec3<std::uint32_t> _blockDim;
-            gf::basic::Vec3<std::uint32_t> _gridDim;
+            culbm::basic::Vec3<std::uint32_t> _devDim;
+            culbm::basic::Vec3<std::uint32_t> _blockDim;
+            culbm::basic::Vec3<std::uint32_t> _gridDim;
             std::string _dumpFolder = "data/multi_dev_output";
             bool _dumpRho = false;
             bool _dumpVx = false;
@@ -85,7 +85,7 @@ namespace gf::simulator::multi_dev
                 return _devDim.x * _devDim.y * _devDim.z;
             }
 
-            gf::basic::Vec3<std::uint32_t> getDomainDim() const
+            culbm::basic::Vec3<std::uint32_t> getDomainDim() const
             {
                 return
                 {
@@ -131,19 +131,19 @@ namespace gf::simulator::multi_dev
     {
         _data->log(std::cout);
 
-        auto initDevData = [this](std::uint32_t devId, gf::basic::Logger& logger, std::barrier<>& barrier)
+        auto initDevData = [this](std::uint32_t devId, culbm::basic::Logger& logger, std::barrier<>& barrier)
         {
             CU_CHECK(cudaSetDevice(devId));
-            const gf::basic::Vec3<std::uint32_t> devDim = _data->_devDim;
+            const culbm::basic::Vec3<std::uint32_t> devDim = _data->_devDim;
             const std::int32_t devIdxX = devId%devDim.x;
             const std::int32_t devIdxY = (devId/devDim.x)%devDim.y;
             const std::int32_t devIdxZ = devId/(devDim.x * devDim.y);
             for(std::uint32_t dir=0 ; dir<NDIR ; ++dir)
             {
-                if(dir == gf::basic::VelSet3D::getCentIdx()) continue;
-                const std::int32_t nbrIdxX = devIdxX + gf::basic::VelSet3D::getDxArr()[dir];
-                const std::int32_t nbrIdxY = devIdxY + gf::basic::VelSet3D::getDyArr()[dir];
-                const std::int32_t nbrIdxZ = devIdxZ + gf::basic::VelSet3D::getDzArr()[dir];
+                if(dir == culbm::basic::VelSet3D::getCentIdx()) continue;
+                const std::int32_t nbrIdxX = devIdxX + culbm::basic::VelSet3D::getDxArr()[dir];
+                const std::int32_t nbrIdxY = devIdxY + culbm::basic::VelSet3D::getDyArr()[dir];
+                const std::int32_t nbrIdxZ = devIdxZ + culbm::basic::VelSet3D::getDzArr()[dir];
                 if(
                     0<=nbrIdxX and nbrIdxX<devDim.x and 
                     0<=nbrIdxY and nbrIdxY<devDim.y and 
@@ -252,7 +252,7 @@ namespace gf::simulator::multi_dev
             dumpField(_data->_dumpVz,  "vz",  singleDevData.vzBuf);
         };
 
-        auto simulateLoop = [this, dumpRes](std::uint32_t devIdx, gf::basic::Logger& logger, std::barrier<>& barrier)
+        auto simulateLoop = [this, dumpRes](std::uint32_t devIdx, culbm::basic::Logger& logger, std::barrier<>& barrier)
         {
             const auto devDim = _data->_devDim;
             KernelParam<27> evenParam;
@@ -274,7 +274,7 @@ namespace gf::simulator::multi_dev
 
             for(std::uint32_t dir=0 ; dir<27 ; ++dir)
             {
-                using VelSet = gf::basic::detail::VelSet3D<27>;
+                using VelSet = culbm::basic::detail::VelSet3D<27>;
                 const std::int32_t nbrIdxX = std::min<std::int32_t>(devDim.x-1, std::max<std::int32_t>(0, devIdxX+VelSet::getDxArr()[dir]));
                 const std::int32_t nbrIdxY = std::min<std::int32_t>(devDim.y-1, std::max<std::int32_t>(0, devIdxY+VelSet::getDyArr()[dir]));
                 const std::int32_t nbrIdxZ = std::min<std::int32_t>(devDim.z-1, std::max<std::int32_t>(0, devIdxZ+VelSet::getDzArr()[dir]));
@@ -332,7 +332,7 @@ namespace gf::simulator::multi_dev
 
     Simulator::~Simulator()
     {
-        auto deinitDevData = [this](std::uint32_t devId, gf::basic::Logger& logger, std::barrier<>& barrier)
+        auto deinitDevData = [this](std::uint32_t devId, culbm::basic::Logger& logger, std::barrier<>& barrier)
         {
             Data::SingleDevData& singleDevData = _data->_singleDevData[devId];
             CU_CHECK(cudaEventDestroy(singleDevData.end));

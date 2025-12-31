@@ -4,7 +4,7 @@
 
 
 
-namespace gf::simulator::single_dev_expt
+namespace culbm::simulator::single_dev_expt
 {
     __global__ __launch_bounds__(1024) void
     HaloBlockingL1L2D3Q27PullKernel(const HaloBlockingL1L2Param __grid_constant__ param)
@@ -103,7 +103,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi     = param.glbVxBuf[glbi];
             const real_t vyi     = param.glbVyBuf[glbi];
             const real_t vzi     = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -125,12 +125,12 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi & COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         for(idx_t iter=1 ; iter<param.nloop ; ++iter)
         {
-            gf::core::L1L2StreamCore::StreamCore3D<27>::stream(std::begin(fni), blkDDFBuf, param.glbSwapDDFBuf);
+            culbm::core::L1L2StreamCore::StreamCore3D<27>::stream(std::begin(fni), blkDDFBuf, param.glbSwapDDFBuf);
 
             if((flagi & EQU_DDF_BIT)!=0)
             {
@@ -138,7 +138,7 @@ namespace gf::simulator::single_dev_expt
                 const real_t vxi = param.glbVxBuf[glbi];
                 const real_t vyi = param.glbVyBuf[glbi];
                 const real_t vzi = param.glbVzBuf[glbi];
-                gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+                culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
             }
 
             if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -160,7 +160,7 @@ namespace gf::simulator::single_dev_expt
 
             if((flagi & COLLIDE_BIT)!=0)
             {
-                gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+                culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
             }
         }
 
@@ -284,7 +284,7 @@ namespace gf::simulator::single_dev_expt
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
             fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
 
-            gf::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & (CORRECT_BIT | DUMP_RHO_BIT))==(CORRECT_BIT | DUMP_RHO_BIT))
@@ -401,7 +401,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi  = param.glbVxBuf[glbi];
             const real_t vyi  = param.glbVyBuf[glbi];
             const real_t vzi  = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -423,7 +423,7 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi & COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         for(idx_t iter=1 ; iter<param.nloop ; ++iter)
@@ -538,7 +538,7 @@ namespace gf::simulator::single_dev_expt
                 const real_t vxi  = param.glbVxBuf[glbi];
                 const real_t vyi  = param.glbVyBuf[glbi];
                 const real_t vzi  = param.glbVzBuf[glbi];
-                gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+                culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
             }
 
             if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -560,7 +560,7 @@ namespace gf::simulator::single_dev_expt
 
             if((flagi & COLLIDE_BIT)!=0)
             {
-                gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+                culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
             }
         }
 
@@ -681,7 +681,7 @@ namespace gf::simulator::single_dev_expt
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
             fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
 
-            gf::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & (CORRECT_BIT | DUMP_RHO_BIT))==(CORRECT_BIT | DUMP_RHO_BIT))
@@ -797,7 +797,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi    = param.glbVxBuf[glbi];
             const real_t vyi    = param.glbVyBuf[glbi];
             const real_t vzi    = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -819,7 +819,7 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi & COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         if((flagi & STORE_DDF_BIT)!=0)
@@ -982,7 +982,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi    = param.glbVxBuf[glbi];
             const real_t vyi    = param.glbVyBuf[glbi];
             const real_t vzi    = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -1004,7 +1004,7 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi & COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         if((flagi & STORE_DDF_BIT)!=0)
@@ -1131,7 +1131,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi    = param.glbVxBuf[glbi];
             const real_t vyi    = param.glbVyBuf[glbi];
             const real_t vzi    = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -1153,7 +1153,7 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi & COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         if((flagi & STORE_DDF_BIT)!=0)
@@ -1311,7 +1311,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi    = param.glbVxBuf[glbi];
             const real_t vyi    = param.glbVyBuf[glbi];
             const real_t vzi    = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -1333,7 +1333,7 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi & COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         if((flagi & STORE_DDF_BIT)!=0)
@@ -1491,7 +1491,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi = param.glbVxBuf[glbi];
             const real_t vyi = param.glbVyBuf[glbi];
             const real_t vzi = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -1513,7 +1513,7 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi & COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         if((flagi & (CORRECT_BIT | STORE_DDF_BIT))==(CORRECT_BIT | STORE_DDF_BIT))
@@ -1640,7 +1640,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi = param.glbVxBuf[glbi];
             const real_t vyi = param.glbVyBuf[glbi];
             const real_t vzi = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -1662,7 +1662,7 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi &  COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         if((flagi & (CORRECT_BIT | STORE_DDF_BIT))==(CORRECT_BIT | STORE_DDF_BIT))
@@ -1782,7 +1782,7 @@ namespace gf::simulator::single_dev_expt
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
             fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
 
-            gf::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
+            culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
         }
 
         if((flagi & (CORRECT_BIT | DUMP_RHO_BIT))==(CORRECT_BIT | DUMP_RHO_BIT))
@@ -1899,7 +1899,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi  = param.glbVxBuf[glbi];
             const real_t vyi  = param.glbVyBuf[glbi];
             const real_t vzi  = param.glbVzBuf[glbi];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -1921,7 +1921,7 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi & COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         for(idx_t iter=1 ; iter<param.nloop ; ++iter)
@@ -2190,7 +2190,7 @@ namespace gf::simulator::single_dev_expt
                 const real_t vxi = param.glbVxBuf[glbi];
                 const real_t vyi = param.glbVyBuf[glbi];
                 const real_t vzi = param.glbVzBuf[glbi];
-                gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+                culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
             }
 
             if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -2212,7 +2212,7 @@ namespace gf::simulator::single_dev_expt
 
             if((flagi & COLLIDE_BIT)!=0)
             {
-                gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+                culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
             }
         }
 
@@ -2333,7 +2333,7 @@ namespace gf::simulator::single_dev_expt
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
             fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
 
-            gf::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
+            culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
         }
 
         if((flagi & (CORRECT_BIT | DUMP_RHO_BIT))==(CORRECT_BIT | DUMP_RHO_BIT))
@@ -2445,7 +2445,7 @@ namespace gf::simulator::single_dev_expt
             const real_t vxi  = param.glbVxBuf[i];
             const real_t vyi  = param.glbVyBuf[i];
             const real_t vzi  = param.glbVzBuf[i];
-            gf::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
+            culbm::lbm_core::bgk::calcEqu<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
 
         if((flagi & BOUNCE_BACK_BIT)!=0)
@@ -2467,7 +2467,7 @@ namespace gf::simulator::single_dev_expt
 
         if((flagi & COLLIDE_BIT)!=0)
         {
-            gf::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
+            culbm::lbm_core::bgk::collision2<27>(param.invTau, std::begin(fni));
         }
 
         if((flagi & STORE_DDF_BIT)!=0)
@@ -2582,7 +2582,7 @@ namespace gf::simulator::single_dev_expt
         //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
         fni[26] = param.glbSrcDDFBuf[26*n+i+ndx+ndy+ndz];
 
-        gf::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
+        culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
 
         if((flagi & DUMP_RHO_BIT)!=0)
         {

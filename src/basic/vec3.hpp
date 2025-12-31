@@ -3,7 +3,7 @@
 #include <array>
 #include <cstdint>
 
-namespace gf::basic
+namespace culbm::basic
 {
     template<typename T>
     struct Vec3

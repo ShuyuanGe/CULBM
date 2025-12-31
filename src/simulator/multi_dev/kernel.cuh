@@ -4,7 +4,7 @@
 #include "vec3.hpp"
 #include "config.hpp"
 
-namespace gf::simulator::multi_dev
+namespace culbm::simulator::multi_dev
 {
     template<std::uint32_t NDIR>
     struct KernelParam
@@ -24,8 +24,8 @@ namespace gf::simulator::multi_dev
     template<std::uint32_t NDIR>
     struct InitKernelParam
     {
-        gf::basic::Vec3<std::uint32_t> devDim;
-        gf::basic::Vec3<std::uint32_t> devIdx;
+        culbm::basic::Vec3<std::uint32_t> devDim;
+        culbm::basic::Vec3<std::uint32_t> devIdx;
         flag_t *flagBuf = nullptr;
         real_t *rhoBuf  = nullptr;
         real_t *vxBuf   = nullptr;

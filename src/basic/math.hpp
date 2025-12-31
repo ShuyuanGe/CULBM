@@ -2,7 +2,7 @@
 
 #include <concepts>
 
-namespace gf::basic
+namespace culbm::basic
 {
     template<std::unsigned_integral T>
     constexpr T divCeil(T num, T deno)

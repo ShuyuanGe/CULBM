@@ -1,6 +1,6 @@
-# CULBM
+# cuLBM
 
-CULBM is a CUDA-native lattice Boltzmann toolkit with two complementary GPU drivers: the cache-aware, single-device experimentation path (`single_dev_expt_main`) and the domain-decomposed multi-device path (`multi_dev_main`). The repository bundles the core solver sources, configuration helpers, binary dump visualizers, and performance-analysis notebooks required to define initial states, run experiments, and interpret MLUPS trends end to end.
+cuLBM is a CUDA-native lattice Boltzmann toolkit with two complementary GPU drivers: the cache-aware, single-device experimentation path (`single_dev_expt_main`) and the domain-decomposed multi-device path (`multi_dev_main`). The repository bundles the core solver sources, configuration helpers, binary dump visualizers, and performance-analysis notebooks required to define initial states, run experiments, and interpret MLUPS trends end to end.
 
 ## Usage
 

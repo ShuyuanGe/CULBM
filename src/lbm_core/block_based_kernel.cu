@@ -5,7 +5,7 @@
 
 using namespace cooperative_groups;
 
-namespace gf::lbm_core
+namespace culbm::lbm_core
 {
     using namespace block_based_config;
 

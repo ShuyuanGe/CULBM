@@ -8,9 +8,9 @@ int main(int argc, const char** argv)
 {
     try
     {
-        using namespace gf::basic;
-        using namespace gf::literal;
-        using namespace gf::simulator::single_dev;
+        using namespace culbm::basic;
+        using namespace culbm::literal;
+        using namespace culbm::simulator::single_dev;
 
         Options::getInstance()->cmdInit(argc, argv);
         Simulator simulator(Options::getInstance());

@@ -2,7 +2,7 @@
 #include <format>
 #include "logger.hpp"
 
-namespace gf::basic
+namespace culbm::basic
 {
     void Logger::_log(Level lvl, std::string msg, const std::source_location& loc)
     {
