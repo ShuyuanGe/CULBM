@@ -74,7 +74,7 @@ The reference pull-stream run reaches **3805 MLUPS** and the tuned setup hits **
 | `--gridDim [gx,gy,gz]` | CUDA grid dimensions for kernel launch on each GPU; the per-device domain is `blkDim * gridDim`. | `[16,32,64]` |
 | `--invTau` | Reciprocal relaxation time. | `0.5` |
 | `--nstep`, `--dstep` | Total steps and dump cadence. | `1000`, `100` |
-| `--dumpFolder <path>` | Root folder for tiled dumps; each GPU writes `frame_<step>_dev_{x}_{y}_{z}`. | `data/multi_dev_output` |
+| `--dumpFolder <path>` | Root folder for tiled dumps; each GPU writes `<field>_<step>_dev_{x}_{y}_{z}.dat` (e.g., `vx_200_dev_0_1_0.dat`). | `data/multi_dev_output` |
 | `--dumpRho`, `--dumpVx`, `--dumpVy`, `--dumpVz` | Enable field dumps every `dstep` steps. | disabled |
 
 ##### Typical launch (2×2×1 GPUs)
@@ -98,7 +98,7 @@ Because of this multiplicative relationship, there is no `--domainDim` argument 
 
 The executable prints the per-device and global domain sizes, enables peer-to-peer links for adjacent ranks, and emits tiles that can be reassembled with the helper cells in [visualization/dump_visualization.ipynb](visualization/dump_visualization.ipynb).
 
-### Domain Decomposition
+### Visualizations
 
 Interactive visualization tools are provided to explore domain decomposition and halo exchange patterns.
 
@@ -111,8 +111,8 @@ Scenarios 1–4 cover complementary workflows: Scenario 1 stays on a single GPU 
 
 #### Scenario 1 (Single-GPU): Custom domains → snapshots → visualization
 
-1. **Author boundary/obstacle masks.** Use [scripts/state_initialization.ipynb](scripts/state_initialization.ipynb) to run helpers such as `leftInletRightOutletCubeObs`. Each run writes `flag.dat`, `vx.dat`, and related seeds into a folder like `data/left_inlet_right_outlet_cube_obs_288_272_280_init_state`.
-2. **Simulate with dumps enabled.** Point `single_dev_expt_main` at the generated folder via `--initStateFolder`, choose a dump target via `--dumpFolder`, and enable any subset of `--dumpRho/--dumpVx/--dumpVy/--dumpVz`. Snapshot frequency follows `--dstep`, so the example command above emits frames at steps 200, 400, …
+1. **Generate boundary/obstacle masks.** Use [scripts/state_initialization.ipynb](scripts/state_initialization.ipynb) to run helpers such as `leftInletRightOutletCubeObs`. Each run writes `flag.dat`, `vx.dat`, and related seeds into a folder like `data/left_inlet_right_outlet_cube_obs_288_272_280_init_state`.
+2. **Launch `single_dev_expt_main`.** Point `single_dev_expt_main` at the generated folder via `--initStateFolder`, choose a dump target via `--dumpFolder`, and enable any subset of `--dumpRho/--dumpVx/--dumpVy/--dumpVz`. Snapshot frequency follows `--dstep`, so the example command above emits frames at steps 200, 400, …
 
 ```bash
 ./build/src/single_dev_expt_main \
@@ -138,7 +138,7 @@ This pipeline keeps everything binary-compatible with the CUDA kernels (no inter
 #### Scenario 2 (Multi-GPU): decomposition → tiled dumps → visualization
 
 1. **Choose the device grid.** Decide how many GPUs participate along each axis via `--devDim [dx,dy,dz]`, then size `--blkDim`/`--gridDim` so that each rank owns a reasonable tile. The aggregate domain equals `(blkDim * gridDim) ⊙ devDim`, so validate it matches your target problem size. (Custom initial states from `scripts/state_initialization.ipynb` are not wired up here yet, so geometry tweaks must wait for future multi-GPU support.)
-2. **Launch `multi_dev_main`.** Each device writes binary tiles named `frame_<step>_dev_{ix}_{iy}_{iz}` into `--dumpFolder`. Use a command such as:
+2. **Launch `multi_dev_main`.** Each device writes binary tiles named `<field>_<step>_dev_{ix}_{iy}_{iz}.dat` (one file per enabled field) into `--dumpFolder`. Use a command such as:
 
 ```bash
 ./build/src/multi_dev_main \

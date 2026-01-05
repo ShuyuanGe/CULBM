@@ -1,7 +1,6 @@
-.vscode
-build
-test
-*.dat
+.vscode/
+build/
+data/
 *.png
 *.pkl
 *.log
