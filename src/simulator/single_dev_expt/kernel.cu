@@ -45,6 +45,31 @@ namespace culbm::simulator::single_dev_expt
 #endif
     }
 
+    __device__ __forceinline__ glb_idx_t glb_ddf_off(const idx_t dir, const idx_t nCell, const idx_t cellOff)
+    {
+        return static_cast<glb_idx_t>(dir) * static_cast<glb_idx_t>(nCell) + static_cast<glb_idx_t>(cellOff);
+    }
+
+    __device__ __forceinline__ real_t load_glb_ddf(const ddf_t* buf, const idx_t dir, const idx_t nCell, const idx_t cellOff)
+    {
+        return buf[glb_ddf_off(dir, nCell, cellOff)];
+    }
+
+    __device__ __forceinline__ void store_glb_ddf(ddf_t* buf, const idx_t dir, const idx_t nCell, const idx_t cellOff, const real_t value)
+    {
+        buf[glb_ddf_off(dir, nCell, cellOff)] = value;
+    }
+
+    __device__ __forceinline__ real_t stream_load_glb_ddf(const ddf_t* buf, const idx_t dir, const idx_t nCell, const idx_t cellOff)
+    {
+        return stream_load(buf + glb_ddf_off(dir, nCell, cellOff));
+    }
+
+    __device__ __forceinline__ void stream_store_glb_ddf(ddf_t* buf, const idx_t dir, const idx_t nCell, const idx_t cellOff, const real_t value)
+    {
+        stream_store(buf + glb_ddf_off(dir, nCell, cellOff), value);
+    }
+
     __global__ __launch_bounds__(1024) void
     HaloBlockingL1L2D3Q27PullKernel(const HaloBlockingL1L2Param __grid_constant__ param)
     {
@@ -79,61 +104,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz];
+            fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz];
+            fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz];
+            fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz];
+            fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz];
+            fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz];
+            fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz];
+            fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz];
+            fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz];
+            fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ];
+            fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ];
+            fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ];
+            fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ];
+            fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = param.glbSrcDDFBuf[13*glbn+glbi                     ];
+            fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ];
+            fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ];
+            fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ];
+            fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ];
+            fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz];
+            fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz];
+            fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz];
+            fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz];
+            fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*glbn+glbi              +glbndz];
+            fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz];
+            fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz];
+            fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz];
+            fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
+            fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -206,35 +231,35 @@ namespace culbm::simulator::single_dev_expt
         //last global store
         if((flagi & (STORE_DDF_BIT | CORRECT_BIT))==(STORE_DDF_BIT | CORRECT_BIT))
         {
-            param.glbDstDDFBuf[ 0*glbn+glbi] = fni[ 0];
-            param.glbDstDDFBuf[ 1*glbn+glbi] = fni[ 1];
-            param.glbDstDDFBuf[ 2*glbn+glbi] = fni[ 2];
-            param.glbDstDDFBuf[ 3*glbn+glbi] = fni[ 3];
-            param.glbDstDDFBuf[ 4*glbn+glbi] = fni[ 4];
-            param.glbDstDDFBuf[ 5*glbn+glbi] = fni[ 5];
-            param.glbDstDDFBuf[ 6*glbn+glbi] = fni[ 6];
-            param.glbDstDDFBuf[ 7*glbn+glbi] = fni[ 7];
-            param.glbDstDDFBuf[ 8*glbn+glbi] = fni[ 8];
+            store_glb_ddf(param.glbDstDDFBuf, 0, glbn, glbi, fni[ 0]);
+            store_glb_ddf(param.glbDstDDFBuf, 1, glbn, glbi, fni[ 1]);
+            store_glb_ddf(param.glbDstDDFBuf, 2, glbn, glbi, fni[ 2]);
+            store_glb_ddf(param.glbDstDDFBuf, 3, glbn, glbi, fni[ 3]);
+            store_glb_ddf(param.glbDstDDFBuf, 4, glbn, glbi, fni[ 4]);
+            store_glb_ddf(param.glbDstDDFBuf, 5, glbn, glbi, fni[ 5]);
+            store_glb_ddf(param.glbDstDDFBuf, 6, glbn, glbi, fni[ 6]);
+            store_glb_ddf(param.glbDstDDFBuf, 7, glbn, glbi, fni[ 7]);
+            store_glb_ddf(param.glbDstDDFBuf, 8, glbn, glbi, fni[ 8]);
 
-            param.glbDstDDFBuf[ 9*glbn+glbi] = fni[ 9];
-            param.glbDstDDFBuf[10*glbn+glbi] = fni[10];
-            param.glbDstDDFBuf[11*glbn+glbi] = fni[11];
-            param.glbDstDDFBuf[12*glbn+glbi] = fni[12];
-            param.glbDstDDFBuf[13*glbn+glbi] = fni[13];
-            param.glbDstDDFBuf[14*glbn+glbi] = fni[14];
-            param.glbDstDDFBuf[15*glbn+glbi] = fni[15];
-            param.glbDstDDFBuf[16*glbn+glbi] = fni[16];
-            param.glbDstDDFBuf[17*glbn+glbi] = fni[17];
+            store_glb_ddf(param.glbDstDDFBuf, 9, glbn, glbi, fni[ 9]);
+            store_glb_ddf(param.glbDstDDFBuf, 10, glbn, glbi, fni[10]);
+            store_glb_ddf(param.glbDstDDFBuf, 11, glbn, glbi, fni[11]);
+            store_glb_ddf(param.glbDstDDFBuf, 12, glbn, glbi, fni[12]);
+            store_glb_ddf(param.glbDstDDFBuf, 13, glbn, glbi, fni[13]);
+            store_glb_ddf(param.glbDstDDFBuf, 14, glbn, glbi, fni[14]);
+            store_glb_ddf(param.glbDstDDFBuf, 15, glbn, glbi, fni[15]);
+            store_glb_ddf(param.glbDstDDFBuf, 16, glbn, glbi, fni[16]);
+            store_glb_ddf(param.glbDstDDFBuf, 17, glbn, glbi, fni[17]);
 
-            param.glbDstDDFBuf[18*glbn+glbi] = fni[18];
-            param.glbDstDDFBuf[19*glbn+glbi] = fni[19];
-            param.glbDstDDFBuf[20*glbn+glbi] = fni[20];
-            param.glbDstDDFBuf[21*glbn+glbi] = fni[21];
-            param.glbDstDDFBuf[22*glbn+glbi] = fni[22];
-            param.glbDstDDFBuf[23*glbn+glbi] = fni[23];
-            param.glbDstDDFBuf[24*glbn+glbi] = fni[24];
-            param.glbDstDDFBuf[25*glbn+glbi] = fni[25];
-            param.glbDstDDFBuf[26*glbn+glbi] = fni[26];
+            store_glb_ddf(param.glbDstDDFBuf, 18, glbn, glbi, fni[18]);
+            store_glb_ddf(param.glbDstDDFBuf, 19, glbn, glbi, fni[19]);
+            store_glb_ddf(param.glbDstDDFBuf, 20, glbn, glbi, fni[20]);
+            store_glb_ddf(param.glbDstDDFBuf, 21, glbn, glbi, fni[21]);
+            store_glb_ddf(param.glbDstDDFBuf, 22, glbn, glbi, fni[22]);
+            store_glb_ddf(param.glbDstDDFBuf, 23, glbn, glbi, fni[23]);
+            store_glb_ddf(param.glbDstDDFBuf, 24, glbn, glbi, fni[24]);
+            store_glb_ddf(param.glbDstDDFBuf, 25, glbn, glbi, fni[25]);
+            store_glb_ddf(param.glbDstDDFBuf, 26, glbn, glbi, fni[26]);
         }
     }
 
@@ -267,61 +292,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz];
+            fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz];
+            fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz];
+            fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz];
+            fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz];
+            fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz];
+            fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz];
+            fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz];
+            fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz];
+            fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ];
+            fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ];
+            fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ];
+            fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ];
+            fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = param.glbSrcDDFBuf[13*glbn+glbi                     ];
+            fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ];
+            fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ];
+            fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ];
+            fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ];
+            fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz];
+            fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz];
+            fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz];
+            fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz];
+            fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*glbn+glbi              +glbndz];
+            fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz];
+            fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz];
+            fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz];
+            fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
+            fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
 
             culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
@@ -377,61 +402,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz];
+            fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz];
+            fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz];
+            fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz];
+            fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz];
+            fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz];
+            fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz];
+            fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz];
+            fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz];
+            fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ];
+            fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ];
+            fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ];
+            fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ];
+            fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = param.glbSrcDDFBuf[13*glbn+glbi                     ];
+            fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ];
+            fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ];
+            fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ];
+            fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ];
+            fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz];
+            fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz];
+            fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz];
+            fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz];
+            fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*glbn+glbi              +glbndz];
+            fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz];
+            fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz];
+            fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz];
+            fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
+            fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -605,33 +630,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & (STORE_DDF_BIT | CORRECT_BIT))==(STORE_DDF_BIT | CORRECT_BIT))
         {
-            param.glbDstDDFBuf[ 0*glbn+glbi] = fni[ 0];
-            param.glbDstDDFBuf[ 1*glbn+glbi] = fni[ 1];
-            param.glbDstDDFBuf[ 2*glbn+glbi] = fni[ 2];
-            param.glbDstDDFBuf[ 3*glbn+glbi] = fni[ 3];
-            param.glbDstDDFBuf[ 4*glbn+glbi] = fni[ 4];
-            param.glbDstDDFBuf[ 5*glbn+glbi] = fni[ 5];
-            param.glbDstDDFBuf[ 6*glbn+glbi] = fni[ 6];
-            param.glbDstDDFBuf[ 7*glbn+glbi] = fni[ 7];
-            param.glbDstDDFBuf[ 8*glbn+glbi] = fni[ 8];
-            param.glbDstDDFBuf[ 9*glbn+glbi] = fni[ 9];
-            param.glbDstDDFBuf[10*glbn+glbi] = fni[10];
-            param.glbDstDDFBuf[11*glbn+glbi] = fni[11];
-            param.glbDstDDFBuf[12*glbn+glbi] = fni[12];
-            param.glbDstDDFBuf[13*glbn+glbi] = fni[13];
-            param.glbDstDDFBuf[14*glbn+glbi] = fni[14];
-            param.glbDstDDFBuf[15*glbn+glbi] = fni[15];
-            param.glbDstDDFBuf[16*glbn+glbi] = fni[16];
-            param.glbDstDDFBuf[17*glbn+glbi] = fni[17];
-            param.glbDstDDFBuf[18*glbn+glbi] = fni[18];
-            param.glbDstDDFBuf[19*glbn+glbi] = fni[19];
-            param.glbDstDDFBuf[20*glbn+glbi] = fni[20];
-            param.glbDstDDFBuf[21*glbn+glbi] = fni[21];
-            param.glbDstDDFBuf[22*glbn+glbi] = fni[22];
-            param.glbDstDDFBuf[23*glbn+glbi] = fni[23];
-            param.glbDstDDFBuf[24*glbn+glbi] = fni[24];
-            param.glbDstDDFBuf[25*glbn+glbi] = fni[25];
-            param.glbDstDDFBuf[26*glbn+glbi] = fni[26];
+            store_glb_ddf(param.glbDstDDFBuf, 0, glbn, glbi, fni[ 0]);
+            store_glb_ddf(param.glbDstDDFBuf, 1, glbn, glbi, fni[ 1]);
+            store_glb_ddf(param.glbDstDDFBuf, 2, glbn, glbi, fni[ 2]);
+            store_glb_ddf(param.glbDstDDFBuf, 3, glbn, glbi, fni[ 3]);
+            store_glb_ddf(param.glbDstDDFBuf, 4, glbn, glbi, fni[ 4]);
+            store_glb_ddf(param.glbDstDDFBuf, 5, glbn, glbi, fni[ 5]);
+            store_glb_ddf(param.glbDstDDFBuf, 6, glbn, glbi, fni[ 6]);
+            store_glb_ddf(param.glbDstDDFBuf, 7, glbn, glbi, fni[ 7]);
+            store_glb_ddf(param.glbDstDDFBuf, 8, glbn, glbi, fni[ 8]);
+            store_glb_ddf(param.glbDstDDFBuf, 9, glbn, glbi, fni[ 9]);
+            store_glb_ddf(param.glbDstDDFBuf, 10, glbn, glbi, fni[10]);
+            store_glb_ddf(param.glbDstDDFBuf, 11, glbn, glbi, fni[11]);
+            store_glb_ddf(param.glbDstDDFBuf, 12, glbn, glbi, fni[12]);
+            store_glb_ddf(param.glbDstDDFBuf, 13, glbn, glbi, fni[13]);
+            store_glb_ddf(param.glbDstDDFBuf, 14, glbn, glbi, fni[14]);
+            store_glb_ddf(param.glbDstDDFBuf, 15, glbn, glbi, fni[15]);
+            store_glb_ddf(param.glbDstDDFBuf, 16, glbn, glbi, fni[16]);
+            store_glb_ddf(param.glbDstDDFBuf, 17, glbn, glbi, fni[17]);
+            store_glb_ddf(param.glbDstDDFBuf, 18, glbn, glbi, fni[18]);
+            store_glb_ddf(param.glbDstDDFBuf, 19, glbn, glbi, fni[19]);
+            store_glb_ddf(param.glbDstDDFBuf, 20, glbn, glbi, fni[20]);
+            store_glb_ddf(param.glbDstDDFBuf, 21, glbn, glbi, fni[21]);
+            store_glb_ddf(param.glbDstDDFBuf, 22, glbn, glbi, fni[22]);
+            store_glb_ddf(param.glbDstDDFBuf, 23, glbn, glbi, fni[23]);
+            store_glb_ddf(param.glbDstDDFBuf, 24, glbn, glbi, fni[24]);
+            store_glb_ddf(param.glbDstDDFBuf, 25, glbn, glbi, fni[25]);
+            store_glb_ddf(param.glbDstDDFBuf, 26, glbn, glbi, fni[26]);
         }
     }
 
@@ -664,61 +689,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz];
+            fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz];
+            fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz];
+            fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz];
+            fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz];
+            fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz];
+            fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz];
+            fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz];
+            fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz];
+            fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ];
+            fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ];
+            fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ];
+            fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ];
+            fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = param.glbSrcDDFBuf[13*glbn+glbi                     ];
+            fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ];
+            fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ];
+            fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ];
+            fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ];
+            fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz];
+            fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz];
+            fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz];
+            fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz];
+            fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*glbn+glbi              +glbndz];
+            fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz];
+            fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz];
+            fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz];
+            fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
+            fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
 
             culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));
         }
@@ -773,61 +798,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = stream_load(&param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz]);
+            fni[ 0] = stream_load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = stream_load(&param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz]);
+            fni[ 1] = stream_load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = stream_load(&param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz]);
+            fni[ 2] = stream_load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = stream_load(&param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz]);
+            fni[ 3] = stream_load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = stream_load(&param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz]);
+            fni[ 4] = stream_load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = stream_load(&param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz]);
+            fni[ 5] = stream_load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = stream_load(&param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz]);
+            fni[ 6] = stream_load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = stream_load(&param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz]);
+            fni[ 7] = stream_load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = stream_load(&param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz]);
+            fni[ 8] = stream_load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = stream_load(&param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ]);
+            fni[ 9] = stream_load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = stream_load(&param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ]);
+            fni[10] = stream_load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = stream_load(&param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ]);
+            fni[11] = stream_load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = stream_load(&param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ]);
+            fni[12] = stream_load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = stream_load(&param.glbSrcDDFBuf[13*glbn+glbi                     ]);
+            fni[13] = stream_load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = stream_load(&param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ]);
+            fni[14] = stream_load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = stream_load(&param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ]);
+            fni[15] = stream_load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = stream_load(&param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ]);
+            fni[16] = stream_load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = stream_load(&param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ]);
+            fni[17] = stream_load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = stream_load(&param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz]);
+            fni[18] = stream_load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = stream_load(&param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz]);
+            fni[19] = stream_load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = stream_load(&param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz]);
+            fni[20] = stream_load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = stream_load(&param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz]);
+            fni[21] = stream_load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = stream_load(&param.glbSrcDDFBuf[22*glbn+glbi              +glbndz]);
+            fni[22] = stream_load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = stream_load(&param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz]);
+            fni[23] = stream_load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = stream_load(&param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz]);
+            fni[24] = stream_load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = stream_load(&param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz]);
+            fni[25] = stream_load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = stream_load(&param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz]);
+            fni[26] = stream_load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -958,61 +983,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = stream_load(&param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz]);
+            fni[ 0] = stream_load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = stream_load(&param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz]);
+            fni[ 1] = stream_load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = stream_load(&param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz]);
+            fni[ 2] = stream_load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = stream_load(&param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz]);
+            fni[ 3] = stream_load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = stream_load(&param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz]);
+            fni[ 4] = stream_load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = stream_load(&param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz]);
+            fni[ 5] = stream_load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = stream_load(&param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz]);
+            fni[ 6] = stream_load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = stream_load(&param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz]);
+            fni[ 7] = stream_load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = stream_load(&param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz]);
+            fni[ 8] = stream_load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = stream_load(&param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ]);
+            fni[ 9] = stream_load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = stream_load(&param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ]);
+            fni[10] = stream_load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = stream_load(&param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ]);
+            fni[11] = stream_load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = stream_load(&param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ]);
+            fni[12] = stream_load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = stream_load(&param.glbSrcDDFBuf[13*glbn+glbi                     ]);
+            fni[13] = stream_load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = stream_load(&param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ]);
+            fni[14] = stream_load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = stream_load(&param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ]);
+            fni[15] = stream_load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = stream_load(&param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ]);
+            fni[16] = stream_load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = stream_load(&param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ]);
+            fni[17] = stream_load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = stream_load(&param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz]);
+            fni[18] = stream_load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = stream_load(&param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz]);
+            fni[19] = stream_load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = stream_load(&param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz]);
+            fni[20] = stream_load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = stream_load(&param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz]);
+            fni[21] = stream_load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = stream_load(&param.glbSrcDDFBuf[22*glbn+glbi              +glbndz]);
+            fni[22] = stream_load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = stream_load(&param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz]);
+            fni[23] = stream_load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = stream_load(&param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz]);
+            fni[24] = stream_load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = stream_load(&param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz]);
+            fni[25] = stream_load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = stream_load(&param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz]);
+            fni[26] = stream_load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -1048,33 +1073,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & STORE_DDF_BIT)!=0)
         {
-            stream_store(&param.glbDstDDFBuf[ 0*glbn+glbi], fni[ 0]);
-            stream_store(&param.glbDstDDFBuf[ 1*glbn+glbi], fni[ 1]);
-            stream_store(&param.glbDstDDFBuf[ 2*glbn+glbi], fni[ 2]);
-            stream_store(&param.glbDstDDFBuf[ 3*glbn+glbi], fni[ 3]);
-            stream_store(&param.glbDstDDFBuf[ 4*glbn+glbi], fni[ 4]);
-            stream_store(&param.glbDstDDFBuf[ 5*glbn+glbi], fni[ 5]);
-            stream_store(&param.glbDstDDFBuf[ 6*glbn+glbi], fni[ 6]);
-            stream_store(&param.glbDstDDFBuf[ 7*glbn+glbi], fni[ 7]);
-            stream_store(&param.glbDstDDFBuf[ 8*glbn+glbi], fni[ 8]);
-            stream_store(&param.glbDstDDFBuf[ 9*glbn+glbi], fni[ 9]);
-            stream_store(&param.glbDstDDFBuf[10*glbn+glbi], fni[10]);
-            stream_store(&param.glbDstDDFBuf[11*glbn+glbi], fni[11]);
-            stream_store(&param.glbDstDDFBuf[12*glbn+glbi], fni[12]);
-            stream_store(&param.glbDstDDFBuf[13*glbn+glbi], fni[13]);
-            stream_store(&param.glbDstDDFBuf[14*glbn+glbi], fni[14]);
-            stream_store(&param.glbDstDDFBuf[15*glbn+glbi], fni[15]);
-            stream_store(&param.glbDstDDFBuf[16*glbn+glbi], fni[16]);
-            stream_store(&param.glbDstDDFBuf[17*glbn+glbi], fni[17]);
-            stream_store(&param.glbDstDDFBuf[18*glbn+glbi], fni[18]);
-            stream_store(&param.glbDstDDFBuf[19*glbn+glbi], fni[19]);
-            stream_store(&param.glbDstDDFBuf[20*glbn+glbi], fni[20]);
-            stream_store(&param.glbDstDDFBuf[21*glbn+glbi], fni[21]);
-            stream_store(&param.glbDstDDFBuf[22*glbn+glbi], fni[22]);
-            stream_store(&param.glbDstDDFBuf[23*glbn+glbi], fni[23]);
-            stream_store(&param.glbDstDDFBuf[24*glbn+glbi], fni[24]);
-            stream_store(&param.glbDstDDFBuf[25*glbn+glbi], fni[25]);
-            stream_store(&param.glbDstDDFBuf[26*glbn+glbi], fni[26]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 0, glbn, glbi, fni[ 0]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 1, glbn, glbi, fni[ 1]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 2, glbn, glbi, fni[ 2]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 3, glbn, glbi, fni[ 3]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 4, glbn, glbi, fni[ 4]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 5, glbn, glbi, fni[ 5]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 6, glbn, glbi, fni[ 6]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 7, glbn, glbi, fni[ 7]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 8, glbn, glbi, fni[ 8]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 9, glbn, glbi, fni[ 9]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 10, glbn, glbi, fni[10]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 11, glbn, glbi, fni[11]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 12, glbn, glbi, fni[12]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 13, glbn, glbi, fni[13]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 14, glbn, glbi, fni[14]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 15, glbn, glbi, fni[15]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 16, glbn, glbi, fni[16]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 17, glbn, glbi, fni[17]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 18, glbn, glbi, fni[18]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 19, glbn, glbi, fni[19]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 20, glbn, glbi, fni[20]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 21, glbn, glbi, fni[21]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 22, glbn, glbi, fni[22]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 23, glbn, glbi, fni[23]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 24, glbn, glbi, fni[24]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 25, glbn, glbi, fni[25]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 26, glbn, glbi, fni[26]);
         }
     }
 
@@ -1557,33 +1582,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & (CORRECT_BIT | STORE_DDF_BIT))==(CORRECT_BIT | STORE_DDF_BIT))
         {
-            stream_store(&param.glbDstDDFBuf[ 0*glbn+glbi], fni[ 0]);
-            stream_store(&param.glbDstDDFBuf[ 1*glbn+glbi], fni[ 1]);
-            stream_store(&param.glbDstDDFBuf[ 2*glbn+glbi], fni[ 2]);
-            stream_store(&param.glbDstDDFBuf[ 3*glbn+glbi], fni[ 3]);
-            stream_store(&param.glbDstDDFBuf[ 4*glbn+glbi], fni[ 4]);
-            stream_store(&param.glbDstDDFBuf[ 5*glbn+glbi], fni[ 5]);
-            stream_store(&param.glbDstDDFBuf[ 6*glbn+glbi], fni[ 6]);
-            stream_store(&param.glbDstDDFBuf[ 7*glbn+glbi], fni[ 7]);
-            stream_store(&param.glbDstDDFBuf[ 8*glbn+glbi], fni[ 8]);
-            stream_store(&param.glbDstDDFBuf[ 9*glbn+glbi], fni[ 9]);
-            stream_store(&param.glbDstDDFBuf[10*glbn+glbi], fni[10]);
-            stream_store(&param.glbDstDDFBuf[11*glbn+glbi], fni[11]);
-            stream_store(&param.glbDstDDFBuf[12*glbn+glbi], fni[12]);
-            stream_store(&param.glbDstDDFBuf[13*glbn+glbi], fni[13]);
-            stream_store(&param.glbDstDDFBuf[14*glbn+glbi], fni[14]);
-            stream_store(&param.glbDstDDFBuf[15*glbn+glbi], fni[15]);
-            stream_store(&param.glbDstDDFBuf[16*glbn+glbi], fni[16]);
-            stream_store(&param.glbDstDDFBuf[17*glbn+glbi], fni[17]);
-            stream_store(&param.glbDstDDFBuf[18*glbn+glbi], fni[18]);
-            stream_store(&param.glbDstDDFBuf[19*glbn+glbi], fni[19]);
-            stream_store(&param.glbDstDDFBuf[20*glbn+glbi], fni[20]);
-            stream_store(&param.glbDstDDFBuf[21*glbn+glbi], fni[21]);
-            stream_store(&param.glbDstDDFBuf[22*glbn+glbi], fni[22]);
-            stream_store(&param.glbDstDDFBuf[23*glbn+glbi], fni[23]);
-            stream_store(&param.glbDstDDFBuf[24*glbn+glbi], fni[24]);
-            stream_store(&param.glbDstDDFBuf[25*glbn+glbi], fni[25]);
-            stream_store(&param.glbDstDDFBuf[26*glbn+glbi], fni[26]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 0, glbn, glbi, fni[ 0]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 1, glbn, glbi, fni[ 1]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 2, glbn, glbi, fni[ 2]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 3, glbn, glbi, fni[ 3]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 4, glbn, glbi, fni[ 4]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 5, glbn, glbi, fni[ 5]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 6, glbn, glbi, fni[ 6]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 7, glbn, glbi, fni[ 7]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 8, glbn, glbi, fni[ 8]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 9, glbn, glbi, fni[ 9]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 10, glbn, glbi, fni[10]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 11, glbn, glbi, fni[11]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 12, glbn, glbi, fni[12]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 13, glbn, glbi, fni[13]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 14, glbn, glbi, fni[14]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 15, glbn, glbi, fni[15]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 16, glbn, glbi, fni[16]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 17, glbn, glbi, fni[17]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 18, glbn, glbi, fni[18]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 19, glbn, glbi, fni[19]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 20, glbn, glbi, fni[20]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 21, glbn, glbi, fni[21]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 22, glbn, glbi, fni[22]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 23, glbn, glbi, fni[23]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 24, glbn, glbi, fni[24]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 25, glbn, glbi, fni[25]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 26, glbn, glbi, fni[26]);
         }
     }
 
@@ -1706,33 +1731,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & (CORRECT_BIT | STORE_DDF_BIT))==(CORRECT_BIT | STORE_DDF_BIT))
         {
-            stream_store(&param.glbDstDDFBuf[ 0*glbn+glbi], fni[ 0]);
-            stream_store(&param.glbDstDDFBuf[ 1*glbn+glbi], fni[ 1]);
-            stream_store(&param.glbDstDDFBuf[ 2*glbn+glbi], fni[ 2]);
-            stream_store(&param.glbDstDDFBuf[ 3*glbn+glbi], fni[ 3]);
-            stream_store(&param.glbDstDDFBuf[ 4*glbn+glbi], fni[ 4]);
-            stream_store(&param.glbDstDDFBuf[ 5*glbn+glbi], fni[ 5]);
-            stream_store(&param.glbDstDDFBuf[ 6*glbn+glbi], fni[ 6]);
-            stream_store(&param.glbDstDDFBuf[ 7*glbn+glbi], fni[ 7]);
-            stream_store(&param.glbDstDDFBuf[ 8*glbn+glbi], fni[ 8]);
-            stream_store(&param.glbDstDDFBuf[ 9*glbn+glbi], fni[ 9]);
-            stream_store(&param.glbDstDDFBuf[10*glbn+glbi], fni[10]);
-            stream_store(&param.glbDstDDFBuf[11*glbn+glbi], fni[11]);
-            stream_store(&param.glbDstDDFBuf[12*glbn+glbi], fni[12]);
-            stream_store(&param.glbDstDDFBuf[13*glbn+glbi], fni[13]);
-            stream_store(&param.glbDstDDFBuf[14*glbn+glbi], fni[14]);
-            stream_store(&param.glbDstDDFBuf[15*glbn+glbi], fni[15]);
-            stream_store(&param.glbDstDDFBuf[16*glbn+glbi], fni[16]);
-            stream_store(&param.glbDstDDFBuf[17*glbn+glbi], fni[17]);
-            stream_store(&param.glbDstDDFBuf[18*glbn+glbi], fni[18]);
-            stream_store(&param.glbDstDDFBuf[19*glbn+glbi], fni[19]);
-            stream_store(&param.glbDstDDFBuf[20*glbn+glbi], fni[20]);
-            stream_store(&param.glbDstDDFBuf[21*glbn+glbi], fni[21]);
-            stream_store(&param.glbDstDDFBuf[22*glbn+glbi], fni[22]);
-            stream_store(&param.glbDstDDFBuf[23*glbn+glbi], fni[23]);
-            stream_store(&param.glbDstDDFBuf[24*glbn+glbi], fni[24]);
-            stream_store(&param.glbDstDDFBuf[25*glbn+glbi], fni[25]);
-            stream_store(&param.glbDstDDFBuf[26*glbn+glbi], fni[26]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 0, glbn, glbi, fni[ 0]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 1, glbn, glbi, fni[ 1]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 2, glbn, glbi, fni[ 2]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 3, glbn, glbi, fni[ 3]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 4, glbn, glbi, fni[ 4]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 5, glbn, glbi, fni[ 5]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 6, glbn, glbi, fni[ 6]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 7, glbn, glbi, fni[ 7]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 8, glbn, glbi, fni[ 8]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 9, glbn, glbi, fni[ 9]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 10, glbn, glbi, fni[10]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 11, glbn, glbi, fni[11]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 12, glbn, glbi, fni[12]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 13, glbn, glbi, fni[13]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 14, glbn, glbi, fni[14]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 15, glbn, glbi, fni[15]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 16, glbn, glbi, fni[16]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 17, glbn, glbi, fni[17]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 18, glbn, glbi, fni[18]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 19, glbn, glbi, fni[19]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 20, glbn, glbi, fni[20]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 21, glbn, glbi, fni[21]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 22, glbn, glbi, fni[22]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 23, glbn, glbi, fni[23]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 24, glbn, glbi, fni[24]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 25, glbn, glbi, fni[25]);
+            stream_store_glb_ddf(param.glbDstDDFBuf, 26, glbn, glbi, fni[26]);
         }        
     }
 
@@ -1765,61 +1790,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz];
+            fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz];
+            fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz];
+            fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz];
+            fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz];
+            fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz];
+            fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz];
+            fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz];
+            fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz];
+            fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ];
+            fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ];
+            fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ];
+            fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ];
+            fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = param.glbSrcDDFBuf[13*glbn+glbi                     ];
+            fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ];
+            fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ];
+            fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ];
+            fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ];
+            fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz];
+            fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz];
+            fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz];
+            fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz];
+            fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*glbn+glbi              +glbndz];
+            fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz];
+            fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz];
+            fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz];
+            fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
+            fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
 
             culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
         }
@@ -1875,61 +1900,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz];
+            fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz];
+            fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz];
+            fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz];
+            fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz];
+            fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz];
+            fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz];
+            fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz];
+            fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz];
+            fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ];
+            fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ];
+            fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ];
+            fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ];
+            fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = param.glbSrcDDFBuf[13*glbn+glbi                     ];
+            fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ];
+            fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ];
+            fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ];
+            fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ];
+            fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz];
+            fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz];
+            fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz];
+            fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz];
+            fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*glbn+glbi              +glbndz];
+            fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz];
+            fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz];
+            fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz];
+            fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
+            fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -2257,33 +2282,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & (STORE_DDF_BIT | CORRECT_BIT))==(STORE_DDF_BIT | CORRECT_BIT))
         {
-            param.glbDstDDFBuf[ 0*glbn+glbi] = fni[ 0];
-            param.glbDstDDFBuf[ 1*glbn+glbi] = fni[ 1];
-            param.glbDstDDFBuf[ 2*glbn+glbi] = fni[ 2];
-            param.glbDstDDFBuf[ 3*glbn+glbi] = fni[ 3];
-            param.glbDstDDFBuf[ 4*glbn+glbi] = fni[ 4];
-            param.glbDstDDFBuf[ 5*glbn+glbi] = fni[ 5];
-            param.glbDstDDFBuf[ 6*glbn+glbi] = fni[ 6];
-            param.glbDstDDFBuf[ 7*glbn+glbi] = fni[ 7];
-            param.glbDstDDFBuf[ 8*glbn+glbi] = fni[ 8];
-            param.glbDstDDFBuf[ 9*glbn+glbi] = fni[ 9];
-            param.glbDstDDFBuf[10*glbn+glbi] = fni[10];
-            param.glbDstDDFBuf[11*glbn+glbi] = fni[11];
-            param.glbDstDDFBuf[12*glbn+glbi] = fni[12];
-            param.glbDstDDFBuf[13*glbn+glbi] = fni[13];
-            param.glbDstDDFBuf[14*glbn+glbi] = fni[14];
-            param.glbDstDDFBuf[15*glbn+glbi] = fni[15];
-            param.glbDstDDFBuf[16*glbn+glbi] = fni[16];
-            param.glbDstDDFBuf[17*glbn+glbi] = fni[17];
-            param.glbDstDDFBuf[18*glbn+glbi] = fni[18];
-            param.glbDstDDFBuf[19*glbn+glbi] = fni[19];
-            param.glbDstDDFBuf[20*glbn+glbi] = fni[20];
-            param.glbDstDDFBuf[21*glbn+glbi] = fni[21];
-            param.glbDstDDFBuf[22*glbn+glbi] = fni[22];
-            param.glbDstDDFBuf[23*glbn+glbi] = fni[23];
-            param.glbDstDDFBuf[24*glbn+glbi] = fni[24];
-            param.glbDstDDFBuf[25*glbn+glbi] = fni[25];
-            param.glbDstDDFBuf[26*glbn+glbi] = fni[26];
+            store_glb_ddf(param.glbDstDDFBuf, 0, glbn, glbi, fni[ 0]);
+            store_glb_ddf(param.glbDstDDFBuf, 1, glbn, glbi, fni[ 1]);
+            store_glb_ddf(param.glbDstDDFBuf, 2, glbn, glbi, fni[ 2]);
+            store_glb_ddf(param.glbDstDDFBuf, 3, glbn, glbi, fni[ 3]);
+            store_glb_ddf(param.glbDstDDFBuf, 4, glbn, glbi, fni[ 4]);
+            store_glb_ddf(param.glbDstDDFBuf, 5, glbn, glbi, fni[ 5]);
+            store_glb_ddf(param.glbDstDDFBuf, 6, glbn, glbi, fni[ 6]);
+            store_glb_ddf(param.glbDstDDFBuf, 7, glbn, glbi, fni[ 7]);
+            store_glb_ddf(param.glbDstDDFBuf, 8, glbn, glbi, fni[ 8]);
+            store_glb_ddf(param.glbDstDDFBuf, 9, glbn, glbi, fni[ 9]);
+            store_glb_ddf(param.glbDstDDFBuf, 10, glbn, glbi, fni[10]);
+            store_glb_ddf(param.glbDstDDFBuf, 11, glbn, glbi, fni[11]);
+            store_glb_ddf(param.glbDstDDFBuf, 12, glbn, glbi, fni[12]);
+            store_glb_ddf(param.glbDstDDFBuf, 13, glbn, glbi, fni[13]);
+            store_glb_ddf(param.glbDstDDFBuf, 14, glbn, glbi, fni[14]);
+            store_glb_ddf(param.glbDstDDFBuf, 15, glbn, glbi, fni[15]);
+            store_glb_ddf(param.glbDstDDFBuf, 16, glbn, glbi, fni[16]);
+            store_glb_ddf(param.glbDstDDFBuf, 17, glbn, glbi, fni[17]);
+            store_glb_ddf(param.glbDstDDFBuf, 18, glbn, glbi, fni[18]);
+            store_glb_ddf(param.glbDstDDFBuf, 19, glbn, glbi, fni[19]);
+            store_glb_ddf(param.glbDstDDFBuf, 20, glbn, glbi, fni[20]);
+            store_glb_ddf(param.glbDstDDFBuf, 21, glbn, glbi, fni[21]);
+            store_glb_ddf(param.glbDstDDFBuf, 22, glbn, glbi, fni[22]);
+            store_glb_ddf(param.glbDstDDFBuf, 23, glbn, glbi, fni[23]);
+            store_glb_ddf(param.glbDstDDFBuf, 24, glbn, glbi, fni[24]);
+            store_glb_ddf(param.glbDstDDFBuf, 25, glbn, glbi, fni[25]);
+            store_glb_ddf(param.glbDstDDFBuf, 26, glbn, glbi, fni[26]);
         }
     }
 
@@ -2316,61 +2341,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz];
+            fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz];
+            fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz];
+            fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz];
+            fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz];
+            fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz];
+            fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz];
+            fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz];
+            fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz];
+            fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ];
+            fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ];
+            fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ];
+            fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ];
+            fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = param.glbSrcDDFBuf[13*glbn+glbi                     ];
+            fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ];
+            fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ];
+            fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ];
+            fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ];
+            fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz];
+            fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz];
+            fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz];
+            fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz];
+            fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*glbn+glbi              +glbndz];
+            fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz];
+            fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz];
+            fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz];
+            fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
+            fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
 
             culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
         }
@@ -2421,61 +2446,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t pdz = (z==nz-1) ? 0 :  nx * ny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*n+i+pdx+pdy+pdz];
+            fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, n, i+pdx+pdy+pdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*n+i    +pdy+pdz];
+            fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, n, i    +pdy+pdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*n+i+ndx+pdy+pdz];
+            fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, n, i+ndx+pdy+pdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*n+i+pdx    +pdz];
+            fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, n, i+pdx    +pdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*n+i        +pdz];
+            fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, n, i        +pdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*n+i+ndx    +pdz];
+            fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, n, i+ndx    +pdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*n+i+pdx+ndy+pdz];
+            fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, n, i+pdx+ndy+pdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*n+i    +ndy+pdz];
+            fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, n, i    +ndy+pdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*n+i+ndx+ndy+pdz];
+            fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, n, i+ndx+ndy+pdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*n+i+pdx+pdy    ];
+            fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, n, i+pdx+pdy    );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*n+i    +pdy    ];
+            fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, n, i    +pdy    );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*n+i+ndx+pdy    ];
+            fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, n, i+ndx+pdy    );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*n+i+pdx        ];
+            fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, n, i+pdx        );
             //f13(x:0,y:0,z:0) from current lattice
-            fni[13] = param.glbSrcDDFBuf[13*n+i            ];
+            fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, n, i            );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*n+i+ndx        ];
+            fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, n, i+ndx        );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*n+i+pdx+ndy    ];
+            fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, n, i+pdx+ndy    );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*n+i    +ndy    ];
+            fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, n, i    +ndy    );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*n+i+ndx+ndy    ];
+            fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, n, i+ndx+ndy    );
             
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*n+i+pdx+pdy+ndz];
+            fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, n, i+pdx+pdy+ndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*n+i    +pdy+ndz];
+            fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, n, i    +pdy+ndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*n+i+ndx+pdy+ndz];
+            fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, n, i+ndx+pdy+ndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*n+i+pdx    +ndz];
+            fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, n, i+pdx    +ndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*n+i        +ndz];
+            fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, n, i        +ndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*n+i+ndx    +ndz];
+            fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, n, i+ndx    +ndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*n+i+pdx+ndy+ndz];
+            fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, n, i+pdx+ndy+ndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*n+i    +ndy+ndz];
+            fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, n, i    +ndy+ndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*n+i+ndx+ndy+ndz];
+            fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, n, i+ndx+ndy+ndz);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -2511,33 +2536,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & STORE_DDF_BIT)!=0)
         {
-            param.glbDstDDFBuf[ 0*n+i] = fni[ 0];
-            param.glbDstDDFBuf[ 1*n+i] = fni[ 1];
-            param.glbDstDDFBuf[ 2*n+i] = fni[ 2];
-            param.glbDstDDFBuf[ 3*n+i] = fni[ 3];
-            param.glbDstDDFBuf[ 4*n+i] = fni[ 4];
-            param.glbDstDDFBuf[ 5*n+i] = fni[ 5];
-            param.glbDstDDFBuf[ 6*n+i] = fni[ 6];
-            param.glbDstDDFBuf[ 7*n+i] = fni[ 7];
-            param.glbDstDDFBuf[ 8*n+i] = fni[ 8];
-            param.glbDstDDFBuf[ 9*n+i] = fni[ 9];
-            param.glbDstDDFBuf[10*n+i] = fni[10];
-            param.glbDstDDFBuf[11*n+i] = fni[11];
-            param.glbDstDDFBuf[12*n+i] = fni[12];
-            param.glbDstDDFBuf[13*n+i] = fni[13];
-            param.glbDstDDFBuf[14*n+i] = fni[14];
-            param.glbDstDDFBuf[15*n+i] = fni[15];
-            param.glbDstDDFBuf[16*n+i] = fni[16];
-            param.glbDstDDFBuf[17*n+i] = fni[17];
-            param.glbDstDDFBuf[18*n+i] = fni[18];
-            param.glbDstDDFBuf[19*n+i] = fni[19];
-            param.glbDstDDFBuf[20*n+i] = fni[20];
-            param.glbDstDDFBuf[21*n+i] = fni[21];
-            param.glbDstDDFBuf[22*n+i] = fni[22];
-            param.glbDstDDFBuf[23*n+i] = fni[23];
-            param.glbDstDDFBuf[24*n+i] = fni[24];
-            param.glbDstDDFBuf[25*n+i] = fni[25];
-            param.glbDstDDFBuf[26*n+i] = fni[26];
+            store_glb_ddf(param.glbDstDDFBuf, 0, n, i, fni[ 0]);
+            store_glb_ddf(param.glbDstDDFBuf, 1, n, i, fni[ 1]);
+            store_glb_ddf(param.glbDstDDFBuf, 2, n, i, fni[ 2]);
+            store_glb_ddf(param.glbDstDDFBuf, 3, n, i, fni[ 3]);
+            store_glb_ddf(param.glbDstDDFBuf, 4, n, i, fni[ 4]);
+            store_glb_ddf(param.glbDstDDFBuf, 5, n, i, fni[ 5]);
+            store_glb_ddf(param.glbDstDDFBuf, 6, n, i, fni[ 6]);
+            store_glb_ddf(param.glbDstDDFBuf, 7, n, i, fni[ 7]);
+            store_glb_ddf(param.glbDstDDFBuf, 8, n, i, fni[ 8]);
+            store_glb_ddf(param.glbDstDDFBuf, 9, n, i, fni[ 9]);
+            store_glb_ddf(param.glbDstDDFBuf, 10, n, i, fni[10]);
+            store_glb_ddf(param.glbDstDDFBuf, 11, n, i, fni[11]);
+            store_glb_ddf(param.glbDstDDFBuf, 12, n, i, fni[12]);
+            store_glb_ddf(param.glbDstDDFBuf, 13, n, i, fni[13]);
+            store_glb_ddf(param.glbDstDDFBuf, 14, n, i, fni[14]);
+            store_glb_ddf(param.glbDstDDFBuf, 15, n, i, fni[15]);
+            store_glb_ddf(param.glbDstDDFBuf, 16, n, i, fni[16]);
+            store_glb_ddf(param.glbDstDDFBuf, 17, n, i, fni[17]);
+            store_glb_ddf(param.glbDstDDFBuf, 18, n, i, fni[18]);
+            store_glb_ddf(param.glbDstDDFBuf, 19, n, i, fni[19]);
+            store_glb_ddf(param.glbDstDDFBuf, 20, n, i, fni[20]);
+            store_glb_ddf(param.glbDstDDFBuf, 21, n, i, fni[21]);
+            store_glb_ddf(param.glbDstDDFBuf, 22, n, i, fni[22]);
+            store_glb_ddf(param.glbDstDDFBuf, 23, n, i, fni[23]);
+            store_glb_ddf(param.glbDstDDFBuf, 24, n, i, fni[24]);
+            store_glb_ddf(param.glbDstDDFBuf, 25, n, i, fni[25]);
+            store_glb_ddf(param.glbDstDDFBuf, 26, n, i, fni[26]);
         }
     }
 
@@ -2565,61 +2590,61 @@ namespace culbm::simulator::single_dev_expt
         const idx_t pdz = (z==nz-1) ? 0 : nx*ny;
 
         //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-        fni[ 0] = param.glbSrcDDFBuf[ 0*n+i+pdx+pdy+pdz];
+        fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, n, i+pdx+pdy+pdz);
         //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-        fni[ 1] = param.glbSrcDDFBuf[ 1*n+i    +pdy+pdz];
+        fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, n, i    +pdy+pdz);
         //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-        fni[ 2] = param.glbSrcDDFBuf[ 2*n+i+ndx+pdy+pdz];
+        fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, n, i+ndx+pdy+pdz);
         //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-        fni[ 3] = param.glbSrcDDFBuf[ 3*n+i+pdx    +pdz];
+        fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, n, i+pdx    +pdz);
         //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-        fni[ 4] = param.glbSrcDDFBuf[ 4*n+i        +pdz];
+        fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, n, i        +pdz);
         //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-        fni[ 5] = param.glbSrcDDFBuf[ 5*n+i+ndx    +pdz];
+        fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, n, i+ndx    +pdz);
         //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-        fni[ 6] = param.glbSrcDDFBuf[ 6*n+i+pdx+ndy+pdz];
+        fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, n, i+pdx+ndy+pdz);
         //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-        fni[ 7] = param.glbSrcDDFBuf[ 7*n+i    +ndy+pdz];
+        fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, n, i    +ndy+pdz);
         //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-        fni[ 8] = param.glbSrcDDFBuf[ 8*n+i+ndx+ndy+pdz];
+        fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, n, i+ndx+ndy+pdz);
 
         //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-        fni[ 9] = param.glbSrcDDFBuf[ 9*n+i+pdx+pdy    ];
+        fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, n, i+pdx+pdy    );
         //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-        fni[10] = param.glbSrcDDFBuf[10*n+i    +pdy    ];
+        fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, n, i    +pdy    );
         //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-        fni[11] = param.glbSrcDDFBuf[11*n+i+ndx+pdy    ];
+        fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, n, i+ndx+pdy    );
         //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-        fni[12] = param.glbSrcDDFBuf[12*n+i+pdx        ];
+        fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, n, i+pdx        );
         //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-        fni[13] = param.glbSrcDDFBuf[13*n+i            ];
+        fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, n, i            );
         //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-        fni[14] = param.glbSrcDDFBuf[14*n+i+ndx        ];
+        fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, n, i+ndx        );
         //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-        fni[15] = param.glbSrcDDFBuf[15*n+i+pdx+ndy    ];
+        fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, n, i+pdx+ndy    );
         //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-        fni[16] = param.glbSrcDDFBuf[16*n+i    +ndy    ];
+        fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, n, i    +ndy    );
         //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-        fni[17] = param.glbSrcDDFBuf[17*n+i+ndx+ndy    ];
+        fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, n, i+ndx+ndy    );
 
         //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-        fni[18] = param.glbSrcDDFBuf[18*n+i+pdx+pdy+ndz];
+        fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, n, i+pdx+pdy+ndz);
         //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-        fni[19] = param.glbSrcDDFBuf[19*n+i    +pdy+ndz];
+        fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, n, i    +pdy+ndz);
         //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-        fni[20] = param.glbSrcDDFBuf[20*n+i+ndx+pdy+ndz];
+        fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, n, i+ndx+pdy+ndz);
         //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-        fni[21] = param.glbSrcDDFBuf[21*n+i+pdx    +ndz];
+        fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, n, i+pdx    +ndz);
         //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-        fni[22] = param.glbSrcDDFBuf[22*n+i        +ndz];
+        fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, n, i        +ndz);
         //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-        fni[23] = param.glbSrcDDFBuf[23*n+i+ndx    +ndz];
+        fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, n, i+ndx    +ndz);
         //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-        fni[24] = param.glbSrcDDFBuf[24*n+i+pdx+ndy+ndz];
+        fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, n, i+pdx+ndy+ndz);
         //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-        fni[25] = param.glbSrcDDFBuf[25*n+i    +ndy+ndz];
+        fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, n, i    +ndy+ndz);
         //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-        fni[26] = param.glbSrcDDFBuf[26*n+i+ndx+ndy+ndz];
+        fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, n, i+ndx+ndy+ndz);
 
         culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
 

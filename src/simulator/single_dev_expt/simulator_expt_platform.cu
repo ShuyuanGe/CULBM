@@ -198,7 +198,7 @@ namespace culbm::simulator::single_dev_expt
 
             void initRhoU()
             {
-                const std::int32_t domSize = getDomainSize();
+                const std::size_t domSize = getDomainSize();
                 CU_CHECK(cudaMalloc(&_rhoBuf, domSize*sizeof(real_t)));
                 CU_CHECK(cudaMalloc(&_vxBuf , domSize*sizeof(real_t)));
                 CU_CHECK(cudaMalloc(&_vyBuf , domSize*sizeof(real_t)));
@@ -228,7 +228,7 @@ namespace culbm::simulator::single_dev_expt
 
             void initDoubleDDFBuf()
             {
-                const std::int32_t domSize = getDomainSize();
+                const std::size_t domSize = getDomainSize();
                 switch(_velSet)
                 {
                     case VelSet::D3Q27:
@@ -338,7 +338,6 @@ namespace culbm::simulator::single_dev_expt
                 CU_CHECK(cudaEventCreate(&_start));
                 CU_CHECK(cudaEventCreate(&_end));
 
-                const std::uint32_t domSize = getDomainSize();
                 const std::uint32_t q = getQ();
 
                 if(
@@ -457,9 +456,9 @@ namespace culbm::simulator::single_dev_expt
                 CU_CHECK(cudaStreamDestroy(_stream));
             }
 
-            std::uint32_t getDomainSize() const noexcept
+            std::size_t getDomainSize() const noexcept
             {
-                return _domDim.x * _domDim.y * _domDim.z;
+                return static_cast<std::size_t>(_domDim.x) * _domDim.y * _domDim.z;
             }
 
             culbm::basic::Vec3<std::uint32_t> getBlockingDim() const noexcept

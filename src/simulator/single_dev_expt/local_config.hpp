@@ -5,6 +5,7 @@
 namespace culbm::simulator::single_dev_expt
 {
     using idx_t = std::int32_t;
+    using glb_idx_t = std::int64_t;
     using flag_t = std::uint32_t;
     using real_t = float;
     using ddf_t = float;
