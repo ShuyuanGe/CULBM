@@ -14,6 +14,10 @@
 #include "blocking_alogrithm.hpp"
 #include "simulator_expt_platform.hpp"
 
+#ifndef CULBM_EXPT_ENABLE_PERSISTENT_L2
+#define CULBM_EXPT_ENABLE_PERSISTENT_L2 1
+#endif
+
 namespace culbm::simulator::single_dev_expt
 {
     class Simulator::Data
@@ -246,6 +250,7 @@ namespace culbm::simulator::single_dev_expt
 
             void mapGlobalMem2PersistL2(void* basePtr, std::size_t numBytes)
             {
+#if CULBM_EXPT_ENABLE_PERSISTENT_L2
                 cudaDeviceProp prop;
                 cudaGetDeviceProperties(&prop, 0);
                 if (numBytes > prop.persistingL2CacheMaxSize) {
@@ -264,6 +269,11 @@ namespace culbm::simulator::single_dev_expt
                 streamAttr.accessPolicyWindow.hitProp = cudaAccessProperty::cudaAccessPropertyPersisting;
                 streamAttr.accessPolicyWindow.missProp = cudaAccessProperty::cudaAccessPropertyStreaming;
                 CU_CHECK(cudaStreamSetAttribute(_stream, cudaLaunchAttributeID::cudaStreamAttributeAccessPolicyWindow, &streamAttr));
+#else
+                (void)basePtr;
+                (void)numBytes;
+                std::cout << "Persistent L2 set-aside disabled for this build." << std::endl;
+#endif
             }
 
         public:

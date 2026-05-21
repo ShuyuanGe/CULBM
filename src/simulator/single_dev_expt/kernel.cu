@@ -2,10 +2,49 @@
 #include "L1L2StreamCore.cuh"
 #include "device_function.hpp"
 
+#ifndef CULBM_EXPT_CACHE_HINT_POLICY
+#define CULBM_EXPT_CACHE_HINT_POLICY 1
+#endif
 
 
 namespace culbm::simulator::single_dev_expt
 {
+    __device__ __forceinline__ real_t stream_load(const ddf_t* ptr)
+    {
+#if CULBM_EXPT_CACHE_HINT_POLICY == 0
+        return *ptr;
+#else
+        return __ldcs(ptr);
+#endif
+    }
+
+    __device__ __forceinline__ void stream_store(ddf_t* ptr, const real_t value)
+    {
+#if CULBM_EXPT_CACHE_HINT_POLICY == 0
+        *ptr = value;
+#else
+        __stcs(ptr, value);
+#endif
+    }
+
+    __device__ __forceinline__ real_t cache_load(const real_t* ptr)
+    {
+#if CULBM_EXPT_CACHE_HINT_POLICY == 0
+        return *ptr;
+#else
+        return __ldca(ptr);
+#endif
+    }
+
+    __device__ __forceinline__ void cache_store(real_t* ptr, const real_t value)
+    {
+#if CULBM_EXPT_CACHE_HINT_POLICY == 0
+        *ptr = value;
+#else
+        __stwb(ptr, value);
+#endif
+    }
+
     __global__ __launch_bounds__(1024) void
     HaloBlockingL1L2D3Q27PullKernel(const HaloBlockingL1L2Param __grid_constant__ param)
     {
@@ -734,61 +773,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz];
+            fni[ 0] = stream_load(&param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz]);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz];
+            fni[ 1] = stream_load(&param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz]);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz];
+            fni[ 2] = stream_load(&param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz]);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz];
+            fni[ 3] = stream_load(&param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz]);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz];
+            fni[ 4] = stream_load(&param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz]);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz];
+            fni[ 5] = stream_load(&param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz]);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz];
+            fni[ 6] = stream_load(&param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz]);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz];
+            fni[ 7] = stream_load(&param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz]);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz];
+            fni[ 8] = stream_load(&param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz]);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ];
+            fni[ 9] = stream_load(&param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ]);
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ];
+            fni[10] = stream_load(&param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ]);
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ];
+            fni[11] = stream_load(&param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ]);
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ];
+            fni[12] = stream_load(&param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ]);
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = param.glbSrcDDFBuf[13*glbn+glbi                     ];
+            fni[13] = stream_load(&param.glbSrcDDFBuf[13*glbn+glbi                     ]);
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ];
+            fni[14] = stream_load(&param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ]);
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ];
+            fni[15] = stream_load(&param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ]);
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ];
+            fni[16] = stream_load(&param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ]);
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ];
+            fni[17] = stream_load(&param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ]);
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz];
+            fni[18] = stream_load(&param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz]);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz];
+            fni[19] = stream_load(&param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz]);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz];
+            fni[20] = stream_load(&param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz]);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz];
+            fni[21] = stream_load(&param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz]);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*glbn+glbi              +glbndz];
+            fni[22] = stream_load(&param.glbSrcDDFBuf[22*glbn+glbi              +glbndz]);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz];
+            fni[23] = stream_load(&param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz]);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz];
+            fni[24] = stream_load(&param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz]);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz];
+            fni[25] = stream_load(&param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz]);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
+            fni[26] = stream_load(&param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz]);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -832,61 +871,61 @@ namespace culbm::simulator::single_dev_expt
             //EsoTwist Even Store Rules:
             //Don't change direction
             //store f0 (x:-,y:-,z:-) to current lattice
-            param.blkDDFBuf[ 0*blkn+blki                     ] = fni[ 0];
+            cache_store(&param.blkDDFBuf[ 0*blkn+blki                     ], fni[ 0]);
             //store f1 (x:0,y:-,z:-) to current lattice
-            param.blkDDFBuf[ 1*blkn+blki                     ] = fni[ 1];
+            cache_store(&param.blkDDFBuf[ 1*blkn+blki                     ], fni[ 1]);
             //store f2 (x:+,y:-,z:-) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[ 2*blkn+blki+blkpdx              ] = fni[ 2];
+            cache_store(&param.blkDDFBuf[ 2*blkn+blki+blkpdx              ], fni[ 2]);
             //store f3 (x:-,y:0,z:-) to current lattice
-            param.blkDDFBuf[ 3*blkn+blki                     ] = fni[ 3];
+            cache_store(&param.blkDDFBuf[ 3*blkn+blki                     ], fni[ 3]);
             //store f4 (x:0,y:0,z:-) to current lattice
-            param.blkDDFBuf[ 4*blkn+blki                     ] = fni[ 4];
+            cache_store(&param.blkDDFBuf[ 4*blkn+blki                     ], fni[ 4]);
             //store f5 (x:+,y:0,z:-) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[ 5*blkn+blki+blkpdx              ] = fni[ 5];
+            cache_store(&param.blkDDFBuf[ 5*blkn+blki+blkpdx              ], fni[ 5]);
             //store f6 (x:-,y:+,z:-) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ] = fni[ 6];
+            cache_store(&param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ], fni[ 6]);
             //store f7 (x:0,y:+,z:-) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ] = fni[ 7];
+            cache_store(&param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ], fni[ 7]);
             //store f8 (x:+,y:+,z:-) to neighbor (x:+,y:+,z:0)
-            param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ] = fni[ 8];
+            cache_store(&param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ], fni[ 8]);
 
             //store f9 (x:-,y:-,z:0) to current lattice
-            param.blkDDFBuf[ 9*blkn+blki                     ] = fni[ 9];
+            cache_store(&param.blkDDFBuf[ 9*blkn+blki                     ], fni[ 9]);
             //store f10(x:0,y:-,z:0) to current lattice
-            param.blkDDFBuf[10*blkn+blki                     ] = fni[10];
+            cache_store(&param.blkDDFBuf[10*blkn+blki                     ], fni[10]);
             //store f11(x:+,y:-,z:0) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[11*blkn+blki+blkpdx              ] = fni[11];
+            cache_store(&param.blkDDFBuf[11*blkn+blki+blkpdx              ], fni[11]);
             //store f12(x:-,y:0,z:0) to current lattice
-            param.blkDDFBuf[12*blkn+blki                     ] = fni[12];
+            cache_store(&param.blkDDFBuf[12*blkn+blki                     ], fni[12]);
             //store f13(x:0,y:0,z:0) to current lattice
-            param.blkDDFBuf[13*blkn+blki                     ] = fni[13];
+            cache_store(&param.blkDDFBuf[13*blkn+blki                     ], fni[13]);
             //store f14(x:+,y:0,z:0) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[14*blkn+blki+blkpdx              ] = fni[14];
+            cache_store(&param.blkDDFBuf[14*blkn+blki+blkpdx              ], fni[14]);
             //store f15(x:-,y:+,z:0) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[15*blkn+blki       +blkpdy       ] = fni[15];
+            cache_store(&param.blkDDFBuf[15*blkn+blki       +blkpdy       ], fni[15]);
             //store f16(x:0,y:+,z:0) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[16*blkn+blki       +blkpdy       ] = fni[16];
+            cache_store(&param.blkDDFBuf[16*blkn+blki       +blkpdy       ], fni[16]);
             //store f17(x:+,y:+,z:0) to neighbor (x:+,y:+,z:0)
-            param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ] = fni[17];
+            cache_store(&param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ], fni[17]);
 
             //store f18(x:-,y:-,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[18*blkn+blki              +blkpdz] = fni[18];
+            cache_store(&param.blkDDFBuf[18*blkn+blki              +blkpdz], fni[18]);
             //store f19(x:0,y:-,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[19*blkn+blki              +blkpdz] = fni[19];
+            cache_store(&param.blkDDFBuf[19*blkn+blki              +blkpdz], fni[19]);
             //store f20(x:+,y:-,z:+) to neighbor (x:+,y:0,z:+)
-            param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz] = fni[20];
+            cache_store(&param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz], fni[20]);
             //store f21(x:-,y:0,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[21*blkn+blki              +blkpdz] = fni[21];
+            cache_store(&param.blkDDFBuf[21*blkn+blki              +blkpdz], fni[21]);
             //store f22(x:0,y:0,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[22*blkn+blki              +blkpdz] = fni[22];
+            cache_store(&param.blkDDFBuf[22*blkn+blki              +blkpdz], fni[22]);
             //store f23(x:+,y:0,z:+) to neighbor (x:+,y:0,z:+)
-            param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz] = fni[23];
+            cache_store(&param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz], fni[23]);
             //store f24(x:-,y:+,z:+) to neighbor (x:0,y:+,z:+)
-            param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz] = fni[24];
+            cache_store(&param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz], fni[24]);
             //store f25(x:0,y:+,z:+) to neighbor (x:0,y:+,z:+)
-            param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz] = fni[25];
+            cache_store(&param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz], fni[25]);
             //store f26(x:+,y:+,z:+) to neighbor (x:+,y:+,z:+)
-            param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz] = fni[26];
+            cache_store(&param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz], fni[26]);
         }
     }
 
@@ -919,61 +958,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz];
+            fni[ 0] = stream_load(&param.glbSrcDDFBuf[ 0*glbn+glbi+glbpdx+glbpdy+glbpdz]);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz];
+            fni[ 1] = stream_load(&param.glbSrcDDFBuf[ 1*glbn+glbi       +glbpdy+glbpdz]);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz];
+            fni[ 2] = stream_load(&param.glbSrcDDFBuf[ 2*glbn+glbi+glbndx+glbpdy+glbpdz]);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz];
+            fni[ 3] = stream_load(&param.glbSrcDDFBuf[ 3*glbn+glbi+glbpdx       +glbpdz]);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz];
+            fni[ 4] = stream_load(&param.glbSrcDDFBuf[ 4*glbn+glbi              +glbpdz]);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz];
+            fni[ 5] = stream_load(&param.glbSrcDDFBuf[ 5*glbn+glbi+glbndx       +glbpdz]);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz];
+            fni[ 6] = stream_load(&param.glbSrcDDFBuf[ 6*glbn+glbi+glbpdx+glbndy+glbpdz]);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz];
+            fni[ 7] = stream_load(&param.glbSrcDDFBuf[ 7*glbn+glbi       +glbndy+glbpdz]);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz];
+            fni[ 8] = stream_load(&param.glbSrcDDFBuf[ 8*glbn+glbi+glbndx+glbndy+glbpdz]);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ];
+            fni[ 9] = stream_load(&param.glbSrcDDFBuf[ 9*glbn+glbi+glbpdx+glbpdy       ]);
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ];
+            fni[10] = stream_load(&param.glbSrcDDFBuf[10*glbn+glbi       +glbpdy       ]);
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ];
+            fni[11] = stream_load(&param.glbSrcDDFBuf[11*glbn+glbi+glbndx+glbpdy       ]);
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ];
+            fni[12] = stream_load(&param.glbSrcDDFBuf[12*glbn+glbi+glbpdx              ]);
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = param.glbSrcDDFBuf[13*glbn+glbi                     ];
+            fni[13] = stream_load(&param.glbSrcDDFBuf[13*glbn+glbi                     ]);
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ];
+            fni[14] = stream_load(&param.glbSrcDDFBuf[14*glbn+glbi+glbndx              ]);
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ];
+            fni[15] = stream_load(&param.glbSrcDDFBuf[15*glbn+glbi+glbpdx+glbndy       ]);
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ];
+            fni[16] = stream_load(&param.glbSrcDDFBuf[16*glbn+glbi       +glbndy       ]);
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ];
+            fni[17] = stream_load(&param.glbSrcDDFBuf[17*glbn+glbi+glbndx+glbndy       ]);
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz];
+            fni[18] = stream_load(&param.glbSrcDDFBuf[18*glbn+glbi+glbpdx+glbpdy+glbndz]);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz];
+            fni[19] = stream_load(&param.glbSrcDDFBuf[19*glbn+glbi       +glbpdy+glbndz]);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz];
+            fni[20] = stream_load(&param.glbSrcDDFBuf[20*glbn+glbi+glbndx+glbpdy+glbndz]);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz];
+            fni[21] = stream_load(&param.glbSrcDDFBuf[21*glbn+glbi+glbpdx       +glbndz]);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = param.glbSrcDDFBuf[22*glbn+glbi              +glbndz];
+            fni[22] = stream_load(&param.glbSrcDDFBuf[22*glbn+glbi              +glbndz]);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz];
+            fni[23] = stream_load(&param.glbSrcDDFBuf[23*glbn+glbi+glbndx       +glbndz]);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz];
+            fni[24] = stream_load(&param.glbSrcDDFBuf[24*glbn+glbi+glbpdx+glbndy+glbndz]);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz];
+            fni[25] = stream_load(&param.glbSrcDDFBuf[25*glbn+glbi       +glbndy+glbndz]);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz];
+            fni[26] = stream_load(&param.glbSrcDDFBuf[26*glbn+glbi+glbndx+glbndy+glbndz]);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -1009,33 +1048,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & STORE_DDF_BIT)!=0)
         {
-            param.glbDstDDFBuf[ 0*glbn+glbi] = fni[ 0];
-            param.glbDstDDFBuf[ 1*glbn+glbi] = fni[ 1];
-            param.glbDstDDFBuf[ 2*glbn+glbi] = fni[ 2];
-            param.glbDstDDFBuf[ 3*glbn+glbi] = fni[ 3];
-            param.glbDstDDFBuf[ 4*glbn+glbi] = fni[ 4];
-            param.glbDstDDFBuf[ 5*glbn+glbi] = fni[ 5];
-            param.glbDstDDFBuf[ 6*glbn+glbi] = fni[ 6];
-            param.glbDstDDFBuf[ 7*glbn+glbi] = fni[ 7];
-            param.glbDstDDFBuf[ 8*glbn+glbi] = fni[ 8];
-            param.glbDstDDFBuf[ 9*glbn+glbi] = fni[ 9];
-            param.glbDstDDFBuf[10*glbn+glbi] = fni[10];
-            param.glbDstDDFBuf[11*glbn+glbi] = fni[11];
-            param.glbDstDDFBuf[12*glbn+glbi] = fni[12];
-            param.glbDstDDFBuf[13*glbn+glbi] = fni[13];
-            param.glbDstDDFBuf[14*glbn+glbi] = fni[14];
-            param.glbDstDDFBuf[15*glbn+glbi] = fni[15];
-            param.glbDstDDFBuf[16*glbn+glbi] = fni[16];
-            param.glbDstDDFBuf[17*glbn+glbi] = fni[17];
-            param.glbDstDDFBuf[18*glbn+glbi] = fni[18];
-            param.glbDstDDFBuf[19*glbn+glbi] = fni[19];
-            param.glbDstDDFBuf[20*glbn+glbi] = fni[20];
-            param.glbDstDDFBuf[21*glbn+glbi] = fni[21];
-            param.glbDstDDFBuf[22*glbn+glbi] = fni[22];
-            param.glbDstDDFBuf[23*glbn+glbi] = fni[23];
-            param.glbDstDDFBuf[24*glbn+glbi] = fni[24];
-            param.glbDstDDFBuf[25*glbn+glbi] = fni[25];
-            param.glbDstDDFBuf[26*glbn+glbi] = fni[26];
+            stream_store(&param.glbDstDDFBuf[ 0*glbn+glbi], fni[ 0]);
+            stream_store(&param.glbDstDDFBuf[ 1*glbn+glbi], fni[ 1]);
+            stream_store(&param.glbDstDDFBuf[ 2*glbn+glbi], fni[ 2]);
+            stream_store(&param.glbDstDDFBuf[ 3*glbn+glbi], fni[ 3]);
+            stream_store(&param.glbDstDDFBuf[ 4*glbn+glbi], fni[ 4]);
+            stream_store(&param.glbDstDDFBuf[ 5*glbn+glbi], fni[ 5]);
+            stream_store(&param.glbDstDDFBuf[ 6*glbn+glbi], fni[ 6]);
+            stream_store(&param.glbDstDDFBuf[ 7*glbn+glbi], fni[ 7]);
+            stream_store(&param.glbDstDDFBuf[ 8*glbn+glbi], fni[ 8]);
+            stream_store(&param.glbDstDDFBuf[ 9*glbn+glbi], fni[ 9]);
+            stream_store(&param.glbDstDDFBuf[10*glbn+glbi], fni[10]);
+            stream_store(&param.glbDstDDFBuf[11*glbn+glbi], fni[11]);
+            stream_store(&param.glbDstDDFBuf[12*glbn+glbi], fni[12]);
+            stream_store(&param.glbDstDDFBuf[13*glbn+glbi], fni[13]);
+            stream_store(&param.glbDstDDFBuf[14*glbn+glbi], fni[14]);
+            stream_store(&param.glbDstDDFBuf[15*glbn+glbi], fni[15]);
+            stream_store(&param.glbDstDDFBuf[16*glbn+glbi], fni[16]);
+            stream_store(&param.glbDstDDFBuf[17*glbn+glbi], fni[17]);
+            stream_store(&param.glbDstDDFBuf[18*glbn+glbi], fni[18]);
+            stream_store(&param.glbDstDDFBuf[19*glbn+glbi], fni[19]);
+            stream_store(&param.glbDstDDFBuf[20*glbn+glbi], fni[20]);
+            stream_store(&param.glbDstDDFBuf[21*glbn+glbi], fni[21]);
+            stream_store(&param.glbDstDDFBuf[22*glbn+glbi], fni[22]);
+            stream_store(&param.glbDstDDFBuf[23*glbn+glbi], fni[23]);
+            stream_store(&param.glbDstDDFBuf[24*glbn+glbi], fni[24]);
+            stream_store(&param.glbDstDDFBuf[25*glbn+glbi], fni[25]);
+            stream_store(&param.glbDstDDFBuf[26*glbn+glbi], fni[26]);
         }
     }
 
@@ -1068,61 +1107,61 @@ namespace culbm::simulator::single_dev_expt
             //EsoTwist Odd Load Rules:
             //Don' t change direction
             //load f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz];
+            fni[ 0] = cache_load(&param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz]);
             //load f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz];
+            fni[ 1] = cache_load(&param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz]);
             //load f2 (x:+,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 2] = param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz];
+            fni[ 2] = cache_load(&param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz]);
             //load f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz];
+            fni[ 3] = cache_load(&param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz]);
             //load f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.blkDDFBuf[ 4*blkn+blki              +blkpdz];
+            fni[ 4] = cache_load(&param.blkDDFBuf[ 4*blkn+blki              +blkpdz]);
             //load f5 (x:+,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 5] = param.blkDDFBuf[ 5*blkn+blki              +blkpdz];
+            fni[ 5] = cache_load(&param.blkDDFBuf[ 5*blkn+blki              +blkpdz]);
             //load f6 (x:-,y:+,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 6] = param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz];
+            fni[ 6] = cache_load(&param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz]);
             //load f7 (x:0,y:+,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 7] = param.blkDDFBuf[ 7*blkn+blki              +blkpdz];
+            fni[ 7] = cache_load(&param.blkDDFBuf[ 7*blkn+blki              +blkpdz]);
             //load f8 (x:+,y:+,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 8] = param.blkDDFBuf[ 8*blkn+blki              +blkpdz];
+            fni[ 8] = cache_load(&param.blkDDFBuf[ 8*blkn+blki              +blkpdz]);
 
             //load f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ];
+            fni[ 9] = cache_load(&param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ]);
             //load f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.blkDDFBuf[10*blkn+blki       +blkpdy       ];
+            fni[10] = cache_load(&param.blkDDFBuf[10*blkn+blki       +blkpdy       ]);
             //load f11(x:+,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[11] = param.blkDDFBuf[11*blkn+blki       +blkpdy       ];
+            fni[11] = cache_load(&param.blkDDFBuf[11*blkn+blki       +blkpdy       ]);
             //load f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.blkDDFBuf[12*blkn+blki+blkpdx              ];
+            fni[12] = cache_load(&param.blkDDFBuf[12*blkn+blki+blkpdx              ]);
             //load f13(x:0,y:0,z:0) from current lattice
-            fni[13] = param.blkDDFBuf[13*blkn+blki                     ];
+            fni[13] = cache_load(&param.blkDDFBuf[13*blkn+blki                     ]);
             //load f14(x:+,y:0,z:0) from current lattice
-            fni[14] = param.blkDDFBuf[14*blkn+blki                     ];
+            fni[14] = cache_load(&param.blkDDFBuf[14*blkn+blki                     ]);
             //load f15(x:-,y:+,z:0) from neighbor (x:+,y:0,z:0)
-            fni[15] = param.blkDDFBuf[15*blkn+blki+blkpdx              ];
+            fni[15] = cache_load(&param.blkDDFBuf[15*blkn+blki+blkpdx              ]);
             //load f16(x:0,y:+,z:0) from current lattice
-            fni[16] = param.blkDDFBuf[16*blkn+blki                     ];
+            fni[16] = cache_load(&param.blkDDFBuf[16*blkn+blki                     ]);
             //load f17(x:+,y:+,z:0) from current lattice
-            fni[17] = param.blkDDFBuf[17*blkn+blki                     ];
+            fni[17] = cache_load(&param.blkDDFBuf[17*blkn+blki                     ]);
 
             //load f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:0)
-            fni[18] = param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ];
+            fni[18] = cache_load(&param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ]);
             //load f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:0)
-            fni[19] = param.blkDDFBuf[19*blkn+blki       +blkpdy       ];
+            fni[19] = cache_load(&param.blkDDFBuf[19*blkn+blki       +blkpdy       ]);
             //load f20(x:+,y:-,z:+) from neighbor (x:0,y:+,z:0)
-            fni[20] = param.blkDDFBuf[20*blkn+blki       +blkpdy       ];
+            fni[20] = cache_load(&param.blkDDFBuf[20*blkn+blki       +blkpdy       ]);
             //load f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:0)
-            fni[21] = param.blkDDFBuf[21*blkn+blki+blkpdx              ];
+            fni[21] = cache_load(&param.blkDDFBuf[21*blkn+blki+blkpdx              ]);
             //load f22(x:0,y:0,z:+) from current lattice
-            fni[22] = param.blkDDFBuf[22*blkn+blki                     ];
+            fni[22] = cache_load(&param.blkDDFBuf[22*blkn+blki                     ]);
             //load f23(x:+,y:0,z:+) from current lattice
-            fni[23] = param.blkDDFBuf[23*blkn+blki                     ];
+            fni[23] = cache_load(&param.blkDDFBuf[23*blkn+blki                     ]);
             //load f24(x:-,y:+,z:+) from neighbor (x:+,y:0,z:0)
-            fni[24] = param.blkDDFBuf[24*blkn+blki+blkpdx              ];
+            fni[24] = cache_load(&param.blkDDFBuf[24*blkn+blki+blkpdx              ]);
             //load f25(x:0,y:+,z:+) from current lattice
-            fni[25] = param.blkDDFBuf[25*blkn+blki                     ];
+            fni[25] = cache_load(&param.blkDDFBuf[25*blkn+blki                     ]);
             //load f26(x:+,y:+,z:+) from current lattice
-            fni[26] = param.blkDDFBuf[26*blkn+blki                     ];
+            fni[26] = cache_load(&param.blkDDFBuf[26*blkn+blki                     ]);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -1161,61 +1200,61 @@ namespace culbm::simulator::single_dev_expt
             //EsoTwist Odd Store Rules:
             //Reverse all direction
             //store f0 (x:-,y:-,z:-) to current lattice
-            param.blkDDFBuf[26*blkn+blki                     ] = fni[ 0];
+            cache_store(&param.blkDDFBuf[26*blkn+blki                     ], fni[ 0]);
             //store f1 (x:0,y:-,z:-) to current lattice
-            param.blkDDFBuf[25*blkn+blki                     ] = fni[ 1];
+            cache_store(&param.blkDDFBuf[25*blkn+blki                     ], fni[ 1]);
             //store f2 (x:+,y:-,z:-) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[24*blkn+blki+blkpdx              ] = fni[ 2];
+            cache_store(&param.blkDDFBuf[24*blkn+blki+blkpdx              ], fni[ 2]);
             //store f3 (x:-,y:0,z:-) to current lattice
-            param.blkDDFBuf[23*blkn+blki                     ] = fni[ 3];
+            cache_store(&param.blkDDFBuf[23*blkn+blki                     ], fni[ 3]);
             //store f4 (x:0,y:0,z:-) to current lattice
-            param.blkDDFBuf[22*blkn+blki                     ] = fni[ 4];
+            cache_store(&param.blkDDFBuf[22*blkn+blki                     ], fni[ 4]);
             //store f5 (x:+,y:0,z:-) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[21*blkn+blki+blkpdx              ] = fni[ 5];
+            cache_store(&param.blkDDFBuf[21*blkn+blki+blkpdx              ], fni[ 5]);
             //store f6 (x:-,y:+,z:-) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[20*blkn+blki       +blkpdy       ] = fni[ 6];
+            cache_store(&param.blkDDFBuf[20*blkn+blki       +blkpdy       ], fni[ 6]);
             //store f7 (x:0,y:+,z:-) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[19*blkn+blki       +blkpdy       ] = fni[ 7];
+            cache_store(&param.blkDDFBuf[19*blkn+blki       +blkpdy       ], fni[ 7]);
             //store f8 (x:+,y:+,z:-) to neighbor (x:+,y:+,z:0)
-            param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ] = fni[ 8];
+            cache_store(&param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ], fni[ 8]);
 
             //store f9 (x:-,y:-,z:0) to current lattice
-            param.blkDDFBuf[17*blkn+blki                     ] = fni[ 9];
+            cache_store(&param.blkDDFBuf[17*blkn+blki                     ], fni[ 9]);
             //store f10(x:0,y:-,z:0) to current lattice
-            param.blkDDFBuf[16*blkn+blki                     ] = fni[10];
+            cache_store(&param.blkDDFBuf[16*blkn+blki                     ], fni[10]);
             //store f11(x:+,y:-,z:0) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[15*blkn+blki+blkpdx              ] = fni[11];
+            cache_store(&param.blkDDFBuf[15*blkn+blki+blkpdx              ], fni[11]);
             //store f12(x:-,y:0,z:0) to current lattice
-            param.blkDDFBuf[14*blkn+blki                     ] = fni[12];
+            cache_store(&param.blkDDFBuf[14*blkn+blki                     ], fni[12]);
             //store f13(x:0,y:0,z:0) to current lattice
-            param.blkDDFBuf[13*blkn+blki                     ] = fni[13];
+            cache_store(&param.blkDDFBuf[13*blkn+blki                     ], fni[13]);
             //store f14(x:+,y:0,z:0) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[12*blkn+blki+blkpdx              ] = fni[14];
+            cache_store(&param.blkDDFBuf[12*blkn+blki+blkpdx              ], fni[14]);
             //store f15(x:-,y:+,z:0) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[11*blkn+blki       +blkpdy       ] = fni[15];
+            cache_store(&param.blkDDFBuf[11*blkn+blki       +blkpdy       ], fni[15]);
             //store f16(x:0,y:+,z:0) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[10*blkn+blki       +blkpdy       ] = fni[16];
+            cache_store(&param.blkDDFBuf[10*blkn+blki       +blkpdy       ], fni[16]);
             //store f17(x:+,y:+,z:0) to neighbor (x:+,y:+,z:0)
-            param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ] = fni[17];
+            cache_store(&param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ], fni[17]);
 
             //store f18(x:-,y:-,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[ 8*blkn+blki              +blkpdz] = fni[18];
+            cache_store(&param.blkDDFBuf[ 8*blkn+blki              +blkpdz], fni[18]);
             //store f19(x:0,y:-,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[ 7*blkn+blki              +blkpdz] = fni[19];
+            cache_store(&param.blkDDFBuf[ 7*blkn+blki              +blkpdz], fni[19]);
             //store f20(x:+,y:-,z:+) to neighbor (x:+,y:0,z:+)
-            param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz] = fni[20];
+            cache_store(&param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz], fni[20]);
             //store f21(x:-,y:0,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[ 5*blkn+blki              +blkpdz] = fni[21];
+            cache_store(&param.blkDDFBuf[ 5*blkn+blki              +blkpdz], fni[21]);
             //store f22(x:0,y:0,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[ 4*blkn+blki              +blkpdz] = fni[22];
+            cache_store(&param.blkDDFBuf[ 4*blkn+blki              +blkpdz], fni[22]);
             //store f23(x:+,y:0,z:+) to neighbor (x:+,y:0,z:+)
-            param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz] = fni[23];
+            cache_store(&param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz], fni[23]);
             //store f24(x:-,y:+,z:+) to neighbor (x:0,y:+,z:+)
-            param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz] = fni[24];
+            cache_store(&param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz], fni[24]);
             //store f25(x:0,y:+,z:+) to neighbor (x:0,y:+,z:+)
-            param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz] = fni[25];
+            cache_store(&param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz], fni[25]);
             //store f26(x:+,y:+,z:+) to neighbor (x:+,y:+,z:+)
-            param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz] = fni[26];
+            cache_store(&param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz], fni[26]);
         }
     }
 
@@ -1248,61 +1287,61 @@ namespace culbm::simulator::single_dev_expt
             //EsoTwist Even Load Rules:
             //Reverse all direction
             //load f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz];
+            fni[ 0] = cache_load(&param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz]);
             //load f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz];
+            fni[ 1] = cache_load(&param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz]);
             //loaf f2 (x:+,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 2] = param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz];
+            fni[ 2] = cache_load(&param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz]);
             //load f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz];
+            fni[ 3] = cache_load(&param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz]);
             //load f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.blkDDFBuf[22*blkn+blki              +blkpdz];
+            fni[ 4] = cache_load(&param.blkDDFBuf[22*blkn+blki              +blkpdz]);
             //load f5 (x:+,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 5] = param.blkDDFBuf[21*blkn+blki              +blkpdz];
+            fni[ 5] = cache_load(&param.blkDDFBuf[21*blkn+blki              +blkpdz]);
             //load f6 (x:-,y:+,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 6] = param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz];
+            fni[ 6] = cache_load(&param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz]);
             //load f7 (x:0,y:+,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 7] = param.blkDDFBuf[19*blkn+blki              +blkpdz];
+            fni[ 7] = cache_load(&param.blkDDFBuf[19*blkn+blki              +blkpdz]);
             //load f8 (x:+,y:+,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 8] = param.blkDDFBuf[18*blkn+blki              +blkpdz];
+            fni[ 8] = cache_load(&param.blkDDFBuf[18*blkn+blki              +blkpdz]);
 
             //load f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ];
+            fni[ 9] = cache_load(&param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ]);
             //load f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.blkDDFBuf[16*blkn+blki       +blkpdy       ];
+            fni[10] = cache_load(&param.blkDDFBuf[16*blkn+blki       +blkpdy       ]);
             //load f11(x:+,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[11] = param.blkDDFBuf[15*blkn+blki       +blkpdy       ];
+            fni[11] = cache_load(&param.blkDDFBuf[15*blkn+blki       +blkpdy       ]);
             //load f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.blkDDFBuf[14*blkn+blki+blkpdx              ];
+            fni[12] = cache_load(&param.blkDDFBuf[14*blkn+blki+blkpdx              ]);
             //load f13(x:0,y:0,z:0) from current lattice
-            fni[13] = param.blkDDFBuf[13*blkn+blki                     ];
+            fni[13] = cache_load(&param.blkDDFBuf[13*blkn+blki                     ]);
             //load f14(x:+,y:0,z:0) from current lattice
-            fni[14] = param.blkDDFBuf[12*blkn+blki                     ];
+            fni[14] = cache_load(&param.blkDDFBuf[12*blkn+blki                     ]);
             //load f15(x:-,y:+,z:0) from neighbor (x:+,y:0,z:0)
-            fni[15] = param.blkDDFBuf[11*blkn+blki+blkpdx              ];
+            fni[15] = cache_load(&param.blkDDFBuf[11*blkn+blki+blkpdx              ]);
             //load f16(x:0,y:+,z:0) from current lattice
-            fni[16] = param.blkDDFBuf[10*blkn+blki                     ];
+            fni[16] = cache_load(&param.blkDDFBuf[10*blkn+blki                     ]);
             //load f17(x:+,y:+,z:0) from current lattice
-            fni[17] = param.blkDDFBuf[ 9*blkn+blki                     ];
+            fni[17] = cache_load(&param.blkDDFBuf[ 9*blkn+blki                     ]);
 
             //load f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:0)
-            fni[18] = param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ];
+            fni[18] = cache_load(&param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ]);
             //load f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:0)
-            fni[19] = param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ];
+            fni[19] = cache_load(&param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ]);
             //load f20(x:+,y:-,z:+) from neighbor (x:0,y:+,z:0)
-            fni[20] = param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ];
+            fni[20] = cache_load(&param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ]);
             //load f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:0)
-            fni[21] = param.blkDDFBuf[ 5*blkn+blki+blkpdx              ];
+            fni[21] = cache_load(&param.blkDDFBuf[ 5*blkn+blki+blkpdx              ]);
             //load f22(x:0,y:0,z:+) from current lattice
-            fni[22] = param.blkDDFBuf[ 4*blkn+blki                     ];
+            fni[22] = cache_load(&param.blkDDFBuf[ 4*blkn+blki                     ]);
             //load f23(x:+,y:0,z:+) from current lattice
-            fni[23] = param.blkDDFBuf[ 3*blkn+blki                     ];
+            fni[23] = cache_load(&param.blkDDFBuf[ 3*blkn+blki                     ]);
             //load f24(x:-,y:+,z:+) from neighbor (x:+,y:0,z:0)
-            fni[24] = param.blkDDFBuf[ 2*blkn+blki+blkpdx              ];
+            fni[24] = cache_load(&param.blkDDFBuf[ 2*blkn+blki+blkpdx              ]);
             //load f25(x:0,y:+,z:+) from current lattice
-            fni[25] = param.blkDDFBuf[ 1*blkn+blki                     ];
+            fni[25] = cache_load(&param.blkDDFBuf[ 1*blkn+blki                     ]);
             //load f26(x:+,y:+,z:+) from current lattice
-            fni[26] = param.blkDDFBuf[ 0*blkn+blki                     ];
+            fni[26] = cache_load(&param.blkDDFBuf[ 0*blkn+blki                     ]);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -1341,61 +1380,61 @@ namespace culbm::simulator::single_dev_expt
             //EsoTwist Even Store Rules:
             //Don't change direction
             //store f0 (x:-,y:-,z:-) to current lattice
-            param.blkDDFBuf[ 0*blkn+blki                     ] = fni[ 0];
+            cache_store(&param.blkDDFBuf[ 0*blkn+blki                     ], fni[ 0]);
             //store f1 (x:0,y:-,z:-) to current lattice
-            param.blkDDFBuf[ 1*blkn+blki                     ] = fni[ 1];
+            cache_store(&param.blkDDFBuf[ 1*blkn+blki                     ], fni[ 1]);
             //store f2 (x:+,y:-,z:-) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[ 2*blkn+blki+blkpdx              ] = fni[ 2];
+            cache_store(&param.blkDDFBuf[ 2*blkn+blki+blkpdx              ], fni[ 2]);
             //store f3 (x:-,y:0,z:-) to current lattice
-            param.blkDDFBuf[ 3*blkn+blki                     ] = fni[ 3];
+            cache_store(&param.blkDDFBuf[ 3*blkn+blki                     ], fni[ 3]);
             //store f4 (x:0,y:0,z:-) to current lattice
-            param.blkDDFBuf[ 4*blkn+blki                     ] = fni[ 4];
+            cache_store(&param.blkDDFBuf[ 4*blkn+blki                     ], fni[ 4]);
             //store f5 (x:+,y:0,z:-) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[ 5*blkn+blki+blkpdx              ] = fni[ 5];
+            cache_store(&param.blkDDFBuf[ 5*blkn+blki+blkpdx              ], fni[ 5]);
             //store f6 (x:-,y:+,z:-) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ] = fni[ 6];
+            cache_store(&param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ], fni[ 6]);
             //store f7 (x:0,y:+,z:-) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ] = fni[ 7];
+            cache_store(&param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ], fni[ 7]);
             //store f8 (x:+,y:+,z:-) to neighbor (x:+,y:+,z:0)
-            param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ] = fni[ 8];
+            cache_store(&param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ], fni[ 8]);
 
             //store f9 (x:-,y:-,z:0) to current lattice
-            param.blkDDFBuf[ 9*blkn+blki                     ] = fni[ 9];
+            cache_store(&param.blkDDFBuf[ 9*blkn+blki                     ], fni[ 9]);
             //store f10(x:0,y:-,z:0) to current lattice
-            param.blkDDFBuf[10*blkn+blki                     ] = fni[10];
+            cache_store(&param.blkDDFBuf[10*blkn+blki                     ], fni[10]);
             //store f11(x:+,y:-,z:0) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[11*blkn+blki+blkpdx              ] = fni[11];
+            cache_store(&param.blkDDFBuf[11*blkn+blki+blkpdx              ], fni[11]);
             //store f12(x:-,y:0,z:0) to current lattice
-            param.blkDDFBuf[12*blkn+blki                     ] = fni[12];
+            cache_store(&param.blkDDFBuf[12*blkn+blki                     ], fni[12]);
             //store f13(x:0,y:0,z:0) to current lattice
-            param.blkDDFBuf[13*blkn+blki                     ] = fni[13];
+            cache_store(&param.blkDDFBuf[13*blkn+blki                     ], fni[13]);
             //store f14(x:+,y:0,z:0) to neighbor (x:+,y:0,z:0)
-            param.blkDDFBuf[14*blkn+blki+blkpdx              ] = fni[14];
+            cache_store(&param.blkDDFBuf[14*blkn+blki+blkpdx              ], fni[14]);
             //store f15(x:-,y:+,z:0) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[15*blkn+blki       +blkpdy       ] = fni[15];
+            cache_store(&param.blkDDFBuf[15*blkn+blki       +blkpdy       ], fni[15]);
             //store f16(x:0,y:+,z:0) to neighbor (x:0,y:+,z:0)
-            param.blkDDFBuf[16*blkn+blki       +blkpdy       ] = fni[16];
+            cache_store(&param.blkDDFBuf[16*blkn+blki       +blkpdy       ], fni[16]);
             //store f17(x:+,z:+,z:0) to neighbor (x:+,y:+,z:0)
-            param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ] = fni[17];
+            cache_store(&param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ], fni[17]);
 
             //store f18(x:-,y:-,z:+) to neighbor (x:0,y:+,z:+)
-            param.blkDDFBuf[18*blkn+blki       +blkpdy+blkpdz] = fni[18];
+            cache_store(&param.blkDDFBuf[18*blkn+blki       +blkpdy+blkpdz], fni[18]);
             //store f19(x:0,y:-,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[19*blkn+blki              +blkpdz] = fni[19];
+            cache_store(&param.blkDDFBuf[19*blkn+blki              +blkpdz], fni[19]);
             //store f20(x:+,y:-,z:+) to neighbor (x:+,y:0,z:+)
-            param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz] = fni[20];
+            cache_store(&param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz], fni[20]);
             //store f21(x:-,y:0,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[21*blkn+blki              +blkpdz] = fni[21];
+            cache_store(&param.blkDDFBuf[21*blkn+blki              +blkpdz], fni[21]);
             //store f22(x:0,y:0,z:+) to neighbor (x:0,y:0,z:+)
-            param.blkDDFBuf[22*blkn+blki              +blkpdz] = fni[22];
+            cache_store(&param.blkDDFBuf[22*blkn+blki              +blkpdz], fni[22]);
             //store f23(x:+,y:0,z:+) to neighbor (x:+,y:0,z:+)
-            param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz] = fni[23];
+            cache_store(&param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz], fni[23]);
             //store f24(x:-,y:+,z:+) to neighbor (x:0,y:+,z:+)
-            param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz] = fni[24];
+            cache_store(&param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz], fni[24]);
             //store f25(x:0,y:+,z:+) to neighbor (x:0,y:+,z:+)
-            param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz] = fni[25];
+            cache_store(&param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz], fni[25]);
             //store f26(x:+,y:+,z:+) to neighbor (x:+,y:+,z:+)
-            param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz] = fni[26];
+            cache_store(&param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz], fni[26]);
         }
     }
 
@@ -1428,61 +1467,61 @@ namespace culbm::simulator::single_dev_expt
             //EsoTwist Odd Load Rules:
             //Don' t change direction
             //load f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz];
+            fni[ 0] = cache_load(&param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz]);
             //load f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz];
+            fni[ 1] = cache_load(&param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz]);
             //load f2 (x:+,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 2] = param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz];
+            fni[ 2] = cache_load(&param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz]);
             //load f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz];
+            fni[ 3] = cache_load(&param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz]);
             //load f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.blkDDFBuf[ 4*blkn+blki              +blkpdz];
+            fni[ 4] = cache_load(&param.blkDDFBuf[ 4*blkn+blki              +blkpdz]);
             //load f5 (x:+,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 5] = param.blkDDFBuf[ 5*blkn+blki              +blkpdz];
+            fni[ 5] = cache_load(&param.blkDDFBuf[ 5*blkn+blki              +blkpdz]);
             //load f6 (x:-,y:+,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 6] = param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz];
+            fni[ 6] = cache_load(&param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz]);
             //load f7 (x:0,y:+,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 7] = param.blkDDFBuf[ 7*blkn+blki              +blkpdz];
+            fni[ 7] = cache_load(&param.blkDDFBuf[ 7*blkn+blki              +blkpdz]);
             //load f8 (x:+,y:+,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 8] = param.blkDDFBuf[ 8*blkn+blki              +blkpdz];
+            fni[ 8] = cache_load(&param.blkDDFBuf[ 8*blkn+blki              +blkpdz]);
 
             //load f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ];
+            fni[ 9] = cache_load(&param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ]);
             //load f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.blkDDFBuf[10*blkn+blki       +blkpdy       ];
+            fni[10] = cache_load(&param.blkDDFBuf[10*blkn+blki       +blkpdy       ]);
             //load f11(x:+,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[11] = param.blkDDFBuf[11*blkn+blki       +blkpdy       ];
+            fni[11] = cache_load(&param.blkDDFBuf[11*blkn+blki       +blkpdy       ]);
             //load f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.blkDDFBuf[12*blkn+blki+blkpdx              ];
+            fni[12] = cache_load(&param.blkDDFBuf[12*blkn+blki+blkpdx              ]);
             //load f13(x:0,y:0,z:0) from current lattice
-            fni[13] = param.blkDDFBuf[13*blkn+blki                     ];
+            fni[13] = cache_load(&param.blkDDFBuf[13*blkn+blki                     ]);
             //load f14(x:+,y:0,z:0) from current lattice
-            fni[14] = param.blkDDFBuf[14*blkn+blki                     ];
+            fni[14] = cache_load(&param.blkDDFBuf[14*blkn+blki                     ]);
             //load f15(x:-,y:+,z:0) from neighbor (x:+,y:0,z:0)
-            fni[15] = param.blkDDFBuf[15*blkn+blki+blkpdx              ];
+            fni[15] = cache_load(&param.blkDDFBuf[15*blkn+blki+blkpdx              ]);
             //load f16(x:0,y:+,z:0) from current lattice
-            fni[16] = param.blkDDFBuf[16*blkn+blki                     ];
+            fni[16] = cache_load(&param.blkDDFBuf[16*blkn+blki                     ]);
             //load f17(x:+,y:+,z:0) from current lattice
-            fni[17] = param.blkDDFBuf[17*blkn+blki                     ];
+            fni[17] = cache_load(&param.blkDDFBuf[17*blkn+blki                     ]);
 
             //load f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:0)
-            fni[18] = param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ];
+            fni[18] = cache_load(&param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ]);
             //load f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:0)
-            fni[19] = param.blkDDFBuf[19*blkn+blki       +blkpdy       ];
+            fni[19] = cache_load(&param.blkDDFBuf[19*blkn+blki       +blkpdy       ]);
             //load f20(x:+,y:-,z:+) from neighbor (x:0,y:+,z:0)
-            fni[20] = param.blkDDFBuf[20*blkn+blki       +blkpdy       ];
+            fni[20] = cache_load(&param.blkDDFBuf[20*blkn+blki       +blkpdy       ]);
             //load f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:0)
-            fni[21] = param.blkDDFBuf[21*blkn+blki+blkpdx              ];
+            fni[21] = cache_load(&param.blkDDFBuf[21*blkn+blki+blkpdx              ]);
             //load f22(x:0,y:0,z:+) from current lattice
-            fni[22] = param.blkDDFBuf[22*blkn+blki                     ];
+            fni[22] = cache_load(&param.blkDDFBuf[22*blkn+blki                     ]);
             //load f23(x:+,y:0,z:+) from current lattice
-            fni[23] = param.blkDDFBuf[23*blkn+blki                     ];
+            fni[23] = cache_load(&param.blkDDFBuf[23*blkn+blki                     ]);
             //load f24(x:-,y:+,z:+) from neighbor (x:+,y:0,z:0)
-            fni[24] = param.blkDDFBuf[24*blkn+blki+blkpdx              ];
+            fni[24] = cache_load(&param.blkDDFBuf[24*blkn+blki+blkpdx              ]);
             //load f25(x:0,y:+,z:+) from current lattice
-            fni[25] = param.blkDDFBuf[25*blkn+blki                     ];
+            fni[25] = cache_load(&param.blkDDFBuf[25*blkn+blki                     ]);
             //load f26(x:+,y:+,z:+) from current lattice
-            fni[26] = param.blkDDFBuf[26*blkn+blki                     ];
+            fni[26] = cache_load(&param.blkDDFBuf[26*blkn+blki                     ]);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -1518,33 +1557,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & (CORRECT_BIT | STORE_DDF_BIT))==(CORRECT_BIT | STORE_DDF_BIT))
         {
-            param.glbDstDDFBuf[ 0*glbn+glbi] = fni[ 0];
-            param.glbDstDDFBuf[ 1*glbn+glbi] = fni[ 1];
-            param.glbDstDDFBuf[ 2*glbn+glbi] = fni[ 2];
-            param.glbDstDDFBuf[ 3*glbn+glbi] = fni[ 3];
-            param.glbDstDDFBuf[ 4*glbn+glbi] = fni[ 4];
-            param.glbDstDDFBuf[ 5*glbn+glbi] = fni[ 5];
-            param.glbDstDDFBuf[ 6*glbn+glbi] = fni[ 6];
-            param.glbDstDDFBuf[ 7*glbn+glbi] = fni[ 7];
-            param.glbDstDDFBuf[ 8*glbn+glbi] = fni[ 8];
-            param.glbDstDDFBuf[ 9*glbn+glbi] = fni[ 9];
-            param.glbDstDDFBuf[10*glbn+glbi] = fni[10];
-            param.glbDstDDFBuf[11*glbn+glbi] = fni[11];
-            param.glbDstDDFBuf[12*glbn+glbi] = fni[12];
-            param.glbDstDDFBuf[13*glbn+glbi] = fni[13];
-            param.glbDstDDFBuf[14*glbn+glbi] = fni[14];
-            param.glbDstDDFBuf[15*glbn+glbi] = fni[15];
-            param.glbDstDDFBuf[16*glbn+glbi] = fni[16];
-            param.glbDstDDFBuf[17*glbn+glbi] = fni[17];
-            param.glbDstDDFBuf[18*glbn+glbi] = fni[18];
-            param.glbDstDDFBuf[19*glbn+glbi] = fni[19];
-            param.glbDstDDFBuf[20*glbn+glbi] = fni[20];
-            param.glbDstDDFBuf[21*glbn+glbi] = fni[21];
-            param.glbDstDDFBuf[22*glbn+glbi] = fni[22];
-            param.glbDstDDFBuf[23*glbn+glbi] = fni[23];
-            param.glbDstDDFBuf[24*glbn+glbi] = fni[24];
-            param.glbDstDDFBuf[25*glbn+glbi] = fni[25];
-            param.glbDstDDFBuf[26*glbn+glbi] = fni[26];
+            stream_store(&param.glbDstDDFBuf[ 0*glbn+glbi], fni[ 0]);
+            stream_store(&param.glbDstDDFBuf[ 1*glbn+glbi], fni[ 1]);
+            stream_store(&param.glbDstDDFBuf[ 2*glbn+glbi], fni[ 2]);
+            stream_store(&param.glbDstDDFBuf[ 3*glbn+glbi], fni[ 3]);
+            stream_store(&param.glbDstDDFBuf[ 4*glbn+glbi], fni[ 4]);
+            stream_store(&param.glbDstDDFBuf[ 5*glbn+glbi], fni[ 5]);
+            stream_store(&param.glbDstDDFBuf[ 6*glbn+glbi], fni[ 6]);
+            stream_store(&param.glbDstDDFBuf[ 7*glbn+glbi], fni[ 7]);
+            stream_store(&param.glbDstDDFBuf[ 8*glbn+glbi], fni[ 8]);
+            stream_store(&param.glbDstDDFBuf[ 9*glbn+glbi], fni[ 9]);
+            stream_store(&param.glbDstDDFBuf[10*glbn+glbi], fni[10]);
+            stream_store(&param.glbDstDDFBuf[11*glbn+glbi], fni[11]);
+            stream_store(&param.glbDstDDFBuf[12*glbn+glbi], fni[12]);
+            stream_store(&param.glbDstDDFBuf[13*glbn+glbi], fni[13]);
+            stream_store(&param.glbDstDDFBuf[14*glbn+glbi], fni[14]);
+            stream_store(&param.glbDstDDFBuf[15*glbn+glbi], fni[15]);
+            stream_store(&param.glbDstDDFBuf[16*glbn+glbi], fni[16]);
+            stream_store(&param.glbDstDDFBuf[17*glbn+glbi], fni[17]);
+            stream_store(&param.glbDstDDFBuf[18*glbn+glbi], fni[18]);
+            stream_store(&param.glbDstDDFBuf[19*glbn+glbi], fni[19]);
+            stream_store(&param.glbDstDDFBuf[20*glbn+glbi], fni[20]);
+            stream_store(&param.glbDstDDFBuf[21*glbn+glbi], fni[21]);
+            stream_store(&param.glbDstDDFBuf[22*glbn+glbi], fni[22]);
+            stream_store(&param.glbDstDDFBuf[23*glbn+glbi], fni[23]);
+            stream_store(&param.glbDstDDFBuf[24*glbn+glbi], fni[24]);
+            stream_store(&param.glbDstDDFBuf[25*glbn+glbi], fni[25]);
+            stream_store(&param.glbDstDDFBuf[26*glbn+glbi], fni[26]);
         }
     }
 
@@ -1577,61 +1616,61 @@ namespace culbm::simulator::single_dev_expt
             //EsoTwist Even Load Rules:
             //Reverse all direction
             //load f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz];
+            fni[ 0] = cache_load(&param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz]);
             //load f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz];
+            fni[ 1] = cache_load(&param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz]);
             //loaf f2 (x:+,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 2] = param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz];
+            fni[ 2] = cache_load(&param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz]);
             //load f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz];
+            fni[ 3] = cache_load(&param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz]);
             //load f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = param.blkDDFBuf[22*blkn+blki              +blkpdz];
+            fni[ 4] = cache_load(&param.blkDDFBuf[22*blkn+blki              +blkpdz]);
             //load f5 (x:+,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 5] = param.blkDDFBuf[21*blkn+blki              +blkpdz];
+            fni[ 5] = cache_load(&param.blkDDFBuf[21*blkn+blki              +blkpdz]);
             //load f6 (x:-,y:+,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 6] = param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz];
+            fni[ 6] = cache_load(&param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz]);
             //load f7 (x:0,y:+,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 7] = param.blkDDFBuf[19*blkn+blki              +blkpdz];
+            fni[ 7] = cache_load(&param.blkDDFBuf[19*blkn+blki              +blkpdz]);
             //load f8 (x:+,y:+,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 8] = param.blkDDFBuf[18*blkn+blki              +blkpdz];
+            fni[ 8] = cache_load(&param.blkDDFBuf[18*blkn+blki              +blkpdz]);
 
             //load f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ];
+            fni[ 9] = cache_load(&param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ]);
             //load f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = param.blkDDFBuf[16*blkn+blki       +blkpdy       ];
+            fni[10] = cache_load(&param.blkDDFBuf[16*blkn+blki       +blkpdy       ]);
             //load f11(x:+,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[11] = param.blkDDFBuf[15*blkn+blki       +blkpdy       ];
+            fni[11] = cache_load(&param.blkDDFBuf[15*blkn+blki       +blkpdy       ]);
             //load f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = param.blkDDFBuf[14*blkn+blki+blkpdx              ];
+            fni[12] = cache_load(&param.blkDDFBuf[14*blkn+blki+blkpdx              ]);
             //load f13(x:0,y:0,z:0) from current lattice
-            fni[13] = param.blkDDFBuf[13*blkn+blki                     ];
+            fni[13] = cache_load(&param.blkDDFBuf[13*blkn+blki                     ]);
             //load f14(x:+,y:0,z:0) from current lattice
-            fni[14] = param.blkDDFBuf[12*blkn+blki                     ];
+            fni[14] = cache_load(&param.blkDDFBuf[12*blkn+blki                     ]);
             //load f15(x:-,y:+,z:0) from neighbor (x:+,y:0,z:0)
-            fni[15] = param.blkDDFBuf[11*blkn+blki+blkpdx              ];
+            fni[15] = cache_load(&param.blkDDFBuf[11*blkn+blki+blkpdx              ]);
             //load f16(x:0,y:+,z:0) from current lattice
-            fni[16] = param.blkDDFBuf[10*blkn+blki                     ];
+            fni[16] = cache_load(&param.blkDDFBuf[10*blkn+blki                     ]);
             //load f17(x:+,y:+,z:0) from current lattice
-            fni[17] = param.blkDDFBuf[ 9*blkn+blki                     ];
+            fni[17] = cache_load(&param.blkDDFBuf[ 9*blkn+blki                     ]);
 
             //load f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:0)
-            fni[18] = param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ];
+            fni[18] = cache_load(&param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ]);
             //load f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:0)
-            fni[19] = param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ];
+            fni[19] = cache_load(&param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ]);
             //load f20(x:+,y:-,z:+) from neighbor (x:0,y:+,z:0)
-            fni[20] = param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ];
+            fni[20] = cache_load(&param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ]);
             //load f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:0)
-            fni[21] = param.blkDDFBuf[ 5*blkn+blki+blkpdx              ];
+            fni[21] = cache_load(&param.blkDDFBuf[ 5*blkn+blki+blkpdx              ]);
             //load f22(x:0,y:0,z:+) from current lattice
-            fni[22] = param.blkDDFBuf[ 4*blkn+blki                     ];
+            fni[22] = cache_load(&param.blkDDFBuf[ 4*blkn+blki                     ]);
             //load f23(x:+,y:0,z:+) from current lattice
-            fni[23] = param.blkDDFBuf[ 3*blkn+blki                     ];
+            fni[23] = cache_load(&param.blkDDFBuf[ 3*blkn+blki                     ]);
             //load f24(x:-,y:+,z:+) from neighbor (x:+,y:0,z:0)
-            fni[24] = param.blkDDFBuf[ 2*blkn+blki+blkpdx              ];
+            fni[24] = cache_load(&param.blkDDFBuf[ 2*blkn+blki+blkpdx              ]);
             //load f25(x:0,y:+,z:+) from current lattice
-            fni[25] = param.blkDDFBuf[ 1*blkn+blki                     ];
+            fni[25] = cache_load(&param.blkDDFBuf[ 1*blkn+blki                     ]);
             //load f26(x:+,y:+,z:+) from current lattice
-            fni[26] = param.blkDDFBuf[ 0*blkn+blki                     ];
+            fni[26] = cache_load(&param.blkDDFBuf[ 0*blkn+blki                     ]);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -1667,33 +1706,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & (CORRECT_BIT | STORE_DDF_BIT))==(CORRECT_BIT | STORE_DDF_BIT))
         {
-            param.glbDstDDFBuf[ 0*glbn+glbi] = fni[ 0];
-            param.glbDstDDFBuf[ 1*glbn+glbi] = fni[ 1];
-            param.glbDstDDFBuf[ 2*glbn+glbi] = fni[ 2];
-            param.glbDstDDFBuf[ 3*glbn+glbi] = fni[ 3];
-            param.glbDstDDFBuf[ 4*glbn+glbi] = fni[ 4];
-            param.glbDstDDFBuf[ 5*glbn+glbi] = fni[ 5];
-            param.glbDstDDFBuf[ 6*glbn+glbi] = fni[ 6];
-            param.glbDstDDFBuf[ 7*glbn+glbi] = fni[ 7];
-            param.glbDstDDFBuf[ 8*glbn+glbi] = fni[ 8];
-            param.glbDstDDFBuf[ 9*glbn+glbi] = fni[ 9];
-            param.glbDstDDFBuf[10*glbn+glbi] = fni[10];
-            param.glbDstDDFBuf[11*glbn+glbi] = fni[11];
-            param.glbDstDDFBuf[12*glbn+glbi] = fni[12];
-            param.glbDstDDFBuf[13*glbn+glbi] = fni[13];
-            param.glbDstDDFBuf[14*glbn+glbi] = fni[14];
-            param.glbDstDDFBuf[15*glbn+glbi] = fni[15];
-            param.glbDstDDFBuf[16*glbn+glbi] = fni[16];
-            param.glbDstDDFBuf[17*glbn+glbi] = fni[17];
-            param.glbDstDDFBuf[18*glbn+glbi] = fni[18];
-            param.glbDstDDFBuf[19*glbn+glbi] = fni[19];
-            param.glbDstDDFBuf[20*glbn+glbi] = fni[20];
-            param.glbDstDDFBuf[21*glbn+glbi] = fni[21];
-            param.glbDstDDFBuf[22*glbn+glbi] = fni[22];
-            param.glbDstDDFBuf[23*glbn+glbi] = fni[23];
-            param.glbDstDDFBuf[24*glbn+glbi] = fni[24];
-            param.glbDstDDFBuf[25*glbn+glbi] = fni[25];
-            param.glbDstDDFBuf[26*glbn+glbi] = fni[26];
+            stream_store(&param.glbDstDDFBuf[ 0*glbn+glbi], fni[ 0]);
+            stream_store(&param.glbDstDDFBuf[ 1*glbn+glbi], fni[ 1]);
+            stream_store(&param.glbDstDDFBuf[ 2*glbn+glbi], fni[ 2]);
+            stream_store(&param.glbDstDDFBuf[ 3*glbn+glbi], fni[ 3]);
+            stream_store(&param.glbDstDDFBuf[ 4*glbn+glbi], fni[ 4]);
+            stream_store(&param.glbDstDDFBuf[ 5*glbn+glbi], fni[ 5]);
+            stream_store(&param.glbDstDDFBuf[ 6*glbn+glbi], fni[ 6]);
+            stream_store(&param.glbDstDDFBuf[ 7*glbn+glbi], fni[ 7]);
+            stream_store(&param.glbDstDDFBuf[ 8*glbn+glbi], fni[ 8]);
+            stream_store(&param.glbDstDDFBuf[ 9*glbn+glbi], fni[ 9]);
+            stream_store(&param.glbDstDDFBuf[10*glbn+glbi], fni[10]);
+            stream_store(&param.glbDstDDFBuf[11*glbn+glbi], fni[11]);
+            stream_store(&param.glbDstDDFBuf[12*glbn+glbi], fni[12]);
+            stream_store(&param.glbDstDDFBuf[13*glbn+glbi], fni[13]);
+            stream_store(&param.glbDstDDFBuf[14*glbn+glbi], fni[14]);
+            stream_store(&param.glbDstDDFBuf[15*glbn+glbi], fni[15]);
+            stream_store(&param.glbDstDDFBuf[16*glbn+glbi], fni[16]);
+            stream_store(&param.glbDstDDFBuf[17*glbn+glbi], fni[17]);
+            stream_store(&param.glbDstDDFBuf[18*glbn+glbi], fni[18]);
+            stream_store(&param.glbDstDDFBuf[19*glbn+glbi], fni[19]);
+            stream_store(&param.glbDstDDFBuf[20*glbn+glbi], fni[20]);
+            stream_store(&param.glbDstDDFBuf[21*glbn+glbi], fni[21]);
+            stream_store(&param.glbDstDDFBuf[22*glbn+glbi], fni[22]);
+            stream_store(&param.glbDstDDFBuf[23*glbn+glbi], fni[23]);
+            stream_store(&param.glbDstDDFBuf[24*glbn+glbi], fni[24]);
+            stream_store(&param.glbDstDDFBuf[25*glbn+glbi], fni[25]);
+            stream_store(&param.glbDstDDFBuf[26*glbn+glbi], fni[26]);
         }        
     }
 
@@ -1937,122 +1976,122 @@ namespace culbm::simulator::single_dev_expt
                     //EsoTwist Even Store Rules:
                     //Don't change direction
                     //store f0 (x:-,y:-,z:-) to current lattice
-                    param.blkDDFBuf[ 0*blkn+blki                     ] = fni[ 0];
+                    cache_store(&param.blkDDFBuf[ 0*blkn+blki                     ], fni[ 0]);
                     //store f1 (x:0,y:-,z:-) to current lattice
-                    param.blkDDFBuf[ 1*blkn+blki                     ] = fni[ 1];
+                    cache_store(&param.blkDDFBuf[ 1*blkn+blki                     ], fni[ 1]);
                     //store f2 (x:+,y:-,z:-) to neighbor (x:+,y:0,z:0)
-                    param.blkDDFBuf[ 2*blkn+blki+blkpdx              ] = fni[ 2];
+                    cache_store(&param.blkDDFBuf[ 2*blkn+blki+blkpdx              ], fni[ 2]);
                     //store f3 (x:-,y:0,z:-) to current lattice
-                    param.blkDDFBuf[ 3*blkn+blki                     ] = fni[ 3];
+                    cache_store(&param.blkDDFBuf[ 3*blkn+blki                     ], fni[ 3]);
                     //store f4 (x:0,y:0,z:-) to current lattice
-                    param.blkDDFBuf[ 4*blkn+blki                     ] = fni[ 4];
+                    cache_store(&param.blkDDFBuf[ 4*blkn+blki                     ], fni[ 4]);
                     //store f5 (x:+,y:0,z:-) to neighbor (x:+,y:0,z:0)
-                    param.blkDDFBuf[ 5*blkn+blki+blkpdx              ] = fni[ 5];
+                    cache_store(&param.blkDDFBuf[ 5*blkn+blki+blkpdx              ], fni[ 5]);
                     //store f6 (x:-,y:+,z:-) to neighbor (x:0,y:+,z:0)
-                    param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ] = fni[ 6];
+                    cache_store(&param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ], fni[ 6]);
                     //store f7 (x:0,y:+,z:-) to neighbor (x:0,y:+,z:0)
-                    param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ] = fni[ 7];
+                    cache_store(&param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ], fni[ 7]);
                     //store f8 (x:+,y:+,z:-) to neighbor (x:+,y:+,z:0)
-                    param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ] = fni[ 8];
+                    cache_store(&param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ], fni[ 8]);
 
                     //store f9 (x:-,y:-,z:0) to current lattice
-                    param.blkDDFBuf[ 9*blkn+blki                     ] = fni[ 9];
+                    cache_store(&param.blkDDFBuf[ 9*blkn+blki                     ], fni[ 9]);
                     //store f10(x:0,y:-,z:0) to current lattice
-                    param.blkDDFBuf[10*blkn+blki                     ] = fni[10];
+                    cache_store(&param.blkDDFBuf[10*blkn+blki                     ], fni[10]);
                     //store f11(x:+,y:-,z:0) to neighbor (x:+,y:0,z:0)
-                    param.blkDDFBuf[11*blkn+blki+blkpdx              ] = fni[11];
+                    cache_store(&param.blkDDFBuf[11*blkn+blki+blkpdx              ], fni[11]);
                     //store f12(x:-,y:0,z:0) to current lattice
-                    param.blkDDFBuf[12*blkn+blki                     ] = fni[12];
+                    cache_store(&param.blkDDFBuf[12*blkn+blki                     ], fni[12]);
                     //store f13(x:0,y:0,z:0) to current lattice
                     //param.blkDDFBuf[13*blkn+blki                     ] = fni[13];
                     //store f14(x:+,y:0,z:0) to neighbor (x:+,y:0,z:0)
-                    param.blkDDFBuf[14*blkn+blki+blkpdx              ] = fni[14];
+                    cache_store(&param.blkDDFBuf[14*blkn+blki+blkpdx              ], fni[14]);
                     //store f15(x:-,y:+,z:0) to neighbor (x:0,y:+,z:0)
-                    param.blkDDFBuf[15*blkn+blki       +blkpdy       ] = fni[15];
+                    cache_store(&param.blkDDFBuf[15*blkn+blki       +blkpdy       ], fni[15]);
                     //store f16(x:0,y:+,z:0) to neighbor (x:0,y:+,z:0)
-                    param.blkDDFBuf[16*blkn+blki       +blkpdy       ] = fni[16];
+                    cache_store(&param.blkDDFBuf[16*blkn+blki       +blkpdy       ], fni[16]);
                     //store f17(x:+,z:+,z:0) to neighbor (x:+,y:+,z:0)
-                    param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ] = fni[17];
+                    cache_store(&param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ], fni[17]);
 
                     //store f18(x:-,y:-,z:+) to neighbor (x:0,y:+,z:+)
-                    param.blkDDFBuf[18*blkn+blki       +blkpdy+blkpdz] = fni[18];
+                    cache_store(&param.blkDDFBuf[18*blkn+blki       +blkpdy+blkpdz], fni[18]);
                     //store f19(x:0,y:-,z:+) to neighbor (x:0,y:0,z:+)
-                    param.blkDDFBuf[19*blkn+blki              +blkpdz] = fni[19];
+                    cache_store(&param.blkDDFBuf[19*blkn+blki              +blkpdz], fni[19]);
                     //store f20(x:+,y:-,z:+) to neighbor (x:+,y:0,z:+)
-                    param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz] = fni[20];
+                    cache_store(&param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz], fni[20]);
                     //store f21(x:-,y:0,z:+) to neighbor (x:0,y:0,z:+)
-                    param.blkDDFBuf[21*blkn+blki              +blkpdz] = fni[21];
+                    cache_store(&param.blkDDFBuf[21*blkn+blki              +blkpdz], fni[21]);
                     //store f22(x:0,y:0,z:+) to neighbor (x:0,y:0,z:+)
-                    param.blkDDFBuf[22*blkn+blki              +blkpdz] = fni[22];
+                    cache_store(&param.blkDDFBuf[22*blkn+blki              +blkpdz], fni[22]);
                     //store f23(x:+,y:0,z:+) to neighbor (x:+,y:0,z:+)
-                    param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz] = fni[23];
+                    cache_store(&param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz], fni[23]);
                     //store f24(x:-,y:+,z:+) to neighbor (x:0,y:+,z:+)
-                    param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz] = fni[24];
+                    cache_store(&param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz], fni[24]);
                     //store f25(x:0,y:+,z:+) to neighbor (x:0,y:+,z:+)
-                    param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz] = fni[25];
+                    cache_store(&param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz], fni[25]);
                     //store f26(x:+,y:+,z:+) to neighbor (x:+,y:+,z:+)
-                    param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz] = fni[26];
+                    cache_store(&param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz], fni[26]);
                 }
                 else
                 {
                     //EsoTwist Odd Store Rules:
                     //Reverse all direction
                     //store f0 (x:-,y:-,z:-) to current lattice
-                    param.blkDDFBuf[26*blkn+blki                     ] = fni[ 0];
+                    cache_store(&param.blkDDFBuf[26*blkn+blki                     ], fni[ 0]);
                     //store f1 (x:0,y:-,z:-) to current lattice
-                    param.blkDDFBuf[25*blkn+blki                     ] = fni[ 1];
+                    cache_store(&param.blkDDFBuf[25*blkn+blki                     ], fni[ 1]);
                     //store f2 (x:+,y:-,z:-) to neighbor (x:+,y:0,z:0)
-                    param.blkDDFBuf[24*blkn+blki+blkpdx              ] = fni[ 2];
+                    cache_store(&param.blkDDFBuf[24*blkn+blki+blkpdx              ], fni[ 2]);
                     //store f3 (x:-,y:0,z:-) to current lattice
-                    param.blkDDFBuf[23*blkn+blki                     ] = fni[ 3];
+                    cache_store(&param.blkDDFBuf[23*blkn+blki                     ], fni[ 3]);
                     //store f4 (x:0,y:0,z:-) to current lattice
-                    param.blkDDFBuf[22*blkn+blki                     ] = fni[ 4];
+                    cache_store(&param.blkDDFBuf[22*blkn+blki                     ], fni[ 4]);
                     //store f5 (x:+,y:0,z:-) to neighbor (x:+,y:0,z:0)
-                    param.blkDDFBuf[21*blkn+blki+blkpdx              ] = fni[ 5];
+                    cache_store(&param.blkDDFBuf[21*blkn+blki+blkpdx              ], fni[ 5]);
                     //store f6 (x:-,y:+,z:-) to neighbor (x:0,y:+,z:0)
-                    param.blkDDFBuf[20*blkn+blki       +blkpdy       ] = fni[ 6];
+                    cache_store(&param.blkDDFBuf[20*blkn+blki       +blkpdy       ], fni[ 6]);
                     //store f7 (x:0,y:+,z:-) to neighbor (x:0,y:+,z:0)
-                    param.blkDDFBuf[19*blkn+blki       +blkpdy       ] = fni[ 7];
+                    cache_store(&param.blkDDFBuf[19*blkn+blki       +blkpdy       ], fni[ 7]);
                     //store f8 (x:+,y:+,z:-) to neighbor (x:+,y:+,z:0)
-                    param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ] = fni[ 8];
+                    cache_store(&param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ], fni[ 8]);
 
                     //store f9 (x:-,y:-,z:0) to current lattice
-                    param.blkDDFBuf[17*blkn+blki                     ] = fni[ 9];
+                    cache_store(&param.blkDDFBuf[17*blkn+blki                     ], fni[ 9]);
                     //store f10(x:0,y:-,z:0) to current lattice
-                    param.blkDDFBuf[16*blkn+blki                     ] = fni[10];
+                    cache_store(&param.blkDDFBuf[16*blkn+blki                     ], fni[10]);
                     //store f11(x:+,y:-,z:0) to neighbor (x:+,y:0,z:0)
-                    param.blkDDFBuf[15*blkn+blki+blkpdx              ] = fni[11];
+                    cache_store(&param.blkDDFBuf[15*blkn+blki+blkpdx              ], fni[11]);
                     //store f12(x:-,y:0,z:0) to current lattice
-                    param.blkDDFBuf[14*blkn+blki                     ] = fni[12];
+                    cache_store(&param.blkDDFBuf[14*blkn+blki                     ], fni[12]);
                     //store f13(x:0,y:0,z:0) to current lattice
                     //param.blkDDFBuf[13*blkn+blki                     ] = fni[13];
                     //store f14(x:+,y:0,z:0) to neighbor (x:+,y:0,z:0)
-                    param.blkDDFBuf[12*blkn+blki+blkpdx              ] = fni[14];
+                    cache_store(&param.blkDDFBuf[12*blkn+blki+blkpdx              ], fni[14]);
                     //store f15(x:-,y:+,z:0) to neighbor (x:0,y:+,z:0)
-                    param.blkDDFBuf[11*blkn+blki       +blkpdy       ] = fni[15];
+                    cache_store(&param.blkDDFBuf[11*blkn+blki       +blkpdy       ], fni[15]);
                     //store f16(x:0,y:+,z:0) to neighbor (x:0,y:+,z:0)
-                    param.blkDDFBuf[10*blkn+blki       +blkpdy       ] = fni[16];
+                    cache_store(&param.blkDDFBuf[10*blkn+blki       +blkpdy       ], fni[16]);
                     //store f17(x:+,y:+,z:0) to neighbor (x:+,y:+,z:0)
-                    param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ] = fni[17];
+                    cache_store(&param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ], fni[17]);
 
                     //store f18(x:-,y:-,z:+) to neighbor (x:0,y:0,z:+)
-                    param.blkDDFBuf[ 8*blkn+blki              +blkpdz] = fni[18];
+                    cache_store(&param.blkDDFBuf[ 8*blkn+blki              +blkpdz], fni[18]);
                     //store f19(x:0,y:-,z:+) to neighbor (x:0,y:0,z:+)
-                    param.blkDDFBuf[ 7*blkn+blki              +blkpdz] = fni[19];
+                    cache_store(&param.blkDDFBuf[ 7*blkn+blki              +blkpdz], fni[19]);
                     //store f20(x:+,y:-,z:+) to neighbor (x:+,y:0,z:+)
-                    param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz] = fni[20];
+                    cache_store(&param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz], fni[20]);
                     //store f21(x:-,y:0,z:+) to neighbor (x:0,y:0,z:+)
-                    param.blkDDFBuf[ 5*blkn+blki              +blkpdz] = fni[21];
+                    cache_store(&param.blkDDFBuf[ 5*blkn+blki              +blkpdz], fni[21]);
                     //store f22(x:0,y:0,z:+) to neighbor (x:0,y:0,z:+)
-                    param.blkDDFBuf[ 4*blkn+blki              +blkpdz] = fni[22];
+                    cache_store(&param.blkDDFBuf[ 4*blkn+blki              +blkpdz], fni[22]);
                     //store f23(x:+,y:0,z:+) to neighbor (x:+,y:0,z:+)
-                    param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz] = fni[23];
+                    cache_store(&param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz], fni[23]);
                     //store f24(x:-,y:+,z:+) to neighbor (x:0,y:+,z:+)
-                    param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz] = fni[24];
+                    cache_store(&param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz], fni[24]);
                     //store f25(x:0,y:+,z:+) to neighbor (x:0,y:+,z:+)
-                    param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz] = fni[25];
+                    cache_store(&param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz], fni[25]);
                     //store f26(x:+,y:+,z:+) to neighbor (x:+,y:+,z:+)
-                    param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz] = fni[26];
+                    cache_store(&param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz], fni[26]);
                 }
             }
 
@@ -2065,122 +2104,122 @@ namespace culbm::simulator::single_dev_expt
                     //EsoTwist Odd Load Rules:
                     //Don' t change direction
                     //load f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-                    fni[ 0] = param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz];
+                    fni[ 0] = cache_load(&param.blkDDFBuf[ 0*blkn+blki+blkpdx+blkpdy+blkpdz]);
                     //load f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-                    fni[ 1] = param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz];
+                    fni[ 1] = cache_load(&param.blkDDFBuf[ 1*blkn+blki       +blkpdy+blkpdz]);
                     //load f2 (x:+,y:-,z:-) from neighbor (x:0,y:+,z:+)
-                    fni[ 2] = param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz];
+                    fni[ 2] = cache_load(&param.blkDDFBuf[ 2*blkn+blki       +blkpdy+blkpdz]);
                     //load f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-                    fni[ 3] = param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz];
+                    fni[ 3] = cache_load(&param.blkDDFBuf[ 3*blkn+blki+blkpdx       +blkpdz]);
                     //load f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-                    fni[ 4] = param.blkDDFBuf[ 4*blkn+blki              +blkpdz];
+                    fni[ 4] = cache_load(&param.blkDDFBuf[ 4*blkn+blki              +blkpdz]);
                     //load f5 (x:+,y:0,z:-) from neighbor (x:0,y:0,z:+)
-                    fni[ 5] = param.blkDDFBuf[ 5*blkn+blki              +blkpdz];
+                    fni[ 5] = cache_load(&param.blkDDFBuf[ 5*blkn+blki              +blkpdz]);
                     //load f6 (x:-,y:+,z:-) from neighbor (x:+,y:0,z:+)
-                    fni[ 6] = param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz];
+                    fni[ 6] = cache_load(&param.blkDDFBuf[ 6*blkn+blki+blkpdx       +blkpdz]);
                     //load f7 (x:0,y:+,z:-) from neighbor (x:0,y:0,z:+)
-                    fni[ 7] = param.blkDDFBuf[ 7*blkn+blki              +blkpdz];
+                    fni[ 7] = cache_load(&param.blkDDFBuf[ 7*blkn+blki              +blkpdz]);
                     //load f8 (x:+,y:+,z:-) from neighbor (x:0,y:0,z:+)
-                    fni[ 8] = param.blkDDFBuf[ 8*blkn+blki              +blkpdz];
+                    fni[ 8] = cache_load(&param.blkDDFBuf[ 8*blkn+blki              +blkpdz]);
 
                     //load f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-                    fni[ 9] = param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ];
+                    fni[ 9] = cache_load(&param.blkDDFBuf[ 9*blkn+blki+blkpdx+blkpdy       ]);
                     //load f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-                    fni[10] = param.blkDDFBuf[10*blkn+blki       +blkpdy       ];
+                    fni[10] = cache_load(&param.blkDDFBuf[10*blkn+blki       +blkpdy       ]);
                     //load f11(x:+,y:-,z:0) from neighbor (x:0,y:+,z:0)
-                    fni[11] = param.blkDDFBuf[11*blkn+blki       +blkpdy       ];
+                    fni[11] = cache_load(&param.blkDDFBuf[11*blkn+blki       +blkpdy       ]);
                     //load f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-                    fni[12] = param.blkDDFBuf[12*blkn+blki+blkpdx              ];
+                    fni[12] = cache_load(&param.blkDDFBuf[12*blkn+blki+blkpdx              ]);
                     //load f13(x:0,y:0,z:0) from current lattice
-                    //fni[13] = param.blkDDFBuf[13*blkn+blki                     ];
+                    //fni[13] = cache_load(&param.blkDDFBuf[13*blkn+blki                     ]);
                     //load f14(x:+,y:0,z:0) from current lattice
-                    fni[14] = param.blkDDFBuf[14*blkn+blki                     ];
+                    fni[14] = cache_load(&param.blkDDFBuf[14*blkn+blki                     ]);
                     //load f15(x:-,y:+,z:0) from neighbor (x:+,y:0,z:0)
-                    fni[15] = param.blkDDFBuf[15*blkn+blki+blkpdx              ];
+                    fni[15] = cache_load(&param.blkDDFBuf[15*blkn+blki+blkpdx              ]);
                     //load f16(x:0,y:+,z:0) from current lattice
-                    fni[16] = param.blkDDFBuf[16*blkn+blki                     ];
+                    fni[16] = cache_load(&param.blkDDFBuf[16*blkn+blki                     ]);
                     //load f17(x:+,y:+,z:0) from current lattice
-                    fni[17] = param.blkDDFBuf[17*blkn+blki                     ];
+                    fni[17] = cache_load(&param.blkDDFBuf[17*blkn+blki                     ]);
 
                     //load f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:0)
-                    fni[18] = param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ];
+                    fni[18] = cache_load(&param.blkDDFBuf[18*blkn+blki+blkpdx+blkpdy       ]);
                     //load f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:0)
-                    fni[19] = param.blkDDFBuf[19*blkn+blki       +blkpdy       ];
+                    fni[19] = cache_load(&param.blkDDFBuf[19*blkn+blki       +blkpdy       ]);
                     //load f20(x:+,y:-,z:+) from neighbor (x:0,y:+,z:0)
-                    fni[20] = param.blkDDFBuf[20*blkn+blki       +blkpdy       ];
+                    fni[20] = cache_load(&param.blkDDFBuf[20*blkn+blki       +blkpdy       ]);
                     //load f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:0)
-                    fni[21] = param.blkDDFBuf[21*blkn+blki+blkpdx              ];
+                    fni[21] = cache_load(&param.blkDDFBuf[21*blkn+blki+blkpdx              ]);
                     //load f22(x:0,y:0,z:+) from current lattice
-                    fni[22] = param.blkDDFBuf[22*blkn+blki                     ];
+                    fni[22] = cache_load(&param.blkDDFBuf[22*blkn+blki                     ]);
                     //load f23(x:+,y:0,z:+) from current lattice
-                    fni[23] = param.blkDDFBuf[23*blkn+blki                     ];
+                    fni[23] = cache_load(&param.blkDDFBuf[23*blkn+blki                     ]);
                     //load f24(x:-,y:+,z:+) from neighbor (x:+,y:0,z:0)
-                    fni[24] = param.blkDDFBuf[24*blkn+blki+blkpdx              ];
+                    fni[24] = cache_load(&param.blkDDFBuf[24*blkn+blki+blkpdx              ]);
                     //load f25(x:0,y:+,z:+) from current lattice
-                    fni[25] = param.blkDDFBuf[25*blkn+blki                     ];
+                    fni[25] = cache_load(&param.blkDDFBuf[25*blkn+blki                     ]);
                     //load f26(x:+,y:+,z:+) from current lattice
-                    fni[26] = param.blkDDFBuf[26*blkn+blki                     ];
+                    fni[26] = cache_load(&param.blkDDFBuf[26*blkn+blki                     ]);
                 }
                 else
                 {
                     //EsoTwist Even Load Rules:
                     //Reverse all direction
                     //load f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-                    fni[ 0] = param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz];
+                    fni[ 0] = cache_load(&param.blkDDFBuf[26*blkn+blki+blkpdx+blkpdy+blkpdz]);
                     //load f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-                    fni[ 1] = param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz];
+                    fni[ 1] = cache_load(&param.blkDDFBuf[25*blkn+blki       +blkpdy+blkpdz]);
                     //loaf f2 (x:+,y:-,z:-) from neighbor (x:0,y:+,z:+)
-                    fni[ 2] = param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz];
+                    fni[ 2] = cache_load(&param.blkDDFBuf[24*blkn+blki       +blkpdy+blkpdz]);
                     //load f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-                    fni[ 3] = param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz];
+                    fni[ 3] = cache_load(&param.blkDDFBuf[23*blkn+blki+blkpdx       +blkpdz]);
                     //load f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-                    fni[ 4] = param.blkDDFBuf[22*blkn+blki              +blkpdz];
+                    fni[ 4] = cache_load(&param.blkDDFBuf[22*blkn+blki              +blkpdz]);
                     //load f5 (x:+,y:0,z:-) from neighbor (x:0,y:0,z:+)
-                    fni[ 5] = param.blkDDFBuf[21*blkn+blki              +blkpdz];
+                    fni[ 5] = cache_load(&param.blkDDFBuf[21*blkn+blki              +blkpdz]);
                     //load f6 (x:-,y:+,z:-) from neighbor (x:+,y:0,z:+)
-                    fni[ 6] = param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz];
+                    fni[ 6] = cache_load(&param.blkDDFBuf[20*blkn+blki+blkpdx       +blkpdz]);
                     //load f7 (x:0,y:+,z:-) from neighbor (x:0,y:0,z:+)
-                    fni[ 7] = param.blkDDFBuf[19*blkn+blki              +blkpdz];
+                    fni[ 7] = cache_load(&param.blkDDFBuf[19*blkn+blki              +blkpdz]);
                     //load f8 (x:+,y:+,z:-) from neighbor (x:0,y:0,z:+)
-                    fni[ 8] = param.blkDDFBuf[18*blkn+blki              +blkpdz];
+                    fni[ 8] = cache_load(&param.blkDDFBuf[18*blkn+blki              +blkpdz]);
 
                     //load f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-                    fni[ 9] = param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ];
+                    fni[ 9] = cache_load(&param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ]);
                     //load f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-                    fni[10] = param.blkDDFBuf[16*blkn+blki       +blkpdy       ];
+                    fni[10] = cache_load(&param.blkDDFBuf[16*blkn+blki       +blkpdy       ]);
                     //load f11(x:+,y:-,z:0) from neighbor (x:0,y:+,z:0)
-                    fni[11] = param.blkDDFBuf[15*blkn+blki       +blkpdy       ];
+                    fni[11] = cache_load(&param.blkDDFBuf[15*blkn+blki       +blkpdy       ]);
                     //load f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-                    fni[12] = param.blkDDFBuf[14*blkn+blki+blkpdx              ];
+                    fni[12] = cache_load(&param.blkDDFBuf[14*blkn+blki+blkpdx              ]);
                     //load f13(x:0,y:0,z:0) from current lattice
-                    //fni[13] = param.blkDDFBuf[13*blkn+blki                     ];
+                    //fni[13] = cache_load(&param.blkDDFBuf[13*blkn+blki                     ]);
                     //load f14(x:+,y:0,z:0) from current lattice
-                    fni[14] = param.blkDDFBuf[12*blkn+blki                     ];
+                    fni[14] = cache_load(&param.blkDDFBuf[12*blkn+blki                     ]);
                     //load f15(x:-,y:+,z:0) from neighbor (x:+,y:0,z:0)
-                    fni[15] = param.blkDDFBuf[11*blkn+blki+blkpdx              ];
+                    fni[15] = cache_load(&param.blkDDFBuf[11*blkn+blki+blkpdx              ]);
                     //load f16(x:0,y:+,z:0) from current lattice
-                    fni[16] = param.blkDDFBuf[10*blkn+blki                     ];
+                    fni[16] = cache_load(&param.blkDDFBuf[10*blkn+blki                     ]);
                     //load f17(x:+,y:+,z:0) from current lattice
-                    fni[17] = param.blkDDFBuf[ 9*blkn+blki                     ];
+                    fni[17] = cache_load(&param.blkDDFBuf[ 9*blkn+blki                     ]);
 
                     //load f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:0)
-                    fni[18] = param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ];
+                    fni[18] = cache_load(&param.blkDDFBuf[ 8*blkn+blki+blkpdx+blkpdy       ]);
                     //load f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:0)
-                    fni[19] = param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ];
+                    fni[19] = cache_load(&param.blkDDFBuf[ 7*blkn+blki       +blkpdy       ]);
                     //load f20(x:+,y:-,z:+) from neighbor (x:0,y:+,z:0)
-                    fni[20] = param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ];
+                    fni[20] = cache_load(&param.blkDDFBuf[ 6*blkn+blki       +blkpdy       ]);
                     //load f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:0)
-                    fni[21] = param.blkDDFBuf[ 5*blkn+blki+blkpdx              ];
+                    fni[21] = cache_load(&param.blkDDFBuf[ 5*blkn+blki+blkpdx              ]);
                     //load f22(x:0,y:0,z:+) from current lattice
-                    fni[22] = param.blkDDFBuf[ 4*blkn+blki                     ];
+                    fni[22] = cache_load(&param.blkDDFBuf[ 4*blkn+blki                     ]);
                     //load f23(x:+,y:0,z:+) from current lattice
-                    fni[23] = param.blkDDFBuf[ 3*blkn+blki                     ];
+                    fni[23] = cache_load(&param.blkDDFBuf[ 3*blkn+blki                     ]);
                     //load f24(x:-,y:+,z:+) from neighbor (x:+,y:0,z:0)
-                    fni[24] = param.blkDDFBuf[ 2*blkn+blki+blkpdx              ];
+                    fni[24] = cache_load(&param.blkDDFBuf[ 2*blkn+blki+blkpdx              ]);
                     //load f25(x:0,y:+,z:+) from current lattice
-                    fni[25] = param.blkDDFBuf[ 1*blkn+blki                     ];
+                    fni[25] = cache_load(&param.blkDDFBuf[ 1*blkn+blki                     ]);
                     //load f26(x:+,y:+,z:+) from current lattice
-                    fni[26] = param.blkDDFBuf[ 0*blkn+blki                     ];
+                    fni[26] = cache_load(&param.blkDDFBuf[ 0*blkn+blki                     ]);
                 }
             }
 
