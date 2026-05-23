@@ -70,6 +70,71 @@ namespace culbm::simulator::single_dev_expt
         stream_store(buf + glb_ddf_off(dir, nCell, cellOff), value);
     }
 
+    __device__ __forceinline__ glb_idx_t glb_ring_ddf_off(
+        const idx_t dir,
+        const idx_t nx,
+        const idx_t ny,
+        const idx_t ringNz,
+        const idx_t offz,
+        const idx_t cellOff
+    )
+    {
+        const idx_t nxy = nx * ny;
+        const idx_t z = cellOff / nxy;
+        const idx_t xyOff = cellOff - z * nxy;
+        idx_t ringZ = z + offz;
+        if(ringZ >= ringNz)
+        {
+            ringZ -= ringNz;
+        }
+        const glb_idx_t ringNCell = static_cast<glb_idx_t>(nxy) * static_cast<glb_idx_t>(ringNz);
+        return static_cast<glb_idx_t>(dir) * ringNCell + static_cast<glb_idx_t>(ringZ) * static_cast<glb_idx_t>(nxy) + static_cast<glb_idx_t>(xyOff);
+    }
+
+    __device__ __forceinline__ real_t dynamic_load_glb_ddf(
+        const HaloBlockingDynamicL2InplaceParam& param,
+        const idx_t dir,
+        const idx_t nCell,
+        const idx_t cellOff
+    )
+    {
+        if(param.glbDDFRingNz == 0)
+        {
+            return load_glb_ddf(param.glbSrcDDFBuf, dir, nCell, cellOff);
+        }
+        return param.glbSrcDDFBuf[glb_ring_ddf_off(dir, param.glbnx, param.glbny, param.glbDDFRingNz, param.glbSrcDDFOffz, cellOff)];
+    }
+
+    __device__ __forceinline__ real_t dynamic_stream_load_glb_ddf(
+        const HaloBlockingDynamicL2InplaceParam& param,
+        const idx_t dir,
+        const idx_t nCell,
+        const idx_t cellOff
+    )
+    {
+        if(param.glbDDFRingNz == 0)
+        {
+            return stream_load_glb_ddf(param.glbSrcDDFBuf, dir, nCell, cellOff);
+        }
+        return stream_load(param.glbSrcDDFBuf + glb_ring_ddf_off(dir, param.glbnx, param.glbny, param.glbDDFRingNz, param.glbSrcDDFOffz, cellOff));
+    }
+
+    __device__ __forceinline__ void dynamic_stream_store_glb_ddf(
+        const HaloBlockingDynamicL2InplaceParam& param,
+        const idx_t dir,
+        const idx_t nCell,
+        const idx_t cellOff,
+        const real_t value
+    )
+    {
+        if(param.glbDDFRingNz == 0)
+        {
+            stream_store_glb_ddf(param.glbDstDDFBuf, dir, nCell, cellOff, value);
+            return;
+        }
+        stream_store(param.glbSrcDDFBuf + glb_ring_ddf_off(dir, param.glbnx, param.glbny, param.glbDDFRingNz, param.glbDstDDFOffz, cellOff), value);
+    }
+
     __global__ __launch_bounds__(1024) void
     HaloBlockingL1L2D3Q27PullKernel(const HaloBlockingL1L2Param __grid_constant__ param)
     {
@@ -798,61 +863,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = stream_load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
+            fni[ 0] = dynamic_stream_load_glb_ddf(param, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = stream_load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
+            fni[ 1] = dynamic_stream_load_glb_ddf(param, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = stream_load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
+            fni[ 2] = dynamic_stream_load_glb_ddf(param, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = stream_load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
+            fni[ 3] = dynamic_stream_load_glb_ddf(param, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = stream_load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
+            fni[ 4] = dynamic_stream_load_glb_ddf(param, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = stream_load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
+            fni[ 5] = dynamic_stream_load_glb_ddf(param, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = stream_load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
+            fni[ 6] = dynamic_stream_load_glb_ddf(param, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = stream_load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
+            fni[ 7] = dynamic_stream_load_glb_ddf(param, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = stream_load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
+            fni[ 8] = dynamic_stream_load_glb_ddf(param, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = stream_load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
+            fni[ 9] = dynamic_stream_load_glb_ddf(param, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = stream_load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
+            fni[10] = dynamic_stream_load_glb_ddf(param, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = stream_load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
+            fni[11] = dynamic_stream_load_glb_ddf(param, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = stream_load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
+            fni[12] = dynamic_stream_load_glb_ddf(param, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = stream_load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
+            fni[13] = dynamic_stream_load_glb_ddf(param, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = stream_load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
+            fni[14] = dynamic_stream_load_glb_ddf(param, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = stream_load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
+            fni[15] = dynamic_stream_load_glb_ddf(param, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = stream_load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
+            fni[16] = dynamic_stream_load_glb_ddf(param, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = stream_load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
+            fni[17] = dynamic_stream_load_glb_ddf(param, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = stream_load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
+            fni[18] = dynamic_stream_load_glb_ddf(param, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = stream_load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
+            fni[19] = dynamic_stream_load_glb_ddf(param, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = stream_load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
+            fni[20] = dynamic_stream_load_glb_ddf(param, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = stream_load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
+            fni[21] = dynamic_stream_load_glb_ddf(param, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = stream_load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
+            fni[22] = dynamic_stream_load_glb_ddf(param, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = stream_load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
+            fni[23] = dynamic_stream_load_glb_ddf(param, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = stream_load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
+            fni[24] = dynamic_stream_load_glb_ddf(param, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = stream_load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
+            fni[25] = dynamic_stream_load_glb_ddf(param, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = stream_load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
+            fni[26] = dynamic_stream_load_glb_ddf(param, 26, glbn, glbi+glbndx+glbndy+glbndz);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -983,61 +1048,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = stream_load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
+            fni[ 0] = dynamic_stream_load_glb_ddf(param, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = stream_load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
+            fni[ 1] = dynamic_stream_load_glb_ddf(param, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = stream_load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
+            fni[ 2] = dynamic_stream_load_glb_ddf(param, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = stream_load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
+            fni[ 3] = dynamic_stream_load_glb_ddf(param, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = stream_load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
+            fni[ 4] = dynamic_stream_load_glb_ddf(param, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = stream_load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
+            fni[ 5] = dynamic_stream_load_glb_ddf(param, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = stream_load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
+            fni[ 6] = dynamic_stream_load_glb_ddf(param, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = stream_load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
+            fni[ 7] = dynamic_stream_load_glb_ddf(param, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = stream_load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
+            fni[ 8] = dynamic_stream_load_glb_ddf(param, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = stream_load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
+            fni[ 9] = dynamic_stream_load_glb_ddf(param, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = stream_load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
+            fni[10] = dynamic_stream_load_glb_ddf(param, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = stream_load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
+            fni[11] = dynamic_stream_load_glb_ddf(param, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = stream_load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
+            fni[12] = dynamic_stream_load_glb_ddf(param, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = stream_load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
+            fni[13] = dynamic_stream_load_glb_ddf(param, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = stream_load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
+            fni[14] = dynamic_stream_load_glb_ddf(param, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = stream_load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
+            fni[15] = dynamic_stream_load_glb_ddf(param, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = stream_load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
+            fni[16] = dynamic_stream_load_glb_ddf(param, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = stream_load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
+            fni[17] = dynamic_stream_load_glb_ddf(param, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = stream_load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
+            fni[18] = dynamic_stream_load_glb_ddf(param, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = stream_load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
+            fni[19] = dynamic_stream_load_glb_ddf(param, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = stream_load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
+            fni[20] = dynamic_stream_load_glb_ddf(param, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = stream_load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
+            fni[21] = dynamic_stream_load_glb_ddf(param, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = stream_load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
+            fni[22] = dynamic_stream_load_glb_ddf(param, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = stream_load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
+            fni[23] = dynamic_stream_load_glb_ddf(param, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = stream_load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
+            fni[24] = dynamic_stream_load_glb_ddf(param, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = stream_load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
+            fni[25] = dynamic_stream_load_glb_ddf(param, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = stream_load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
+            fni[26] = dynamic_stream_load_glb_ddf(param, 26, glbn, glbi+glbndx+glbndy+glbndz);
         }
 
         if((flagi & EQU_DDF_BIT)!=0)
@@ -1073,33 +1138,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & STORE_DDF_BIT)!=0)
         {
-            stream_store_glb_ddf(param.glbDstDDFBuf, 0, glbn, glbi, fni[ 0]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 1, glbn, glbi, fni[ 1]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 2, glbn, glbi, fni[ 2]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 3, glbn, glbi, fni[ 3]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 4, glbn, glbi, fni[ 4]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 5, glbn, glbi, fni[ 5]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 6, glbn, glbi, fni[ 6]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 7, glbn, glbi, fni[ 7]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 8, glbn, glbi, fni[ 8]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 9, glbn, glbi, fni[ 9]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 10, glbn, glbi, fni[10]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 11, glbn, glbi, fni[11]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 12, glbn, glbi, fni[12]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 13, glbn, glbi, fni[13]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 14, glbn, glbi, fni[14]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 15, glbn, glbi, fni[15]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 16, glbn, glbi, fni[16]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 17, glbn, glbi, fni[17]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 18, glbn, glbi, fni[18]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 19, glbn, glbi, fni[19]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 20, glbn, glbi, fni[20]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 21, glbn, glbi, fni[21]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 22, glbn, glbi, fni[22]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 23, glbn, glbi, fni[23]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 24, glbn, glbi, fni[24]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 25, glbn, glbi, fni[25]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 26, glbn, glbi, fni[26]);
+            dynamic_stream_store_glb_ddf(param, 0, glbn, glbi, fni[ 0]);
+            dynamic_stream_store_glb_ddf(param, 1, glbn, glbi, fni[ 1]);
+            dynamic_stream_store_glb_ddf(param, 2, glbn, glbi, fni[ 2]);
+            dynamic_stream_store_glb_ddf(param, 3, glbn, glbi, fni[ 3]);
+            dynamic_stream_store_glb_ddf(param, 4, glbn, glbi, fni[ 4]);
+            dynamic_stream_store_glb_ddf(param, 5, glbn, glbi, fni[ 5]);
+            dynamic_stream_store_glb_ddf(param, 6, glbn, glbi, fni[ 6]);
+            dynamic_stream_store_glb_ddf(param, 7, glbn, glbi, fni[ 7]);
+            dynamic_stream_store_glb_ddf(param, 8, glbn, glbi, fni[ 8]);
+            dynamic_stream_store_glb_ddf(param, 9, glbn, glbi, fni[ 9]);
+            dynamic_stream_store_glb_ddf(param, 10, glbn, glbi, fni[10]);
+            dynamic_stream_store_glb_ddf(param, 11, glbn, glbi, fni[11]);
+            dynamic_stream_store_glb_ddf(param, 12, glbn, glbi, fni[12]);
+            dynamic_stream_store_glb_ddf(param, 13, glbn, glbi, fni[13]);
+            dynamic_stream_store_glb_ddf(param, 14, glbn, glbi, fni[14]);
+            dynamic_stream_store_glb_ddf(param, 15, glbn, glbi, fni[15]);
+            dynamic_stream_store_glb_ddf(param, 16, glbn, glbi, fni[16]);
+            dynamic_stream_store_glb_ddf(param, 17, glbn, glbi, fni[17]);
+            dynamic_stream_store_glb_ddf(param, 18, glbn, glbi, fni[18]);
+            dynamic_stream_store_glb_ddf(param, 19, glbn, glbi, fni[19]);
+            dynamic_stream_store_glb_ddf(param, 20, glbn, glbi, fni[20]);
+            dynamic_stream_store_glb_ddf(param, 21, glbn, glbi, fni[21]);
+            dynamic_stream_store_glb_ddf(param, 22, glbn, glbi, fni[22]);
+            dynamic_stream_store_glb_ddf(param, 23, glbn, glbi, fni[23]);
+            dynamic_stream_store_glb_ddf(param, 24, glbn, glbi, fni[24]);
+            dynamic_stream_store_glb_ddf(param, 25, glbn, glbi, fni[25]);
+            dynamic_stream_store_glb_ddf(param, 26, glbn, glbi, fni[26]);
         }
     }
 
@@ -1582,33 +1647,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & (CORRECT_BIT | STORE_DDF_BIT))==(CORRECT_BIT | STORE_DDF_BIT))
         {
-            stream_store_glb_ddf(param.glbDstDDFBuf, 0, glbn, glbi, fni[ 0]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 1, glbn, glbi, fni[ 1]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 2, glbn, glbi, fni[ 2]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 3, glbn, glbi, fni[ 3]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 4, glbn, glbi, fni[ 4]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 5, glbn, glbi, fni[ 5]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 6, glbn, glbi, fni[ 6]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 7, glbn, glbi, fni[ 7]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 8, glbn, glbi, fni[ 8]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 9, glbn, glbi, fni[ 9]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 10, glbn, glbi, fni[10]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 11, glbn, glbi, fni[11]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 12, glbn, glbi, fni[12]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 13, glbn, glbi, fni[13]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 14, glbn, glbi, fni[14]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 15, glbn, glbi, fni[15]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 16, glbn, glbi, fni[16]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 17, glbn, glbi, fni[17]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 18, glbn, glbi, fni[18]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 19, glbn, glbi, fni[19]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 20, glbn, glbi, fni[20]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 21, glbn, glbi, fni[21]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 22, glbn, glbi, fni[22]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 23, glbn, glbi, fni[23]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 24, glbn, glbi, fni[24]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 25, glbn, glbi, fni[25]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 26, glbn, glbi, fni[26]);
+            dynamic_stream_store_glb_ddf(param, 0, glbn, glbi, fni[ 0]);
+            dynamic_stream_store_glb_ddf(param, 1, glbn, glbi, fni[ 1]);
+            dynamic_stream_store_glb_ddf(param, 2, glbn, glbi, fni[ 2]);
+            dynamic_stream_store_glb_ddf(param, 3, glbn, glbi, fni[ 3]);
+            dynamic_stream_store_glb_ddf(param, 4, glbn, glbi, fni[ 4]);
+            dynamic_stream_store_glb_ddf(param, 5, glbn, glbi, fni[ 5]);
+            dynamic_stream_store_glb_ddf(param, 6, glbn, glbi, fni[ 6]);
+            dynamic_stream_store_glb_ddf(param, 7, glbn, glbi, fni[ 7]);
+            dynamic_stream_store_glb_ddf(param, 8, glbn, glbi, fni[ 8]);
+            dynamic_stream_store_glb_ddf(param, 9, glbn, glbi, fni[ 9]);
+            dynamic_stream_store_glb_ddf(param, 10, glbn, glbi, fni[10]);
+            dynamic_stream_store_glb_ddf(param, 11, glbn, glbi, fni[11]);
+            dynamic_stream_store_glb_ddf(param, 12, glbn, glbi, fni[12]);
+            dynamic_stream_store_glb_ddf(param, 13, glbn, glbi, fni[13]);
+            dynamic_stream_store_glb_ddf(param, 14, glbn, glbi, fni[14]);
+            dynamic_stream_store_glb_ddf(param, 15, glbn, glbi, fni[15]);
+            dynamic_stream_store_glb_ddf(param, 16, glbn, glbi, fni[16]);
+            dynamic_stream_store_glb_ddf(param, 17, glbn, glbi, fni[17]);
+            dynamic_stream_store_glb_ddf(param, 18, glbn, glbi, fni[18]);
+            dynamic_stream_store_glb_ddf(param, 19, glbn, glbi, fni[19]);
+            dynamic_stream_store_glb_ddf(param, 20, glbn, glbi, fni[20]);
+            dynamic_stream_store_glb_ddf(param, 21, glbn, glbi, fni[21]);
+            dynamic_stream_store_glb_ddf(param, 22, glbn, glbi, fni[22]);
+            dynamic_stream_store_glb_ddf(param, 23, glbn, glbi, fni[23]);
+            dynamic_stream_store_glb_ddf(param, 24, glbn, glbi, fni[24]);
+            dynamic_stream_store_glb_ddf(param, 25, glbn, glbi, fni[25]);
+            dynamic_stream_store_glb_ddf(param, 26, glbn, glbi, fni[26]);
         }
     }
 
@@ -1731,33 +1796,33 @@ namespace culbm::simulator::single_dev_expt
 
         if((flagi & (CORRECT_BIT | STORE_DDF_BIT))==(CORRECT_BIT | STORE_DDF_BIT))
         {
-            stream_store_glb_ddf(param.glbDstDDFBuf, 0, glbn, glbi, fni[ 0]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 1, glbn, glbi, fni[ 1]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 2, glbn, glbi, fni[ 2]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 3, glbn, glbi, fni[ 3]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 4, glbn, glbi, fni[ 4]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 5, glbn, glbi, fni[ 5]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 6, glbn, glbi, fni[ 6]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 7, glbn, glbi, fni[ 7]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 8, glbn, glbi, fni[ 8]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 9, glbn, glbi, fni[ 9]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 10, glbn, glbi, fni[10]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 11, glbn, glbi, fni[11]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 12, glbn, glbi, fni[12]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 13, glbn, glbi, fni[13]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 14, glbn, glbi, fni[14]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 15, glbn, glbi, fni[15]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 16, glbn, glbi, fni[16]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 17, glbn, glbi, fni[17]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 18, glbn, glbi, fni[18]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 19, glbn, glbi, fni[19]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 20, glbn, glbi, fni[20]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 21, glbn, glbi, fni[21]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 22, glbn, glbi, fni[22]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 23, glbn, glbi, fni[23]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 24, glbn, glbi, fni[24]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 25, glbn, glbi, fni[25]);
-            stream_store_glb_ddf(param.glbDstDDFBuf, 26, glbn, glbi, fni[26]);
+            dynamic_stream_store_glb_ddf(param, 0, glbn, glbi, fni[ 0]);
+            dynamic_stream_store_glb_ddf(param, 1, glbn, glbi, fni[ 1]);
+            dynamic_stream_store_glb_ddf(param, 2, glbn, glbi, fni[ 2]);
+            dynamic_stream_store_glb_ddf(param, 3, glbn, glbi, fni[ 3]);
+            dynamic_stream_store_glb_ddf(param, 4, glbn, glbi, fni[ 4]);
+            dynamic_stream_store_glb_ddf(param, 5, glbn, glbi, fni[ 5]);
+            dynamic_stream_store_glb_ddf(param, 6, glbn, glbi, fni[ 6]);
+            dynamic_stream_store_glb_ddf(param, 7, glbn, glbi, fni[ 7]);
+            dynamic_stream_store_glb_ddf(param, 8, glbn, glbi, fni[ 8]);
+            dynamic_stream_store_glb_ddf(param, 9, glbn, glbi, fni[ 9]);
+            dynamic_stream_store_glb_ddf(param, 10, glbn, glbi, fni[10]);
+            dynamic_stream_store_glb_ddf(param, 11, glbn, glbi, fni[11]);
+            dynamic_stream_store_glb_ddf(param, 12, glbn, glbi, fni[12]);
+            dynamic_stream_store_glb_ddf(param, 13, glbn, glbi, fni[13]);
+            dynamic_stream_store_glb_ddf(param, 14, glbn, glbi, fni[14]);
+            dynamic_stream_store_glb_ddf(param, 15, glbn, glbi, fni[15]);
+            dynamic_stream_store_glb_ddf(param, 16, glbn, glbi, fni[16]);
+            dynamic_stream_store_glb_ddf(param, 17, glbn, glbi, fni[17]);
+            dynamic_stream_store_glb_ddf(param, 18, glbn, glbi, fni[18]);
+            dynamic_stream_store_glb_ddf(param, 19, glbn, glbi, fni[19]);
+            dynamic_stream_store_glb_ddf(param, 20, glbn, glbi, fni[20]);
+            dynamic_stream_store_glb_ddf(param, 21, glbn, glbi, fni[21]);
+            dynamic_stream_store_glb_ddf(param, 22, glbn, glbi, fni[22]);
+            dynamic_stream_store_glb_ddf(param, 23, glbn, glbi, fni[23]);
+            dynamic_stream_store_glb_ddf(param, 24, glbn, glbi, fni[24]);
+            dynamic_stream_store_glb_ddf(param, 25, glbn, glbi, fni[25]);
+            dynamic_stream_store_glb_ddf(param, 26, glbn, glbi, fni[26]);
         }        
     }
 
@@ -1790,61 +1855,61 @@ namespace culbm::simulator::single_dev_expt
             const idx_t glbpdz = (glbz==param.glbnz-1) ? 0 : param.glbnx * param.glbny;
 
             //f0 (x:-,y:-,z:-) from neighbor (x:+,y:+,z:+)
-            fni[ 0] = load_glb_ddf(param.glbSrcDDFBuf, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
+            fni[ 0] = dynamic_load_glb_ddf(param, 0, glbn, glbi+glbpdx+glbpdy+glbpdz);
             //f1 (x:0,y:-,z:-) from neighbor (x:0,y:+,z:+)
-            fni[ 1] = load_glb_ddf(param.glbSrcDDFBuf, 1, glbn, glbi       +glbpdy+glbpdz);
+            fni[ 1] = dynamic_load_glb_ddf(param, 1, glbn, glbi       +glbpdy+glbpdz);
             //f2 (x:+,y:-,z:-) from neighbor (x:-,y:+,z:+)
-            fni[ 2] = load_glb_ddf(param.glbSrcDDFBuf, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
+            fni[ 2] = dynamic_load_glb_ddf(param, 2, glbn, glbi+glbndx+glbpdy+glbpdz);
             //f3 (x:-,y:0,z:-) from neighbor (x:+,y:0,z:+)
-            fni[ 3] = load_glb_ddf(param.glbSrcDDFBuf, 3, glbn, glbi+glbpdx       +glbpdz);
+            fni[ 3] = dynamic_load_glb_ddf(param, 3, glbn, glbi+glbpdx       +glbpdz);
             //f4 (x:0,y:0,z:-) from neighbor (x:0,y:0,z:+)
-            fni[ 4] = load_glb_ddf(param.glbSrcDDFBuf, 4, glbn, glbi              +glbpdz);
+            fni[ 4] = dynamic_load_glb_ddf(param, 4, glbn, glbi              +glbpdz);
             //f5 (x:+,y:0,z:-) from neighbor (x:-,y:0,z:+)
-            fni[ 5] = load_glb_ddf(param.glbSrcDDFBuf, 5, glbn, glbi+glbndx       +glbpdz);
+            fni[ 5] = dynamic_load_glb_ddf(param, 5, glbn, glbi+glbndx       +glbpdz);
             //f6 (x:-,y:+,z:-) from neighbor (x:+,y:-,z:+)
-            fni[ 6] = load_glb_ddf(param.glbSrcDDFBuf, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
+            fni[ 6] = dynamic_load_glb_ddf(param, 6, glbn, glbi+glbpdx+glbndy+glbpdz);
             //f7 (x:0,y:+,z:-) from neighbor (x:0,y:-,z:+)
-            fni[ 7] = load_glb_ddf(param.glbSrcDDFBuf, 7, glbn, glbi       +glbndy+glbpdz);
+            fni[ 7] = dynamic_load_glb_ddf(param, 7, glbn, glbi       +glbndy+glbpdz);
             //f8 (x:+,y:+,z:-) from neighbor (x:-,y:-,z:+)
-            fni[ 8] = load_glb_ddf(param.glbSrcDDFBuf, 8, glbn, glbi+glbndx+glbndy+glbpdz);
+            fni[ 8] = dynamic_load_glb_ddf(param, 8, glbn, glbi+glbndx+glbndy+glbpdz);
 
             //f9 (x:-,y:-,z:0) from neighbor (x:+,y:+,z:0)
-            fni[ 9] = load_glb_ddf(param.glbSrcDDFBuf, 9, glbn, glbi+glbpdx+glbpdy       );
+            fni[ 9] = dynamic_load_glb_ddf(param, 9, glbn, glbi+glbpdx+glbpdy       );
             //f10(x:0,y:-,z:0) from neighbor (x:0,y:+,z:0)
-            fni[10] = load_glb_ddf(param.glbSrcDDFBuf, 10, glbn, glbi       +glbpdy       );
+            fni[10] = dynamic_load_glb_ddf(param, 10, glbn, glbi       +glbpdy       );
             //f11(x:+,y:-,z:0) from neighbor (x:-,y:+,z:0)
-            fni[11] = load_glb_ddf(param.glbSrcDDFBuf, 11, glbn, glbi+glbndx+glbpdy       );
+            fni[11] = dynamic_load_glb_ddf(param, 11, glbn, glbi+glbndx+glbpdy       );
             //f12(x:-,y:0,z:0) from neighbor (x:+,y:0,z:0)
-            fni[12] = load_glb_ddf(param.glbSrcDDFBuf, 12, glbn, glbi+glbpdx              );
+            fni[12] = dynamic_load_glb_ddf(param, 12, glbn, glbi+glbpdx              );
             //f13(x:0,y:0,z:0) from neighbor (x:0,y:0,z:0)
-            fni[13] = load_glb_ddf(param.glbSrcDDFBuf, 13, glbn, glbi                     );
+            fni[13] = dynamic_load_glb_ddf(param, 13, glbn, glbi                     );
             //f14(x:+,y:0,z:0) from neighbor (x:-,y:0,z:0)
-            fni[14] = load_glb_ddf(param.glbSrcDDFBuf, 14, glbn, glbi+glbndx              );
+            fni[14] = dynamic_load_glb_ddf(param, 14, glbn, glbi+glbndx              );
             //f15(x:-,y:+,z:0) from neighbor (x:+,y:-,z:0)
-            fni[15] = load_glb_ddf(param.glbSrcDDFBuf, 15, glbn, glbi+glbpdx+glbndy       );
+            fni[15] = dynamic_load_glb_ddf(param, 15, glbn, glbi+glbpdx+glbndy       );
             //f16(x:0,y:+,z:0) from neighbor (x:0,y:-,z:0)
-            fni[16] = load_glb_ddf(param.glbSrcDDFBuf, 16, glbn, glbi       +glbndy       );
+            fni[16] = dynamic_load_glb_ddf(param, 16, glbn, glbi       +glbndy       );
             //f17(x:+,y:+,z:0) from neighbor (x:-,y:-,z:0)
-            fni[17] = load_glb_ddf(param.glbSrcDDFBuf, 17, glbn, glbi+glbndx+glbndy       );
+            fni[17] = dynamic_load_glb_ddf(param, 17, glbn, glbi+glbndx+glbndy       );
 
             //f18(x:-,y:-,z:+) from neighbor (x:+,y:+,z:-)
-            fni[18] = load_glb_ddf(param.glbSrcDDFBuf, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
+            fni[18] = dynamic_load_glb_ddf(param, 18, glbn, glbi+glbpdx+glbpdy+glbndz);
             //f19(x:0,y:-,z:+) from neighbor (x:0,y:+,z:-)
-            fni[19] = load_glb_ddf(param.glbSrcDDFBuf, 19, glbn, glbi       +glbpdy+glbndz);
+            fni[19] = dynamic_load_glb_ddf(param, 19, glbn, glbi       +glbpdy+glbndz);
             //f20(x:+,y:-,z:+) from neighbor (x:-,y:+,z:-)
-            fni[20] = load_glb_ddf(param.glbSrcDDFBuf, 20, glbn, glbi+glbndx+glbpdy+glbndz);
+            fni[20] = dynamic_load_glb_ddf(param, 20, glbn, glbi+glbndx+glbpdy+glbndz);
             //f21(x:-,y:0,z:+) from neighbor (x:+,y:0,z:-)
-            fni[21] = load_glb_ddf(param.glbSrcDDFBuf, 21, glbn, glbi+glbpdx       +glbndz);
+            fni[21] = dynamic_load_glb_ddf(param, 21, glbn, glbi+glbpdx       +glbndz);
             //f22(x:0,y:0,z:+) from neighbor (x:0,y:0,z:-)
-            fni[22] = load_glb_ddf(param.glbSrcDDFBuf, 22, glbn, glbi              +glbndz);
+            fni[22] = dynamic_load_glb_ddf(param, 22, glbn, glbi              +glbndz);
             //f23(x:+,y:0,z:+) from neighbor (x:-,y:0,z:-)
-            fni[23] = load_glb_ddf(param.glbSrcDDFBuf, 23, glbn, glbi+glbndx       +glbndz);
+            fni[23] = dynamic_load_glb_ddf(param, 23, glbn, glbi+glbndx       +glbndz);
             //f24(x:-,y:+,z:+) from neighbor (x:+,y:-,z:-)
-            fni[24] = load_glb_ddf(param.glbSrcDDFBuf, 24, glbn, glbi+glbpdx+glbndy+glbndz);
+            fni[24] = dynamic_load_glb_ddf(param, 24, glbn, glbi+glbpdx+glbndy+glbndz);
             //f25(x:0,y:+,z:+) from neighbor (x:0,y:-,z:-)
-            fni[25] = load_glb_ddf(param.glbSrcDDFBuf, 25, glbn, glbi       +glbndy+glbndz);
+            fni[25] = dynamic_load_glb_ddf(param, 25, glbn, glbi       +glbndy+glbndz);
             //f26(x:+,y:+,z:+) from neighbor (x:-,y:-,z:-)
-            fni[26] = load_glb_ddf(param.glbSrcDDFBuf, 26, glbn, glbi+glbndx+glbndy+glbndz);
+            fni[26] = dynamic_load_glb_ddf(param, 26, glbn, glbi+glbndx+glbndy+glbndz);
 
             culbm::lbm_core::bgk::calcRhoU<27>(rhoi, vxi, vyi, vzi, std::begin(fni));            
         }
