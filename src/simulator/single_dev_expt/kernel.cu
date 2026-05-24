@@ -1442,8 +1442,8 @@ namespace culbm::simulator::single_dev_expt
             //store f17(x:+,z:+,z:0) to neighbor (x:+,y:+,z:0)
             cache_store(&param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ], fni[17]);
 
-            //store f18(x:-,y:-,z:+) to neighbor (x:0,y:+,z:+)
-            cache_store(&param.blkDDFBuf[18*blkn+blki       +blkpdy+blkpdz], fni[18]);
+            //store f18(x:-,y:-,z:+) to neighbor (x:0,y:0,z:+)
+            cache_store(&param.blkDDFBuf[18*blkn+blki              +blkpdz], fni[18]);
             //store f19(x:0,y:-,z:+) to neighbor (x:0,y:0,z:+)
             cache_store(&param.blkDDFBuf[19*blkn+blki              +blkpdz], fni[19]);
             //store f20(x:+,y:-,z:+) to neighbor (x:+,y:0,z:+)
@@ -2038,8 +2038,8 @@ namespace culbm::simulator::single_dev_expt
                     //store f17(x:+,z:+,z:0) to neighbor (x:+,y:+,z:0)
                     cache_store(&param.blkDDFBuf[17*blkn+blki+blkpdx+blkpdy       ], fni[17]);
 
-                    //store f18(x:-,y:-,z:+) to neighbor (x:0,y:+,z:+)
-                    cache_store(&param.blkDDFBuf[18*blkn+blki       +blkpdy+blkpdz], fni[18]);
+                    //store f18(x:-,y:-,z:+) to neighbor (x:0,y:0,z:+)
+                    cache_store(&param.blkDDFBuf[18*blkn+blki              +blkpdz], fni[18]);
                     //store f19(x:0,y:-,z:+) to neighbor (x:0,y:0,z:+)
                     cache_store(&param.blkDDFBuf[19*blkn+blki              +blkpdz], fni[19]);
                     //store f20(x:+,y:-,z:+) to neighbor (x:+,y:0,z:+)
