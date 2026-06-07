@@ -330,7 +330,7 @@ namespace culbm::simulator::single_dev
         float ms;
         cu::check(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
         const u32 domSize = _data->_opts->domDim.x * _data->_opts->domDim.y * _data->_opts->domDim.z;
-        const float mlups = (static_cast<float>(domSize) / 1024 / 1024) / (ms / 1000) * batch_step * BLOCKING_ITER;
+        const float mlups = static_cast<float>(domSize) * 1e-6f / (ms / 1000) * batch_step * BLOCKING_ITER;
         printf("[Info] speed = %.4f (MLUPS)\n", mlups);
     }
 
