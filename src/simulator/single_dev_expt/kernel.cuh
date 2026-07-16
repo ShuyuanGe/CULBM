@@ -57,6 +57,9 @@ namespace culbm::simulator::single_dev_expt
         ddf_t* glbSrcDDFBuf = nullptr;
         ddf_t* glbDstDDFBuf = nullptr;
         real_t* blkDDFBuf = nullptr;
+        idx_t glbDDFRingNz = 0;
+        idx_t glbSrcDDFOffz = 0;
+        idx_t glbDstDDFOffz = 0;
     };
 
     template<bool OneIter>

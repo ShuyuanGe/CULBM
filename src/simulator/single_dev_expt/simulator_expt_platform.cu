@@ -59,6 +59,7 @@ namespace culbm::simulator::single_dev_expt
             std::string     _initStateFolder;
             std::string     _dumpFolder;
             bool _dumpRho = false, _dumpVx = false, _dumpVy = false, _dumpVz = false;
+            bool _useRingDDFBuf = false;
 
             cudaStream_t _stream;
             cudaEvent_t _start, _end;
@@ -248,6 +249,33 @@ namespace culbm::simulator::single_dev_expt
                 std::cout << std::format("Init double ddf buffer successfully.") << std::endl;
             }
 
+            void initRingDDFBuf()
+            {
+                const auto blockingDim = getBlockingDim();
+                assert(blockingDim.z >= _innerLoop);
+                const std::size_t extraNz = static_cast<std::size_t>(blockingDim.z - (_innerLoop - 1) + 1);
+                const std::size_t ringDomSize =
+                    static_cast<std::size_t>(_domDim.x) *
+                    static_cast<std::size_t>(_domDim.y) *
+                    (static_cast<std::size_t>(_domDim.z) + extraNz);
+                switch(_velSet)
+                {
+                    case VelSet::D3Q27:
+                    {
+                        CU_CHECK(cudaMalloc(&_srcDDFBuf, 27*sizeof(ddf_t)*ringDomSize));
+                        _dstDDFBuf = nullptr;
+                        ddf_t feq[27];
+                        culbm::lbm_core::bgk::calcEqu<27>(1,0,0,0, std::begin(feq));
+                        for(std::int32_t dir=0 ; dir<27 ; ++dir)
+                        {
+                            thrust::fill_n(thrust::device_pointer_cast(_srcDDFBuf+dir*ringDomSize), ringDomSize, feq[dir]);
+                        }
+                        break;
+                    }
+                }
+                std::cout << std::format("Init ring ddf buffer successfully.") << std::endl;
+            }
+
             void mapGlobalMem2PersistL2(void* basePtr, std::size_t numBytes)
             {
 #if CULBM_EXPT_ENABLE_PERSISTENT_L2
@@ -320,6 +348,7 @@ namespace culbm::simulator::single_dev_expt
                 app.add_flag("--dumpVx", _dumpVx, "Enable dumping the x-axis velocity every `dstep` time steps in the simulation.");
                 app.add_flag("--dumpVy", _dumpVy, "Enable dumping the y-axis velocity every `dstep` time steps in the simulation.");
                 app.add_flag("--dumpVz", _dumpVz, "Enable dumping the z-axis velocity every `dstep` time steps in the simulation.");
+                app.add_flag("--useRingDDFBuf", _useRingDDFBuf, "Use one global DDF ring buffer for Dynamic L2 in-place streaming.");
 
                 app.add_option("--innerLoop", _innerLoop, "# of iterations in halo-blocking.")
                     ->default_val(5);
@@ -331,6 +360,11 @@ namespace culbm::simulator::single_dev_expt
                 catch(const CLI::ParseError& e)
                 {
                     std::exit(app.exit(e));
+                }
+
+                if(_useRingDDFBuf and (_streamPolicy!=StreamPolicy::INPLACE_STREAM or _optPolicy!=OptPolicy::HALO_BLOCKING_DYNAMIC_L2))
+                {
+                    throw std::runtime_error("--useRingDDFBuf is unimplemented unless --streamPolicy 1 --optPolicy 3.");
                 }
 
                 CU_CHECK(cudaSetDevice(_devIdx));
@@ -363,7 +397,14 @@ namespace culbm::simulator::single_dev_expt
                     (_streamPolicy==StreamPolicy::INPLACE_STREAM and _optPolicy==OptPolicy::HALO_BLOCKING_STATIC_L2)
                 )
                 {
-                    initDoubleDDFBuf();
+                    if(_useRingDDFBuf)
+                    {
+                        initRingDDFBuf();
+                    }
+                    else
+                    {
+                        initDoubleDDFBuf();
+                    }
                 }
 
                 if(_optPolicy==OptPolicy::HALO_BLOCKING_STATIC_L2 or _optPolicy==OptPolicy::HALO_BLOCKING_DYNAMIC_L2)
@@ -428,8 +469,12 @@ namespace culbm::simulator::single_dev_expt
                     (_streamPolicy==StreamPolicy::INPLACE_STREAM and _optPolicy==OptPolicy::HALO_BLOCKING_STATIC_L2)
                 )
                 {
+                    assert(_srcDDFBuf!=nullptr);
                     CU_CHECK(cudaFree(_srcDDFBuf));
-                    CU_CHECK(cudaFree(_dstDDFBuf));
+                    if(_dstDDFBuf!=nullptr)
+                    {
+                        CU_CHECK(cudaFree(_dstDDFBuf));
+                    }
                 }
 
                 if(
@@ -703,6 +748,8 @@ namespace culbm::simulator::single_dev_expt
 
         auto haloBlockingDynamicL2InplaceRun = [dumpRes, this]()->void
         {
+            const idx_t ringDDFOffzStep =
+                static_cast<idx_t>(_data->_gridDim.z * _data->_blockDim.z) - (static_cast<idx_t>(_data->_innerLoop) - 1) + 1;
             HaloBlockingDynamicL2InplaceParam param
             {
                 .invTau = _data->_invTau, 
@@ -714,8 +761,11 @@ namespace culbm::simulator::single_dev_expt
                 .glbVyBuf = _data->_vyBuf, 
                 .glbVzBuf = _data->_vzBuf, 
                 .glbSrcDDFBuf = _data->_srcDDFBuf, 
-                .glbDstDDFBuf = _data->_dstDDFBuf, 
-                .blkDDFBuf = _data->_l2DDFBuf0
+                .glbDstDDFBuf = _data->_useRingDDFBuf ? _data->_srcDDFBuf : _data->_dstDDFBuf,
+                .blkDDFBuf = _data->_l2DDFBuf0,
+                .glbDDFRingNz = _data->_useRingDDFBuf ? static_cast<idx_t>(_data->_domDim.z) + ringDDFOffzStep : 0,
+                .glbSrcDDFOffz = 0,
+                .glbDstDDFOffz = _data->_useRingDDFBuf ? static_cast<idx_t>(_data->_domDim.z) : 0
             };
 
             const dim3 gridDim {_data->_gridDim.x, _data->_gridDim.y, _data->_gridDim.z};
@@ -782,7 +832,19 @@ namespace culbm::simulator::single_dev_expt
                         }
                     }
 
-                    std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
+                    if(_data->_useRingDDFBuf)
+                    {
+                        param.glbSrcDDFOffz = param.glbDstDDFOffz;
+                        param.glbDstDDFOffz -= ringDDFOffzStep;
+                        if(param.glbDstDDFOffz < 0)
+                        {
+                            param.glbDstDDFOffz += param.glbDDFRingNz;
+                        }
+                    }
+                    else
+                    {
+                        std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
+                    }
                 }
                 CU_CHECK(cudaEventRecord(_data->_end, _data->_stream));
                 CU_CHECK(cudaEventSynchronize(_data->_end));
