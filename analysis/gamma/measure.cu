@@ -63,7 +63,7 @@ int main() {
     const float partial_median = partial_times[kSamples / 2];
     const float gamma = 4.0F * partial_median / full_median - 3.0F;
 
-    std::printf("4F median: %.4f ms\n", full_median);
-    std::printf("3F+1P median: %.4f ms\n", partial_median);
-    std::printf("gamma: %.3g\n", gamma);
+    std::printf("4F median: %.5f ms\n", full_median);
+    std::printf("3F+1P median: %.5f ms\n", partial_median);
+    std::printf("gamma: %.4f\n", gamma);
 }

@@ -12,3 +12,5 @@ $$
 $$
 
 With one full-sector service demand normalized to one, $\gamma$ is the effective demand of the partial sector, so a larger $\gamma$ means a stronger final-store misalignment penalty.
+
+The program prints both times with five decimal places and $\gamma$ with four decimal places.
