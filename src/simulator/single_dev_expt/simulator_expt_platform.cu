@@ -60,6 +60,7 @@ namespace culbm::simulator::single_dev_expt
             std::string     _dumpFolder;
             bool _dumpRho = false, _dumpVx = false, _dumpVy = false, _dumpVz = false;
             bool _useRingDDFBuf = false;
+            bool _interiorTilesOnly = false;
 
             cudaStream_t _stream;
             cudaEvent_t _start, _end;
@@ -349,6 +350,7 @@ namespace culbm::simulator::single_dev_expt
                 app.add_flag("--dumpVy", _dumpVy, "Enable dumping the y-axis velocity every `dstep` time steps in the simulation.");
                 app.add_flag("--dumpVz", _dumpVz, "Enable dumping the z-axis velocity every `dstep` time steps in the simulation.");
                 app.add_flag("--useRingDDFBuf", _useRingDDFBuf, "Use one global DDF ring buffer for Dynamic L2 in-place streaming.");
+                app.add_flag("--interior-tiles-only", _interiorTilesOnly, "Run only tiles that are non-boundary along all three axes.");
 
                 app.add_option("--innerLoop", _innerLoop, "# of iterations in halo-blocking.")
                     ->default_val(5);
@@ -365,6 +367,25 @@ namespace culbm::simulator::single_dev_expt
                 if(_useRingDDFBuf and (_streamPolicy!=StreamPolicy::INPLACE_STREAM or _optPolicy!=OptPolicy::HALO_BLOCKING_DYNAMIC_L2))
                 {
                     throw std::runtime_error("--useRingDDFBuf is unimplemented unless --streamPolicy 1 --optPolicy 3.");
+                }
+
+                if(_interiorTilesOnly and (_streamPolicy!=StreamPolicy::INPLACE_STREAM or _optPolicy!=OptPolicy::HALO_BLOCKING_DYNAMIC_L2))
+                {
+                    throw std::runtime_error("--interior-tiles-only requires --streamPolicy 1 --optPolicy 3.");
+                }
+
+                if(_interiorTilesOnly)
+                {
+                    const auto blockingNumDim = getBlockingNumDim();
+                    if(blockingNumDim.x<3 or blockingNumDim.y<3 or blockingNumDim.z<3)
+                    {
+                        throw std::runtime_error("--interior-tiles-only requires at least three tiles along each axis.");
+                    }
+                }
+
+                if(_interiorTilesOnly and (_dumpRho or _dumpVx or _dumpVy or _dumpVz))
+                {
+                    std::cout << "Warning: --interior-tiles-only is intended for profiling; dumped results are incorrect." << std::endl;
                 }
 
                 CU_CHECK(cudaSetDevice(_devIdx));
@@ -789,6 +810,15 @@ namespace culbm::simulator::single_dev_expt
                         const idx_t blkIdxX = blkIdx % blockingNumDim.x;
                         const idx_t blkIdxY = (blkIdx / blockingNumDim.x) % blockingNumDim.y;
                         const idx_t blkIdxZ = blkIdx / (blockingNumDim.x * blockingNumDim.y);
+                        if(
+                            _data->_interiorTilesOnly and
+                            (blkIdxX==0 or blkIdxX==blockingNumDim.x-1 or
+                             blkIdxY==0 or blkIdxY==blockingNumDim.y-1 or
+                             blkIdxZ==0 or blkIdxZ==blockingNumDim.z-1)
+                        )
+                        {
+                            continue;
+                        }
                         param.offx = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxX, blockingDim.x, blockingNumDim.x, _data->_innerLoop, _data->_domDim.x)-(_data->_innerLoop-1), 0);
                         param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
                         param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
@@ -850,7 +880,13 @@ namespace culbm::simulator::single_dev_expt
                 CU_CHECK(cudaEventSynchronize(_data->_end));
                 float ms;
                 CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
-                const float mlups = (_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) * 1e-6f / (ms / 1000) * locStep;
+                const std::size_t updateNum = _data->_interiorTilesOnly ?
+                    static_cast<std::size_t>(blockingNumDim.x-2) * (blockingNumDim.y-2) * (blockingNumDim.z-2) *
+                    (blockingDim.x-2*(_data->_innerLoop-1)) *
+                    (blockingDim.y-2*(_data->_innerLoop-1)) *
+                    (blockingDim.z-2*(_data->_innerLoop-1)) :
+                    static_cast<std::size_t>(_data->_domDim.x) * _data->_domDim.y * _data->_domDim.z;
+                const float mlups = updateNum * 1e-6f / (ms / 1000) * locStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += locStep;
 
