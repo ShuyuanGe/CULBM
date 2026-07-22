@@ -254,7 +254,7 @@ namespace culbm::simulator::single_dev_expt
             {
                 const auto blockingDim = getBlockingDim();
                 assert(blockingDim.z >= _innerLoop);
-                const std::size_t extraNz = static_cast<std::size_t>(blockingDim.z - (_innerLoop - 1) + 1);
+                const std::size_t extraNz = static_cast<std::size_t>(blockingDim.z + 1);
                 const std::size_t ringDomSize =
                     static_cast<std::size_t>(_domDim.x) *
                     static_cast<std::size_t>(_domDim.y) *
@@ -770,7 +770,7 @@ namespace culbm::simulator::single_dev_expt
         auto haloBlockingDynamicL2InplaceRun = [dumpRes, this]()->void
         {
             const idx_t ringDDFOffzStep =
-                static_cast<idx_t>(_data->_gridDim.z * _data->_blockDim.z) - (static_cast<idx_t>(_data->_innerLoop) - 1) + 1;
+                static_cast<idx_t>(_data->_gridDim.z * _data->_blockDim.z) + 1;
             HaloBlockingDynamicL2InplaceParam param
             {
                 .invTau = _data->_invTau, 
