@@ -4,7 +4,7 @@
 #include <iostream>
 #include <stdexcept>
 #include <cuda_runtime.h>
-#include "cu_exception.cuh"
+#include "exception.cuh"
 #include "velocity_set.hpp"
 #include <cooperative_groups.h>
 #include "mix_block_stream_core.cuh"
@@ -53,7 +53,7 @@ int main()
 {
     try
     {
-        CU_CHECK(cudaSetDevice(0));
+        culbm::basic::error::check(cudaSetDevice(0));
         constexpr dim3 gridDim  {2,3,19};
         constexpr dim3 blockDim {32,16,2};
         cudaStream_t stream;
@@ -66,28 +66,28 @@ int main()
                 (gridDim.z+1)*gridDim.y*blockDim.y*gridDim.x*blockDim.x
             );
         constexpr idx_t blkDDFBufSize = sizeof(float)*blockDim.z*blockDim.y*blockDim.x*24;
-        CU_CHECK(cudaFuncSetAttribute((const void*)&StreamNNNKernel, cudaFuncAttributeMaxDynamicSharedMemorySize, blkDDFBufSize));
-        CU_CHECK(cudaMalloc(&param.swapBuf, swapBufSize));
-        CU_CHECK(cudaStreamCreate(&stream));
-        CU_CHECK(cudaEventCreate(&start));
-        CU_CHECK(cudaEventCreate(&end));
+        culbm::basic::error::check(cudaFuncSetAttribute((const void*)&StreamNNNKernel, cudaFuncAttributeMaxDynamicSharedMemorySize, blkDDFBufSize));
+        culbm::basic::error::check(cudaMalloc(&param.swapBuf, swapBufSize));
+        culbm::basic::error::check(cudaStreamCreate(&stream));
+        culbm::basic::error::check(cudaEventCreate(&start));
+        culbm::basic::error::check(cudaEventCreate(&end));
         void* kernelArgs[1] = { (void*)&param };
-        CU_CHECK(cudaLaunchCooperativeKernel((const void*)&StreamNNNKernel, gridDim, blockDim, std::begin(kernelArgs), blkDDFBufSize, stream));
+        culbm::basic::error::check(cudaLaunchCooperativeKernel((const void*)&StreamNNNKernel, gridDim, blockDim, std::begin(kernelArgs), blkDDFBufSize, stream));
 
-        CU_CHECK(cudaEventRecord(start, stream));
-        CU_CHECK(cudaLaunchCooperativeKernel((const void*)&StreamNNNKernel, gridDim, blockDim, std::begin(kernelArgs), blkDDFBufSize, stream));
-        CU_CHECK(cudaEventRecord(end, stream));
+        culbm::basic::error::check(cudaEventRecord(start, stream));
+        culbm::basic::error::check(cudaLaunchCooperativeKernel((const void*)&StreamNNNKernel, gridDim, blockDim, std::begin(kernelArgs), blkDDFBufSize, stream));
+        culbm::basic::error::check(cudaEventRecord(end, stream));
 
-        CU_CHECK(cudaEventSynchronize(end));
+        culbm::basic::error::check(cudaEventSynchronize(end));
         float ms;
-        CU_CHECK(cudaEventElapsedTime(&ms, start, end));
+        culbm::basic::error::check(cudaEventElapsedTime(&ms, start, end));
         const float mlups = ((gridDim.x*gridDim.y*gridDim.z*blockDim.x*blockDim.y*blockDim.z) * 1e-6f) / (ms / 1000);
         printf("speed = %.4f (MLUPS)\n", mlups);
 
-        CU_CHECK(cudaEventDestroy(end));
-        CU_CHECK(cudaEventDestroy(start));
-        CU_CHECK(cudaStreamDestroy(stream));
-        CU_CHECK(cudaFree(param.swapBuf));
+        culbm::basic::error::check(cudaEventDestroy(end));
+        culbm::basic::error::check(cudaEventDestroy(start));
+        culbm::basic::error::check(cudaStreamDestroy(stream));
+        culbm::basic::error::check(cudaFree(param.swapBuf));
     }
     catch(const std::exception& e)
     {

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <iostream>
 #include <cuda_runtime.h>
-#include <cu_exception.cuh>
+#include <exception.cuh>
 
 template<int Q, bool Even2Odd>
 __global__ void setKernel(float* blkDDFBuf);
@@ -289,16 +289,16 @@ int main()
         constexpr bool Even2Odd = false;
 
         float* blkDDFBuf = nullptr;
-        CU_CHECK(cudaMalloc(&blkDDFBuf, sizeof(float)*Q*tileSize));
+        culbm::basic::error::check(cudaMalloc(&blkDDFBuf, sizeof(float)*Q*tileSize));
         void* kernelArgs[1] = {(void*)&blkDDFBuf};
 
-        CU_CHECK(cudaLaunchKernel((const void*)&setKernel<Q, Even2Odd>, gridDim, blockDim, std::begin(kernelArgs), 0, 0));
-        CU_CHECK(cudaLaunchKernel((const void*)&testKernel<Q, Even2Odd>, gridDim, blockDim, std::begin(kernelArgs), 0, 0));
-        CU_CHECK(cudaStreamSynchronize(0));
+        culbm::basic::error::check(cudaLaunchKernel((const void*)&setKernel<Q, Even2Odd>, gridDim, blockDim, std::begin(kernelArgs), 0, 0));
+        culbm::basic::error::check(cudaLaunchKernel((const void*)&testKernel<Q, Even2Odd>, gridDim, blockDim, std::begin(kernelArgs), 0, 0));
+        culbm::basic::error::check(cudaStreamSynchronize(0));
 
         std::cout << std::format("Inplace Stream ({}) Correctness Check Pass!", Even2Odd ? "Even Store->Odd Load" : "Odd Store->Even Load") << std::endl;
 
-        CU_CHECK(cudaFree(blkDDFBuf));
+        culbm::basic::error::check(cudaFree(blkDDFBuf));
     }
     catch(const std::exception& e)
     {

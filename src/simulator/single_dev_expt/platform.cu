@@ -7,12 +7,12 @@
 #include "CLI11.hpp"
 #include "kernel.cuh"
 #include <thrust/fill.h>
-#include "cu_exception.cuh"
+#include "exception.cuh"
 #include "local_config.hpp"
 #include "device_function.hpp"
 #include <thrust/device_ptr.h>
-#include "blocking_alogrithm.hpp"
-#include "simulator_expt_platform.hpp"
+#include "algorithm.hpp"
+#include "platform.hpp"
 
 #ifndef CULBM_EXPT_ENABLE_PERSISTENT_L2
 #define CULBM_EXPT_ENABLE_PERSISTENT_L2 1
@@ -20,6 +20,8 @@
 
 namespace culbm::simulator::single_dev_expt
 {
+    namespace error = culbm::basic::error;
+
     class Simulator::Data
     {
         friend class Simulator;
@@ -95,7 +97,7 @@ namespace culbm::simulator::single_dev_expt
 
             void initFlag()
             {
-                CU_CHECK(cudaMalloc(&_flagBuf, sizeof(flag_t)*getDomainSize()));
+                error::check(cudaMalloc(&_flagBuf, sizeof(flag_t)*getDomainSize()));
                 std::vector<flag_t> flag (getDomainSize(), 0);
                 if(_initStateFolder.empty())
                 {
@@ -115,7 +117,7 @@ namespace culbm::simulator::single_dev_expt
                         );
                     }
                 }
-                CU_CHECK(cudaMemcpy((void*)_flagBuf, (const void*)flag.data(), flag.size()*sizeof(flag_t), cudaMemcpyHostToDevice));
+                error::check(cudaMemcpy((void*)_flagBuf, (const void*)flag.data(), flag.size()*sizeof(flag_t), cudaMemcpyHostToDevice));
             }
 
             void initBlockingFlag()
@@ -124,7 +126,7 @@ namespace culbm::simulator::single_dev_expt
                 const auto blockingNumDim = getBlockingNumDim();
                 const std::uint32_t blockingSize = blockingDim.x * blockingDim.y * blockingDim.z;
                 const std::uint32_t blockingNum = blockingNumDim.x * blockingNumDim.y * blockingNumDim.z;
-                CU_CHECK(cudaMalloc(&_flagBuf, sizeof(flag_t)*blockingNum * blockingSize));
+                error::check(cudaMalloc(&_flagBuf, sizeof(flag_t)*blockingNum * blockingSize));
                 std::vector<flag_t> orgFlag(getDomainSize(), 0);
                 if(_initStateFolder.empty())
                 {
@@ -194,17 +196,17 @@ namespace culbm::simulator::single_dev_expt
                     }
                 }
 
-                CU_CHECK(cudaMemcpy(_flagBuf, blockingFlag.data(), sizeof(flag_t)*blockingNum*blockingSize, cudaMemcpyHostToDevice));
+                error::check(cudaMemcpy(_flagBuf, blockingFlag.data(), sizeof(flag_t)*blockingNum*blockingSize, cudaMemcpyHostToDevice));
                 std::cout << std::format("Init flag successfully, from file: {}/flag.dat.", _initStateFolder) << std::endl;
             }
 
             void initRhoU()
             {
                 const std::size_t domSize = getDomainSize();
-                CU_CHECK(cudaMalloc(&_rhoBuf, domSize*sizeof(real_t)));
-                CU_CHECK(cudaMalloc(&_vxBuf , domSize*sizeof(real_t)));
-                CU_CHECK(cudaMalloc(&_vyBuf , domSize*sizeof(real_t)));
-                CU_CHECK(cudaMalloc(&_vzBuf , domSize*sizeof(real_t)));
+                error::check(cudaMalloc(&_rhoBuf, domSize*sizeof(real_t)));
+                error::check(cudaMalloc(&_vxBuf , domSize*sizeof(real_t)));
+                error::check(cudaMalloc(&_vyBuf , domSize*sizeof(real_t)));
+                error::check(cudaMalloc(&_vzBuf , domSize*sizeof(real_t)));
 
                 auto initHelper = [=,this](std::string_view desc, real_t dftv, real_t* devBuf) -> void
                 {
@@ -212,7 +214,7 @@ namespace culbm::simulator::single_dev_expt
                     {
                         std::vector<real_t> hostBuf (domSize, 0);
                         f.read((char*)hostBuf.data(), domSize*sizeof(real_t));
-                        CU_CHECK(cudaMemcpy(devBuf, hostBuf.data(), domSize*sizeof(real_t), cudaMemcpyHostToDevice));
+                        error::check(cudaMemcpy(devBuf, hostBuf.data(), domSize*sizeof(real_t), cudaMemcpyHostToDevice));
                         std::cout << std::format("Init {} successfully, from file: {}/{}.dat.", desc, _initStateFolder, desc) << std::endl;
                     }
                     else
@@ -235,8 +237,8 @@ namespace culbm::simulator::single_dev_expt
                 {
                     case VelSet::D3Q27:
                     {
-                        CU_CHECK(cudaMalloc(&_srcDDFBuf, 27*sizeof(ddf_t)*domSize));
-                        CU_CHECK(cudaMalloc(&_dstDDFBuf, 27*sizeof(ddf_t)*domSize));
+                        error::check(cudaMalloc(&_srcDDFBuf, 27*sizeof(ddf_t)*domSize));
+                        error::check(cudaMalloc(&_dstDDFBuf, 27*sizeof(ddf_t)*domSize));
                         ddf_t feq[27];
                         culbm::lbm_core::bgk::calcEqu<27>(1,0,0,0, std::begin(feq));
                         for(std::int32_t dir=0 ; dir<27 ; ++dir)
@@ -263,7 +265,7 @@ namespace culbm::simulator::single_dev_expt
                 {
                     case VelSet::D3Q27:
                     {
-                        CU_CHECK(cudaMalloc(&_srcDDFBuf, 27*sizeof(ddf_t)*ringDomSize));
+                        error::check(cudaMalloc(&_srcDDFBuf, 27*sizeof(ddf_t)*ringDomSize));
                         _dstDDFBuf = nullptr;
                         ddf_t feq[27];
                         culbm::lbm_core::bgk::calcEqu<27>(1,0,0,0, std::begin(feq));
@@ -290,14 +292,14 @@ namespace culbm::simulator::single_dev_expt
                     numBytes = prop.persistingL2CacheMaxSize;
                 }
 
-                CU_CHECK(cudaDeviceSetLimit(cudaLimit::cudaLimitPersistingL2CacheSize, numBytes));
+                error::check(cudaDeviceSetLimit(cudaLimit::cudaLimitPersistingL2CacheSize, numBytes));
                 cudaStreamAttrValue streamAttr;
                 streamAttr.accessPolicyWindow.base_ptr = basePtr;
                 streamAttr.accessPolicyWindow.num_bytes = numBytes;
                 streamAttr.accessPolicyWindow.hitRatio = 1.0;
                 streamAttr.accessPolicyWindow.hitProp = cudaAccessProperty::cudaAccessPropertyPersisting;
                 streamAttr.accessPolicyWindow.missProp = cudaAccessProperty::cudaAccessPropertyStreaming;
-                CU_CHECK(cudaStreamSetAttribute(_stream, cudaLaunchAttributeID::cudaStreamAttributeAccessPolicyWindow, &streamAttr));
+                error::check(cudaStreamSetAttribute(_stream, cudaLaunchAttributeID::cudaStreamAttributeAccessPolicyWindow, &streamAttr));
 #else
                 (void)basePtr;
                 (void)numBytes;
@@ -388,10 +390,10 @@ namespace culbm::simulator::single_dev_expt
                     std::cout << "Warning: --interior-tiles-only is intended for profiling; dumped results are incorrect." << std::endl;
                 }
 
-                CU_CHECK(cudaSetDevice(_devIdx));
-                CU_CHECK(cudaStreamCreate(&_stream));
-                CU_CHECK(cudaEventCreate(&_start));
-                CU_CHECK(cudaEventCreate(&_end));
+                error::check(cudaSetDevice(_devIdx));
+                error::check(cudaStreamCreate(&_stream));
+                error::check(cudaEventCreate(&_start));
+                error::check(cudaEventCreate(&_end));
 
                 const std::uint32_t q = getQ();
 
@@ -433,13 +435,13 @@ namespace culbm::simulator::single_dev_expt
                     const std::uint32_t blockingSize = getBlockingSize();
                     if(_streamPolicy==StreamPolicy::PULL_STREAM)
                     {
-                        CU_CHECK(cudaMalloc(&_l2DDFBuf0, sizeof(real_t)*2*q*blockingSize));
+                        error::check(cudaMalloc(&_l2DDFBuf0, sizeof(real_t)*2*q*blockingSize));
                         _l2DDFBuf1 = _l2DDFBuf0 + q*blockingSize;
                         mapGlobalMem2PersistL2(reinterpret_cast<void*>(_l2DDFBuf0), sizeof(real_t)*2*q*blockingSize);
                     }
                     else if (_streamPolicy==StreamPolicy::INPLACE_STREAM)
                     {
-                        CU_CHECK(cudaMalloc(&_l2DDFBuf0, sizeof(real_t)*q*blockingSize));
+                        error::check(cudaMalloc(&_l2DDFBuf0, sizeof(real_t)*q*blockingSize));
                         mapGlobalMem2PersistL2(reinterpret_cast<void*>(_l2DDFBuf0), sizeof(real_t)*q*blockingSize);
                     }
                 }
@@ -460,7 +462,7 @@ namespace culbm::simulator::single_dev_expt
                                 std::format("Unsupport Velocity Set: {}", static_cast<std::uint32_t>(_velSet))
                             );
                     }
-                    CU_CHECK(cudaMalloc(&_swapDDFBuf, swapDDFBufSize*sizeof(real_t)));
+                    error::check(cudaMalloc(&_swapDDFBuf, swapDDFBufSize*sizeof(real_t)));
                     mapGlobalMem2PersistL2(reinterpret_cast<void*>(_swapDDFBuf), swapDDFBufSize*sizeof(real_t));
                 }
             }
@@ -469,18 +471,18 @@ namespace culbm::simulator::single_dev_expt
             {
                 if(_optPolicy==OptPolicy::HALO_BLOCKING_L1L2)
                 {
-                    CU_CHECK(cudaFree(_swapDDFBuf));
+                    error::check(cudaFree(_swapDDFBuf));
                 }
 
                 if(_optPolicy==OptPolicy::HALO_BLOCKING_STATIC_L2 or _optPolicy==OptPolicy::HALO_BLOCKING_DYNAMIC_L2)
                 {
                     if(_streamPolicy==StreamPolicy::PULL_STREAM)
                     {
-                        CU_CHECK(cudaFree(_l2DDFBuf0));
+                        error::check(cudaFree(_l2DDFBuf0));
                     }
                     else if(_streamPolicy==StreamPolicy::INPLACE_STREAM)
                     {
-                        CU_CHECK(cudaFree(_l2DDFBuf0));
+                        error::check(cudaFree(_l2DDFBuf0));
                     }
                 }
 
@@ -491,10 +493,10 @@ namespace culbm::simulator::single_dev_expt
                 )
                 {
                     assert(_srcDDFBuf!=nullptr);
-                    CU_CHECK(cudaFree(_srcDDFBuf));
+                    error::check(cudaFree(_srcDDFBuf));
                     if(_dstDDFBuf!=nullptr)
                     {
-                        CU_CHECK(cudaFree(_dstDDFBuf));
+                        error::check(cudaFree(_dstDDFBuf));
                     }
                 }
 
@@ -504,22 +506,22 @@ namespace culbm::simulator::single_dev_expt
                     _optPolicy==OptPolicy::HALO_BLOCKING_DYNAMIC_L2
                 )
                 {
-                    CU_CHECK(cudaFree(_flagBuf));
+                    error::check(cudaFree(_flagBuf));
                 }
 
                 if(_optPolicy==OptPolicy::NONE)
                 {
-                    CU_CHECK(cudaFree(_flagBuf));
+                    error::check(cudaFree(_flagBuf));
                 }
 
-                CU_CHECK(cudaFree(_rhoBuf));
-                CU_CHECK(cudaFree(_vxBuf));
-                CU_CHECK(cudaFree(_vyBuf));
-                CU_CHECK(cudaFree(_vzBuf));
+                error::check(cudaFree(_rhoBuf));
+                error::check(cudaFree(_vxBuf));
+                error::check(cudaFree(_vyBuf));
+                error::check(cudaFree(_vzBuf));
 
-                CU_CHECK(cudaEventDestroy(_end));
-                CU_CHECK(cudaEventDestroy(_start));
-                CU_CHECK(cudaStreamDestroy(_stream));
+                error::check(cudaEventDestroy(_end));
+                error::check(cudaEventDestroy(_start));
+                error::check(cudaStreamDestroy(_stream));
             }
 
             std::size_t getDomainSize() const noexcept
@@ -579,12 +581,12 @@ namespace culbm::simulator::single_dev_expt
     {
         if(_data->_streamPolicy==Data::StreamPolicy::PULL_STREAM and _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_L1L2)
         {
-            CU_CHECK(cudaFuncSetAttribute((const void*)&HaloBlockingL1L2D3Q27PullKernel, cudaFuncAttributeMaxDynamicSharedMemorySize, sizeof(real_t)*_data->_blockDim.x*_data->_blockDim.y*_data->_blockDim.z*24));
+            error::check(cudaFuncSetAttribute((const void*)&HaloBlockingL1L2D3Q27PullKernel, cudaFuncAttributeMaxDynamicSharedMemorySize, sizeof(real_t)*_data->_blockDim.x*_data->_blockDim.y*_data->_blockDim.z*24));
         }
 
         if(_data->_streamPolicy==Data::StreamPolicy::INPLACE_STREAM and _data->_optPolicy==Data::OptPolicy::HALO_BLOCKING_STATIC_L2)
         {
-            CU_CHECK(cudaDeviceSetCacheConfig(cudaFuncCache::cudaFuncCachePreferL1));
+            error::check(cudaDeviceSetCacheConfig(cudaFuncCache::cudaFuncCachePreferL1));
         }
     }
 
@@ -610,7 +612,7 @@ namespace culbm::simulator::single_dev_expt
                 
                 if (std::ofstream f(filePath, std::ios::binary) ; f) 
                 {
-                    CU_CHECK(cudaMemcpy(hostBuf.get(), devicePtr, nbytes, cudaMemcpyDeviceToHost));
+                    error::check(cudaMemcpy(hostBuf.get(), devicePtr, nbytes, cudaMemcpyDeviceToHost));
                     f.write(hostBuf.get(), nbytes);
                 } 
                 else 
@@ -656,7 +658,7 @@ namespace culbm::simulator::single_dev_expt
             while(_data->_step < _data->_nStep)
             {
                 std::uint32_t locStep = 0;
-                CU_CHECK(cudaEventRecord(_data->_start, _data->_stream));
+                error::check(cudaEventRecord(_data->_start, _data->_stream));
                 for( ; locStep<_data->_dStep ;locStep+=_data->_innerLoop)
                 {
                     for(std::uint32_t blkIdx=0 ; blkIdx<blockingNum ; ++blkIdx)
@@ -668,14 +670,14 @@ namespace culbm::simulator::single_dev_expt
                         param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
                         param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                         param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
-                        CU_CHECK(cudaLaunchCooperativeKernel((const void*)&HaloBlockingL1L2D3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), blkDDFBufSize, _data->_stream));
+                        error::check(cudaLaunchCooperativeKernel((const void*)&HaloBlockingL1L2D3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), blkDDFBufSize, _data->_stream));
                     }
                     std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
                 }
-                CU_CHECK(cudaEventRecord(_data->_end, _data->_stream));
-                CU_CHECK(cudaEventSynchronize(_data->_end));
+                error::check(cudaEventRecord(_data->_end, _data->_stream));
+                error::check(cudaEventSynchronize(_data->_end));
                 float ms;
-                CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
+                error::check(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
                 const float mlups = (_data->_domDim.x*_data->_domDim.y*_data->_domDim.z) * 1e-6f / (ms / 1000) * locStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += locStep;
@@ -689,9 +691,9 @@ namespace culbm::simulator::single_dev_expt
                     param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
                     param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                     param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
-                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingL1L2D3Q27DumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                    error::check(cudaLaunchKernel((const void*)&HaloBlockingL1L2D3Q27DumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                 }
-                CU_CHECK(cudaStreamSynchronize(_data->_stream));
+                error::check(cudaStreamSynchronize(_data->_stream));
                 dumpRes();
             }
         };
@@ -726,7 +728,7 @@ namespace culbm::simulator::single_dev_expt
             while(_data->_step < _data->_nStep)
             {
                 std::uint32_t locStep = 0;
-                CU_CHECK(cudaEventRecord(_data->_start, _data->_stream));
+                error::check(cudaEventRecord(_data->_start, _data->_stream));
                 for( ; locStep<_data->_dStep ; locStep += _data->_innerLoop )
                 {
                     for(std::uint32_t blkIdx=0 ; blkIdx<blockingNum ; ++blkIdx)
@@ -738,14 +740,14 @@ namespace culbm::simulator::single_dev_expt
                         param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
                         param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                         param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
-                        CU_CHECK(cudaLaunchCooperativeKernel((const void*)&HaloBlockingStaticL2D3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                        error::check(cudaLaunchCooperativeKernel((const void*)&HaloBlockingStaticL2D3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                     }
                     std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
                 }
-                CU_CHECK(cudaEventRecord(_data->_end, _data->_stream));
-                CU_CHECK(cudaEventSynchronize(_data->_end));
+                error::check(cudaEventRecord(_data->_end, _data->_stream));
+                error::check(cudaEventSynchronize(_data->_end));
                 float ms;
-                CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
+                error::check(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
                 const float mlups = (_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) * 1e-6f / (ms / 1000) * locStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += locStep;
@@ -759,10 +761,10 @@ namespace culbm::simulator::single_dev_expt
                     param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
                     param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                     param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
-                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingStaticL2D3Q27DumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                    error::check(cudaLaunchKernel((const void*)&HaloBlockingStaticL2D3Q27DumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                 }
 
-                CU_CHECK(cudaStreamSynchronize(_data->_stream));
+                error::check(cudaStreamSynchronize(_data->_stream));
                 dumpRes();
             }
         };
@@ -802,7 +804,7 @@ namespace culbm::simulator::single_dev_expt
             while(_data->_step < _data->_nStep)
             {
                 std::uint32_t locStep = 0;
-                CU_CHECK(cudaEventRecord(_data->_start, _data->_stream));
+                error::check(cudaEventRecord(_data->_start, _data->_stream));
                 for( ; locStep < _data->_dStep ; locStep += _data->_innerLoop)
                 {
                     for(std::uint32_t blkIdx=0 ; blkIdx<blockingNum ; ++blkIdx)
@@ -830,33 +832,33 @@ namespace culbm::simulator::single_dev_expt
                             {
                                 if(_data->_innerLoop==1)
                                 {
-                                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceFirstKernel<true>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                                    error::check(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceFirstKernel<true>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                                 }
                                 else
                                 {
-                                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceFirstKernel<false>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                                    error::check(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceFirstKernel<false>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                                 }
                             }
                             else if(loop<(_data->_innerLoop-1))
                             {
                                 if((loop%2)==0)
                                 {
-                                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceMiddleKernel<true>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                                    error::check(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceMiddleKernel<true>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                                 }
                                 else
                                 {
-                                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceMiddleKernel<false>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                                    error::check(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceMiddleKernel<false>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                                 }
                             }
                             else
                             {
                                 if((loop%2)==0)
                                 {
-                                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceLastKernel<true>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                                    error::check(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceLastKernel<true>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                                 }
                                 else
                                 {
-                                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceLastKernel<false>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                                    error::check(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceLastKernel<false>, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                                 }
                             }
                         }
@@ -876,10 +878,10 @@ namespace culbm::simulator::single_dev_expt
                         std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
                     }
                 }
-                CU_CHECK(cudaEventRecord(_data->_end, _data->_stream));
-                CU_CHECK(cudaEventSynchronize(_data->_end));
+                error::check(cudaEventRecord(_data->_end, _data->_stream));
+                error::check(cudaEventSynchronize(_data->_end));
                 float ms;
-                CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
+                error::check(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
                 const std::size_t updateNum = _data->_interiorTilesOnly ?
                     static_cast<std::size_t>(blockingNumDim.x-2) * (blockingNumDim.y-2) * (blockingNumDim.z-2) *
                     (blockingDim.x-2*(_data->_innerLoop-1)) *
@@ -899,10 +901,10 @@ namespace culbm::simulator::single_dev_expt
                     param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
                     param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                     param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
-                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                    error::check(cudaLaunchKernel((const void*)&HaloBlockingDynamicL2D3Q27InplaceDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                 }
 
-                CU_CHECK(cudaStreamSynchronize(_data->_stream));
+                error::check(cudaStreamSynchronize(_data->_stream));
                 dumpRes();
             }
         };
@@ -936,7 +938,7 @@ namespace culbm::simulator::single_dev_expt
             while(_data->_step < _data->_nStep)
             {
                 std::uint32_t locStep = 0;
-                CU_CHECK(cudaEventRecord(_data->_start, _data->_stream));
+                error::check(cudaEventRecord(_data->_start, _data->_stream));
                 for( ; locStep<_data->_dStep ; locStep += _data->_innerLoop )
                 {
                     for(std::uint32_t blkIdx=0 ; blkIdx<blockingNum ; ++blkIdx)
@@ -948,14 +950,14 @@ namespace culbm::simulator::single_dev_expt
                         param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
                         param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                         param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
-                        CU_CHECK(cudaLaunchCooperativeKernel((const void*)&HaloBlockingStaticL2D3Q27InplaceKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                        error::check(cudaLaunchCooperativeKernel((const void*)&HaloBlockingStaticL2D3Q27InplaceKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                     }
                     std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
                 }
-                CU_CHECK(cudaEventRecord(_data->_end, _data->_stream));
-                CU_CHECK(cudaEventSynchronize(_data->_end));
+                error::check(cudaEventRecord(_data->_end, _data->_stream));
+                error::check(cudaEventSynchronize(_data->_end));
                 float ms;
-                CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
+                error::check(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
                 const float mlups = (_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) * 1e-6f / (ms / 1000) * locStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += locStep;
@@ -969,10 +971,10 @@ namespace culbm::simulator::single_dev_expt
                     param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y)-(_data->_innerLoop-1), 0);
                     param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z)-(_data->_innerLoop-1), 0);
                     param.blkFlagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
-                    CU_CHECK(cudaLaunchKernel((const void*)&HaloBlockingStaticL2D3Q27InplaceDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                    error::check(cudaLaunchKernel((const void*)&HaloBlockingStaticL2D3Q27InplaceDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                 }
 
-                CU_CHECK(cudaStreamSynchronize(_data->_stream));
+                error::check(cudaStreamSynchronize(_data->_stream));
                 dumpRes();
             }
         };
@@ -1006,22 +1008,22 @@ namespace culbm::simulator::single_dev_expt
 
             while(_data->_step < _data->_nStep)
             {
-                CU_CHECK(cudaEventRecord(_data->_start, _data->_stream));
+                error::check(cudaEventRecord(_data->_start, _data->_stream));
                 for(std::uint32_t locStep=0 ; locStep<_data->_dStep ; ++locStep)
                 {
-                    CU_CHECK(cudaLaunchKernel((const void*)&StaticD3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                    error::check(cudaLaunchKernel((const void*)&StaticD3Q27PullKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                     std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
                 }
-                CU_CHECK(cudaEventRecord(_data->_end, _data->_stream));
-                CU_CHECK(cudaEventSynchronize(_data->_end));
+                error::check(cudaEventRecord(_data->_end, _data->_stream));
+                error::check(cudaEventSynchronize(_data->_end));
                 float ms;
-                CU_CHECK(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
+                error::check(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
                 const float mlups = (_data->_domDim.x * _data->_domDim.y * _data->_domDim.z) * 1e-6f / (ms / 1000) * _data->_dStep;
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;;
                 _data->_step += _data->_dStep;
 
-                CU_CHECK(cudaLaunchKernel((const void*)&StaticD3Q27PullDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
-                CU_CHECK(cudaStreamSynchronize(_data->_stream));
+                error::check(cudaLaunchKernel((const void*)&StaticD3Q27PullDumpKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                error::check(cudaStreamSynchronize(_data->_stream));
                 dumpRes();
             }
         };

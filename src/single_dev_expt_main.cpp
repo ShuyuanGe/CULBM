@@ -1,6 +1,6 @@
 #include <iostream>
 #include <stdexcept>
-#include "simulator_expt_platform.hpp"
+#include "platform.hpp"
 
 int main(int argc, char** argv)
 {

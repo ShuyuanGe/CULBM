@@ -11,11 +11,13 @@
 #include <thrust/fill.h>
 #include <cuda_runtime.h>
 #include "velocity_set.hpp"
-#include "cu_exception.cuh"
+#include "exception.cuh"
 #include <thrust/execution_policy.h>
 
 namespace culbm::simulator::multi_dev
 {
+    namespace error = culbm::basic::error;
+
     class Simulator::Data
     {
         friend class Simulator;
@@ -133,7 +135,7 @@ namespace culbm::simulator::multi_dev
 
         auto initDevData = [this](std::uint32_t devId, culbm::basic::Logger& logger, std::barrier<>& barrier)
         {
-            CU_CHECK(cudaSetDevice(devId));
+            error::check(cudaSetDevice(devId));
             const culbm::basic::Vec3<std::uint32_t> devDim = _data->_devDim;
             const std::int32_t devIdxX = devId%devDim.x;
             const std::int32_t devIdxY = (devId/devDim.x)%devDim.y;
@@ -151,7 +153,7 @@ namespace culbm::simulator::multi_dev
                 )
                 {
                     const std::int32_t nbrIdx = nbrIdxX+devDim.x*(nbrIdxY+devDim.y*nbrIdxZ);
-                    CU_CHECK(cudaDeviceEnablePeerAccess(nbrIdx, 0));
+                    error::check(cudaDeviceEnablePeerAccess(nbrIdx, 0));
                 }
             }
 
@@ -161,16 +163,16 @@ namespace culbm::simulator::multi_dev
 
             const std::uint32_t domainSize = _data->getDomainSize();
             Data::SingleDevData& singleDevData = _data->_singleDevData[devId];
-            CU_CHECK(cudaMalloc(&singleDevData.flagBuf, sizeof(flag_t)*domainSize));
-            CU_CHECK(cudaMalloc(&singleDevData.rhoBuf,  sizeof(real_t)*domainSize));
-            CU_CHECK(cudaMalloc(&singleDevData.vxBuf,   sizeof(real_t)*domainSize));
-            CU_CHECK(cudaMalloc(&singleDevData.vyBuf,   sizeof(real_t)*domainSize));
-            CU_CHECK(cudaMalloc(&singleDevData.vzBuf,   sizeof(real_t)*domainSize));
-            CU_CHECK(cudaMalloc(&singleDevData.ddfBuf0, sizeof(ddf_t)*NDIR*domainSize));
-            CU_CHECK(cudaMalloc(&singleDevData.ddfBuf1, sizeof(ddf_t)*NDIR*domainSize));
-            CU_CHECK(cudaStreamCreate(&singleDevData.stream));
-            CU_CHECK(cudaEventCreate(&singleDevData.start));
-            CU_CHECK(cudaEventCreate(&singleDevData.end));
+            error::check(cudaMalloc(&singleDevData.flagBuf, sizeof(flag_t)*domainSize));
+            error::check(cudaMalloc(&singleDevData.rhoBuf,  sizeof(real_t)*domainSize));
+            error::check(cudaMalloc(&singleDevData.vxBuf,   sizeof(real_t)*domainSize));
+            error::check(cudaMalloc(&singleDevData.vyBuf,   sizeof(real_t)*domainSize));
+            error::check(cudaMalloc(&singleDevData.vzBuf,   sizeof(real_t)*domainSize));
+            error::check(cudaMalloc(&singleDevData.ddfBuf0, sizeof(ddf_t)*NDIR*domainSize));
+            error::check(cudaMalloc(&singleDevData.ddfBuf1, sizeof(ddf_t)*NDIR*domainSize));
+            error::check(cudaStreamCreate(&singleDevData.stream));
+            error::check(cudaEventCreate(&singleDevData.start));
+            error::check(cudaEventCreate(&singleDevData.end));
 
             logger.info("Allocate device memory successfully!");
 
@@ -191,7 +193,7 @@ namespace culbm::simulator::multi_dev
             param.dstDDFBuf = singleDevData.ddfBuf1;
             
             kernelArgs[0] = reinterpret_cast<void*>(&param);
-            CU_CHECK(
+            error::check(
                 cudaLaunchKernel(
                     (const void*)&D3Q27BGKInitKernel, 
                     _data->getGridDim(), 
@@ -202,7 +204,7 @@ namespace culbm::simulator::multi_dev
                 )
             );
 
-            CU_CHECK(cudaStreamSynchronize(singleDevData.stream));
+            error::check(cudaStreamSynchronize(singleDevData.stream));
 
             logger.info("Set device data successfully!");
         };
@@ -237,7 +239,7 @@ namespace culbm::simulator::multi_dev
                 
                 if(std::ofstream f(filePath, std::ios::binary); f)
                 {
-                    CU_CHECK(cudaMemcpy(hostBuf.get(), devicePtr, nbytes, cudaMemcpyKind::cudaMemcpyDefault));
+                    error::check(cudaMemcpy(hostBuf.get(), devicePtr, nbytes, cudaMemcpyKind::cudaMemcpyDefault));
                     f.write(hostBuf.get(), nbytes);
                 }
                 else
@@ -288,13 +290,13 @@ namespace culbm::simulator::multi_dev
             auto& singleDevData = _data->_singleDevData[devIdx];
             const std::uint32_t stepBnd = std::min<std::uint32_t>(_data->_nStep, _data->_step+_data->_dStep);
 
-            CU_CHECK(cudaEventRecord(singleDevData.start, singleDevData.stream));
+            error::check(cudaEventRecord(singleDevData.start, singleDevData.stream));
 
             for(std::uint32_t step = _data->_step ; step<stepBnd ; ++step)
             {
                 kernelArgs[0] = ((step%2)==0 ? (void*)&evenParam : (void*)&oddParam);
 
-                CU_CHECK(
+                error::check(
                     cudaLaunchKernel(
                         (const void*)&D3Q27BGKKernel, 
                         _data->getGridDim(), 
@@ -305,16 +307,16 @@ namespace culbm::simulator::multi_dev
                     )
                 );
 
-                CU_CHECK(cudaStreamSynchronize(singleDevData.stream));
+                error::check(cudaStreamSynchronize(singleDevData.stream));
 
                 barrier.arrive_and_wait();
             }
 
-            CU_CHECK(cudaEventRecord(singleDevData.end, singleDevData.stream));
+            error::check(cudaEventRecord(singleDevData.end, singleDevData.stream));
 
             float ms;
-            CU_CHECK(cudaEventSynchronize(singleDevData.end));
-            CU_CHECK(cudaEventElapsedTime(&ms, singleDevData.start, singleDevData.end));
+            error::check(cudaEventSynchronize(singleDevData.end));
+            error::check(cudaEventElapsedTime(&ms, singleDevData.start, singleDevData.end));
             const float mlups = ((_data->getDomainSize())*1e-6f) / (ms/1000) * (stepBnd - _data->_step);
             logger.info(std::format("speed: {:.4f} (MLUPS)", mlups));
 
@@ -335,22 +337,22 @@ namespace culbm::simulator::multi_dev
         auto deinitDevData = [this](std::uint32_t devId, culbm::basic::Logger& logger, std::barrier<>& barrier)
         {
             Data::SingleDevData& singleDevData = _data->_singleDevData[devId];
-            CU_CHECK(cudaEventDestroy(singleDevData.end));
-            CU_CHECK(cudaEventDestroy(singleDevData.start));
-            CU_CHECK(cudaStreamDestroy(singleDevData.stream));
-            CU_CHECK(cudaFree(singleDevData.ddfBuf1));
+            error::check(cudaEventDestroy(singleDevData.end));
+            error::check(cudaEventDestroy(singleDevData.start));
+            error::check(cudaStreamDestroy(singleDevData.stream));
+            error::check(cudaFree(singleDevData.ddfBuf1));
             singleDevData.ddfBuf1 = nullptr;
-            CU_CHECK(cudaFree(singleDevData.ddfBuf0));
+            error::check(cudaFree(singleDevData.ddfBuf0));
             singleDevData.ddfBuf0 = nullptr;
-            CU_CHECK(cudaFree(singleDevData.vzBuf));
+            error::check(cudaFree(singleDevData.vzBuf));
             singleDevData.vzBuf = nullptr;
-            CU_CHECK(cudaFree(singleDevData.vyBuf));
+            error::check(cudaFree(singleDevData.vyBuf));
             singleDevData.vyBuf = nullptr;
-            CU_CHECK(cudaFree(singleDevData.vxBuf));
+            error::check(cudaFree(singleDevData.vxBuf));
             singleDevData.vzBuf = nullptr;
-            CU_CHECK(cudaFree(singleDevData.rhoBuf));
+            error::check(cudaFree(singleDevData.rhoBuf));
             singleDevData.rhoBuf = nullptr;
-            CU_CHECK(cudaFree(singleDevData.flagBuf));
+            error::check(cudaFree(singleDevData.flagBuf));
             singleDevData.flagBuf = nullptr;
             logger.info("Deallocate device memory successfully!");
         };

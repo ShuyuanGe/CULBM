@@ -34,7 +34,7 @@ cmake --build build
 | `--dumpFolder <path>` | Output directory for binary dumps. | `data/left_inlet_right_outlet_256_256_256_output` |
 | `--dumpRho`, `--dumpVx`, `--dumpVy`, `--dumpVz` | When present, dump per-field snapshots every `dstep` steps as `rho_<step>.dat`, `vx_<step>.dat`, … | disabled |
 
-Additional expert knobs include `--streamPolicy`, `--optPolicy`, and `--innerLoop`. Their interactions mirror the implementation in [src/simulator/single_dev_expt/simulator_expt_platform.cu](src/simulator/single_dev_expt/simulator_expt_platform.cu).
+Additional expert knobs include `--streamPolicy`, `--optPolicy`, and `--innerLoop`. Their interactions mirror the implementation in [src/simulator/single_dev_expt/platform.cu](src/simulator/single_dev_expt/platform.cu).
 
 ##### Typical launches
 

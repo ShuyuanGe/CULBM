@@ -6,13 +6,15 @@
 #include <thrust/fill.h>
 #include "simulator.hpp"
 #include <cuda_runtime.h>
-#include "cu_exception.cuh"
+#include "exception.cuh"
 #include <thrust/device_ptr.h>
-#include "blocking_alogrithm.hpp"
+#include "algorithm.hpp"
 #include "block_based_kernel.cuh"
 
 namespace culbm::simulator::single_dev
 {
+    namespace error = culbm::basic::error;
+
     class Simulator::Data
     {
         friend class Simulator;
@@ -66,10 +68,10 @@ namespace culbm::simulator::single_dev
                     _numBlk.z = calcBlkNum<u32>(opts->domDim.z, _blkDim.z, opts->dyKernelParam->iter);
                 }
 
-                cu::check(cudaSetDevice(_opts->deviceId));
-                cu::check(cudaStreamCreate(&_stream));
-                cu::check(cudaEventCreate(&_start)); 
-                cu::check(cudaEventCreate(&_end));
+                error::check(cudaSetDevice(_opts->deviceId));
+                error::check(cudaStreamCreate(&_stream));
+                error::check(cudaEventCreate(&_start));
+                error::check(cudaEventCreate(&_end));
 
                 auto allocDevMem = [=,this]() -> void
                 {
@@ -78,20 +80,20 @@ namespace culbm::simulator::single_dev
                     props.handleTypes = cudaMemHandleTypeNone;
                     props.location.type = cudaMemLocationTypeDevice;
                     props.location.id = _opts->deviceId;
-                    cu::check(cudaMemPoolCreate(&this->_devMemPool, &props));
+                    error::check(cudaMemPoolCreate(&this->_devMemPool, &props));
                     const idx_t domCell = opts->domDim.x * opts->domDim.y * opts->domDim.z;
                     const idx_t blkNum  = _numBlk.x * _numBlk.y * _numBlk.z;
                     const idx_t blkSize = _blkDim.x * _blkDim.y * _blkDim.z;
-                    cu::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbDDFSrcBuf), sizeof(ddf_t)*NDIR*domCell, _devMemPool, _stream));
-                    cu::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbDDFDstBuf), sizeof(ddf_t)*NDIR*domCell, _devMemPool, _stream));
-                    cu::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_locFlagBufArr), sizeof(flag_t)*blkNum*blkSize, _devMemPool, _stream));
-                    cu::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbRhoBuf), sizeof(real_t)*domCell, _devMemPool, _stream));
-                    cu::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbVxBuf), sizeof(real_t)*domCell, _devMemPool, _stream));
-                    cu::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbVyBuf), sizeof(real_t)*domCell, _devMemPool, _stream));
-                    cu::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbVzBuf), sizeof(real_t)*domCell, _devMemPool, _stream));
-                    cu::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_l2DDFBuf0), sizeof(ddf_t)*NDIR*blkSize, _devMemPool, _stream));
-                    cu::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_l2DDFBuf1), sizeof(ddf_t)*NDIR*blkSize, _devMemPool, _stream));
-                    cu::check(cudaStreamSynchronize(_stream));
+                    error::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbDDFSrcBuf), sizeof(ddf_t)*NDIR*domCell, _devMemPool, _stream));
+                    error::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbDDFDstBuf), sizeof(ddf_t)*NDIR*domCell, _devMemPool, _stream));
+                    error::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_locFlagBufArr), sizeof(flag_t)*blkNum*blkSize, _devMemPool, _stream));
+                    error::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbRhoBuf), sizeof(real_t)*domCell, _devMemPool, _stream));
+                    error::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbVxBuf), sizeof(real_t)*domCell, _devMemPool, _stream));
+                    error::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbVyBuf), sizeof(real_t)*domCell, _devMemPool, _stream));
+                    error::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_glbVzBuf), sizeof(real_t)*domCell, _devMemPool, _stream));
+                    error::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_l2DDFBuf0), sizeof(ddf_t)*NDIR*blkSize, _devMemPool, _stream));
+                    error::check(cudaMallocFromPoolAsync(reinterpret_cast<void**>(&_l2DDFBuf1), sizeof(ddf_t)*NDIR*blkSize, _devMemPool, _stream));
+                    error::check(cudaStreamSynchronize(_stream));
                 };
 
                 allocDevMem();
@@ -105,24 +107,24 @@ namespace culbm::simulator::single_dev
 
                 auto deAllocDevMem = [=, this]() -> void
                 {
-                    cu::check(cudaFreeAsync(reinterpret_cast<void*>(_l2DDFBuf1), _stream));
-                    cu::check(cudaFreeAsync(reinterpret_cast<void*>(_l2DDFBuf0), _stream));
-                    cu::check(cudaFreeAsync(reinterpret_cast<void*>(_glbVzBuf), _stream));
-                    cu::check(cudaFreeAsync(reinterpret_cast<void*>(_glbVyBuf), _stream));
-                    cu::check(cudaFreeAsync(reinterpret_cast<void*>(_glbVxBuf), _stream));
-                    cu::check(cudaFreeAsync(reinterpret_cast<void*>(_glbRhoBuf), _stream));
-                    cu::check(cudaFreeAsync(reinterpret_cast<void*>(_locFlagBufArr), _stream));
-                    cu::check(cudaFreeAsync(reinterpret_cast<void*>(_glbDDFDstBuf), _stream));
-                    cu::check(cudaFreeAsync(reinterpret_cast<void*>(_glbDDFSrcBuf), _stream));
-                    cu::check(cudaStreamSynchronize(_stream));
-                    cu::check(cudaMemPoolDestroy(_devMemPool));
+                    error::check(cudaFreeAsync(reinterpret_cast<void*>(_l2DDFBuf1), _stream));
+                    error::check(cudaFreeAsync(reinterpret_cast<void*>(_l2DDFBuf0), _stream));
+                    error::check(cudaFreeAsync(reinterpret_cast<void*>(_glbVzBuf), _stream));
+                    error::check(cudaFreeAsync(reinterpret_cast<void*>(_glbVyBuf), _stream));
+                    error::check(cudaFreeAsync(reinterpret_cast<void*>(_glbVxBuf), _stream));
+                    error::check(cudaFreeAsync(reinterpret_cast<void*>(_glbRhoBuf), _stream));
+                    error::check(cudaFreeAsync(reinterpret_cast<void*>(_locFlagBufArr), _stream));
+                    error::check(cudaFreeAsync(reinterpret_cast<void*>(_glbDDFDstBuf), _stream));
+                    error::check(cudaFreeAsync(reinterpret_cast<void*>(_glbDDFSrcBuf), _stream));
+                    error::check(cudaStreamSynchronize(_stream));
+                    error::check(cudaMemPoolDestroy(_devMemPool));
                 };
 
                 deAllocDevMem();
 
-                cu::check(cudaEventDestroy(_end));
-                cu::check(cudaEventDestroy(_start));
-                cu::check(cudaStreamDestroy(_stream));
+                error::check(cudaEventDestroy(_end));
+                error::check(cudaEventDestroy(_start));
+                error::check(cudaStreamDestroy(_stream));
             }
     };
 
@@ -242,7 +244,7 @@ namespace culbm::simulator::single_dev
         
         auto blkFlagArr = blockDomFlag();
 
-        cu::check(cudaMemcpy(reinterpret_cast<void*>(_data->_locFlagBufArr), reinterpret_cast<const void*>(blkFlagArr.data()), blkFlagArr.size() * sizeof(flag_t), cudaMemcpyDefault));
+        error::check(cudaMemcpy(reinterpret_cast<void*>(_data->_locFlagBufArr), reinterpret_cast<const void*>(blkFlagArr.data()), blkFlagArr.size() * sizeof(flag_t), cudaMemcpyDefault));
     }
 
     void Simulator::run(idx_t batch_step)
@@ -275,7 +277,7 @@ namespace culbm::simulator::single_dev
 
         void* kernelArgs[1] = {reinterpret_cast<void*>(&param)};
 
-        cu::check(cudaEventRecord(_data->_start, _data->_stream));
+        error::check(cudaEventRecord(_data->_start, _data->_stream));
 
         const u32 blkSize = _data->_blkDim.x * _data->_blkDim.y * _data->_blkDim.z;
         const u32 blkNum = _data->_numBlk.x * _data->_numBlk.y * _data->_numBlk.z;
@@ -295,25 +297,25 @@ namespace culbm::simulator::single_dev
                 {
                     case Options::KernelType::staticKernel:
                     {
-                        cu::check(cudaLaunchCooperativeKernel((const void*)&staticBlockBasedKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                        error::check(cudaLaunchCooperativeKernel((const void*)&staticBlockBasedKernel, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                         break;                    
                     }
                     case Options::KernelType::dynamicKernel:
                     {
                         if(BLOCKING_ITER == 1)
                         {
-                            cu::check(cudaLaunchCooperativeKernel((const void*)&dynamicBlockBasedKernelSingleIter, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                            error::check(cudaLaunchCooperativeKernel((const void*)&dynamicBlockBasedKernelSingleIter, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                         }
                         else
                         {
-                            cu::check(cudaLaunchKernel((const void*)&dynamicBlockBasedKernelFirstIter, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                            error::check(cudaLaunchKernel((const void*)&dynamicBlockBasedKernelFirstIter, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                             #pragma unroll
                             for(i32 iter=1 ; iter<BLOCKING_ITER-1 ; ++iter)
                             {
-                                cu::check(cudaLaunchKernel((const void*)&dynamicBlockBasedKernelInnerIter, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                                error::check(cudaLaunchKernel((const void*)&dynamicBlockBasedKernelInnerIter, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                                 std::swap(_data->_l2DDFBuf0, _data->_l2DDFBuf1);
                             }
-                            cu::check(cudaLaunchKernel((const void*)&dynamicBlockBasedKernelLastIter, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
+                            error::check(cudaLaunchKernel((const void*)&dynamicBlockBasedKernelLastIter, gridDim, blockDim, std::begin(kernelArgs), 0, _data->_stream));
                         }
                         break;
                     }
@@ -325,10 +327,10 @@ namespace culbm::simulator::single_dev
             std::swap(_data->_glbDDFSrcBuf, _data->_glbDDFDstBuf);
         }
 
-        cu::check(cudaEventRecord(_data->_end, _data->_stream));
-        cu::check(cudaEventSynchronize(_data->_end));
+        error::check(cudaEventRecord(_data->_end, _data->_stream));
+        error::check(cudaEventSynchronize(_data->_end));
         float ms;
-        cu::check(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
+        error::check(cudaEventElapsedTime(&ms, _data->_start, _data->_end));
         const u32 domSize = _data->_opts->domDim.x * _data->_opts->domDim.y * _data->_opts->domDim.z;
         const float mlups = static_cast<float>(domSize) * 1e-6f / (ms / 1000) * batch_step * BLOCKING_ITER;
         printf("[Info] speed = %.4f (MLUPS)\n", mlups);

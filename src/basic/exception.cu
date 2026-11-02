@@ -1,8 +1,8 @@
 #include <format>
-#include "cu_exception.cuh"
+#include "exception.cuh"
 #include "cuda_runtime_api.h"
 
-namespace culbm::basic::cu
+namespace culbm::basic::error
 {
     CudaRuntimeError::CudaRuntimeError(cudaError_t err, const std::source_location& loc)
         : std::runtime_error(

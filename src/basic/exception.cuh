@@ -4,7 +4,7 @@
 #include <driver_types.h>
 #include <source_location>
 
-namespace culbm::basic::cu
+namespace culbm::basic::error
 {
     class CudaRuntimeError : public std::runtime_error
     {
@@ -16,5 +16,3 @@ namespace culbm::basic::cu
 
     void check(cudaError_t err, const std::source_location& loc = std::source_location::current());
 }
-
-#define CU_CHECK culbm::basic::cu::check
