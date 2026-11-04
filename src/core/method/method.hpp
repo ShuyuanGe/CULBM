@@ -6,7 +6,7 @@
 #include "generated/d3q19.cuh"
 #include "generated/d3q27.cuh"
 
-namespace culbm::lbm_core::method
+namespace culbm::core::method
 {
     template <Kind Kind, int NDir>
         requires (NDir != 15 || Kind != Kind::Cumulant)

@@ -44,11 +44,11 @@ namespace culbm::simulator::multi_dev::detail
 
 namespace culbm::simulator::multi_dev
 {
-    namespace accessor = culbm::lbm_core::accessor;
-    namespace ddf      = culbm::lbm_core::ddf;
+    namespace accessor = culbm::core::accessor;
+    namespace ddf      = culbm::core::ddf;
     using culbm::basic::mem::Default;
-    using culbm::lbm_core::method::Method;
-    using culbm::lbm_core::method::Kind;
+    using culbm::core::method::Method;
+    using culbm::core::method::Kind;
 
     template <int NDir, Kind Kind>
     __global__ void
@@ -123,12 +123,12 @@ namespace culbm::simulator::multi_dev
 
         if (flagn & COLLIDE_BIT)
         {
-            culbm::lbm_core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, std::begin(fin));
+            culbm::core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, std::begin(fin));
             Method<Kind, NDir>::collide(param.invTau, std::begin(fin));
         }
         else if ((flagn & STORE_DDF_BIT) and not (flagn & EQU_DDF_BIT))
         {
-            culbm::lbm_core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, std::begin(fin));
+            culbm::core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, std::begin(fin));
         }
 
         if (flagn & STORE_DDF_BIT)

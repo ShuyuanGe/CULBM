@@ -3,7 +3,7 @@
 #include <array>
 #include <cstddef>
 
-namespace culbm::lbm_core
+namespace culbm::core
 {
     struct Direction { int x, y, z; };
 

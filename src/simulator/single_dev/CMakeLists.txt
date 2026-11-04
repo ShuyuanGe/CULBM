@@ -2,7 +2,7 @@ add_library(single_dev STATIC config.cpp runner.cpp simulator.cpp state.cpp kern
 
 target_include_directories(single_dev PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(single_dev PUBLIC CUDA::cudart lbm_core blocking_core PRIVATE CUDA::cuda_driver)
+target_link_libraries(single_dev PUBLIC CUDA::cudart core PRIVATE CUDA::cuda_driver)
 
 target_compile_options(
     single_dev

@@ -3,7 +3,7 @@
 #include <cstddef>
 #include "stencil.hpp"
 
-namespace culbm::lbm_core::accessor
+namespace culbm::core::accessor
 {
     struct Access { int direction, x, y, z; };
 

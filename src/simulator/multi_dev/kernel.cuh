@@ -35,6 +35,6 @@ namespace culbm::simulator::multi_dev
 
     struct Kernels { const void* init; const void* step; };
 
-    template <int NDir, culbm::lbm_core::method::Kind Kind>
+    template <int NDir, culbm::core::method::Kind Kind>
     Kernels kernels();
 }

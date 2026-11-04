@@ -13,11 +13,11 @@
 namespace culbm::simulator::single_dev
 {
     namespace mem      = culbm::basic::mem;
-    namespace accessor = culbm::lbm_core::accessor;
-    namespace ddf      = culbm::lbm_core::ddf;
-    using culbm::lbm_core::method::Method;
-    using culbm::lbm_core::method::Kind;
-    using culbm::lbm_core::Stencil;
+    namespace accessor = culbm::core::accessor;
+    namespace ddf      = culbm::core::ddf;
+    using culbm::core::method::Method;
+    using culbm::core::method::Kind;
+    using culbm::core::Stencil;
 
     template <typename AccessorType, typename ViewType>
     struct Access
@@ -83,7 +83,7 @@ namespace culbm::simulator::single_dev
         const auto view = Read::View::make(param, pos);
         ddf::load<NDir, typename Read::Accessor, mem::Default>(f, view);
         real_t rho, vx, vy, vz;
-        culbm::lbm_core::macroscopic::compute<NDir>(rho, vx, vy, vz, f);
+        culbm::core::macroscopic::compute<NDir>(rho, vx, vy, vz, f);
 
         if (flag & DUMP_RHO_BIT) param.glbRhoBuf[pos.glbi] = rho;
         if (flag & DUMP_VX_BIT)  param.glbVxBuf[pos.glbi] = vx;
@@ -154,7 +154,7 @@ namespace culbm::simulator::single_dev
 
     KernelSelection makeKernels(int q, std::string_view kind, const StrategySelection& strategy, bool hints)
     {
-        return culbm::lbm_core::method::dispatch(q, kind, [&]<int NDir, Kind Kind>() -> KernelSelection {
+        return culbm::core::method::dispatch(q, kind, [&]<int NDir, Kind Kind>() -> KernelSelection {
             if (const auto* scheme = std::get_if<PlainScheme>(&strategy))
                 switch (*scheme)
                 {

@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <utility>
 #include "CLI11.hpp"
-#include "algorithm.hpp"
+#include "blocking.hpp"
 #include "simulation.hpp"
 
 namespace culbm::simulator::single_dev
@@ -153,7 +153,7 @@ namespace culbm::simulator::single_dev
 
     uint3 SimulationConfig::tileCounts() const
     {
-        using namespace culbm::blocking_core;
+        using namespace culbm::core::blocking;
         const auto dim = launchExtent();
         const bool valid =
             validTileAxisConfig<std::uint32_t>(domainDim.x, dim.x, innerLoop) and

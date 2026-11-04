@@ -2,7 +2,7 @@
 
 #include "math.hpp"
 
-namespace culbm::blocking_core
+namespace culbm::core::blocking
 {
     template <std::integral T>
     constexpr bool validTileAxisConfig(T domLen, T tileLen, T tileIter)

@@ -89,7 +89,7 @@ namespace culbm::simulator::multi_dev
                 {
                     std::exit(app.exit(e));
                 }
-                _kernels = culbm::lbm_core::method::dispatch(_q, _collision, []<int NDir, culbm::lbm_core::method::Kind Kind>() {
+                _kernels = culbm::core::method::dispatch(_q, _collision, []<int NDir, culbm::core::method::Kind Kind>() {
                     return kernels<NDir, Kind>();
                 });
                 _singleDevData.resize(getDevNum());
@@ -152,7 +152,7 @@ namespace culbm::simulator::multi_dev
             const std::int32_t devIdxX = devId % devDim.x;
             const std::int32_t devIdxY = (devId / devDim.x) % devDim.y;
             const std::int32_t devIdxZ = devId / (devDim.x * devDim.y);
-            using PeerDirections = culbm::lbm_core::Stencil<27>;
+            using PeerDirections = culbm::core::Stencil<27>;
             for (std::uint32_t dir = 0 ; dir < 27 ; ++dir)
             {
                 const auto d = PeerDirections::directions[dir];
@@ -290,7 +290,7 @@ namespace culbm::simulator::multi_dev
 
             for (std::uint32_t dir = 0 ; dir < 27 ; ++dir)
             {
-                const auto d = culbm::lbm_core::Stencil<27>::directions[dir];
+                const auto d = culbm::core::Stencil<27>::directions[dir];
                 const auto nbrIdxX = std::min<std::int32_t>(devDim.x - 1, std::max<std::int32_t>(0, devIdxX + d.x));
                 const auto nbrIdxY = std::min<std::int32_t>(devDim.y - 1, std::max<std::int32_t>(0, devIdxY + d.y));
                 const auto nbrIdxZ = std::min<std::int32_t>(devDim.z - 1, std::max<std::int32_t>(0, devIdxZ + d.z));

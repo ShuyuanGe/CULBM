@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <utility>
 
-namespace culbm::lbm_core::ddf::detail
+namespace culbm::core::ddf::detail
 {
     template <int NDir, typename Accessor, typename IO, std::size_t Q, typename Value, typename View>
     constexpr void loadOne(Value* f, const View& view)
@@ -32,7 +32,7 @@ namespace culbm::lbm_core::ddf::detail
     }
 }
 
-namespace culbm::lbm_core::ddf
+namespace culbm::core::ddf
 {
     template <int NDir, typename Accessor, typename IO, typename Value, typename View>
     constexpr void load(Value* f, const View& view)

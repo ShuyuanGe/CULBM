@@ -1,7 +1,6 @@
 add_subdirectory(third_party)
 add_subdirectory(basic)
-add_subdirectory(blocking_core)
-add_subdirectory(lbm_core)
+add_subdirectory(core)
 add_subdirectory(simulator)
 
 add_executable(multi_dev_main multi_dev_main.cpp)

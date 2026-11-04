@@ -4,7 +4,7 @@
 #include "method/generated/d3q19.cuh"
 #include "method/generated/d3q27.cuh"
 
-namespace culbm::lbm_core::macroscopic
+namespace culbm::core::macroscopic
 {
     template <int NDir>
     constexpr void compute(real_t& rho, real_t& ux, real_t& uy, real_t& uz, const ddf_t* f)

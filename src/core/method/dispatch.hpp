@@ -5,7 +5,7 @@
 #include <stdexcept>
 #include <string_view>
 
-namespace culbm::lbm_core::method
+namespace culbm::core::method
 {
     template <typename Factory>
     auto dispatch(int q, std::string_view kind, Factory&& make)

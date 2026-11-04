@@ -1,6 +1,6 @@
 #pragma once
 
-namespace culbm::lbm_core::method
+namespace culbm::core::method
 {
     enum class Kind { Bgk, Mrt, Cumulant };
 }

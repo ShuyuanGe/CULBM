@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <utility>
-#include "algorithm.hpp"
+#include "blocking.hpp"
 #include "exception.cuh"
 #include "simulation.hpp"
 
@@ -97,7 +97,7 @@ namespace culbm::simulator::single_dev::strategy
         void setTileParams(std::uint32_t index, uint3 tile)
         {
             const auto& config = state.config;
-            using culbm::blocking_core::calcValidPrev;
+            using culbm::core::blocking::calcValidPrev;
             param.offx = std::max<idx_t>(calcValidPrev<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x) - (config.innerLoop - 1), 0);
             param.offy = std::max<idx_t>(calcValidPrev<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y) - (config.innerLoop - 1), 0);
             param.offz = std::max<idx_t>(calcValidPrev<idx_t>(tile.z, tileDim.z, tileCounts.z, config.innerLoop, config.domainDim.z) - (config.innerLoop - 1), 0);

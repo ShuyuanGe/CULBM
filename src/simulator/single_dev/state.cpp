@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <string_view>
 #include <vector>
-#include "algorithm.hpp"
+#include "blocking.hpp"
 #include "exception.cuh"
 #include "simulation.hpp"
 
@@ -105,20 +105,20 @@ namespace culbm::simulator::single_dev
         std::int32_t istIdx = 0;
         for (std::int32_t tileIdxZ = 0 ; tileIdxZ < tileCounts.z ; ++tileIdxZ)
         {
-            const auto tileZStBegin = culbm::blocking_core::calcValidPrev<std::int32_t>(tileIdxZ  , launchExtent.z, tileCounts.z, config.innerLoop, config.domainDim.z);
-            const auto tileZStEnd   = culbm::blocking_core::calcValidPrev<std::int32_t>(tileIdxZ + 1, launchExtent.z, tileCounts.z, config.innerLoop, config.domainDim.z);
+            const auto tileZStBegin = culbm::core::blocking::calcValidPrev<std::int32_t>(tileIdxZ  , launchExtent.z, tileCounts.z, config.innerLoop, config.domainDim.z);
+            const auto tileZStEnd   = culbm::core::blocking::calcValidPrev<std::int32_t>(tileIdxZ + 1, launchExtent.z, tileCounts.z, config.innerLoop, config.domainDim.z);
             const auto tileZLdBegin  = std::max<std::int32_t>(tileZStBegin - (config.innerLoop - 1), 0);
             const auto tileZLdEnd    = std::min<std::int32_t>(tileZStEnd + (config.innerLoop - 1), config.domainDim.z);
             for (std::int32_t tileIdxY = 0 ; tileIdxY < tileCounts.y ; ++tileIdxY)
             {
-                const auto tileYStBegin = culbm::blocking_core::calcValidPrev<std::int32_t>(tileIdxY  , launchExtent.y, tileCounts.y, config.innerLoop, config.domainDim.y);
-                const auto tileYStEnd   = culbm::blocking_core::calcValidPrev<std::int32_t>(tileIdxY + 1, launchExtent.y, tileCounts.y, config.innerLoop, config.domainDim.y);
+                const auto tileYStBegin = culbm::core::blocking::calcValidPrev<std::int32_t>(tileIdxY  , launchExtent.y, tileCounts.y, config.innerLoop, config.domainDim.y);
+                const auto tileYStEnd   = culbm::core::blocking::calcValidPrev<std::int32_t>(tileIdxY + 1, launchExtent.y, tileCounts.y, config.innerLoop, config.domainDim.y);
                 const auto tileYLdBegin  = std::max<std::int32_t>(tileYStBegin - (config.innerLoop - 1), 0);
                 const auto tileYLdEnd    = std::min<std::int32_t>(tileYStEnd + (config.innerLoop - 1), config.domainDim.y);
                 for (std::int32_t tileIdxX = 0 ; tileIdxX < tileCounts.x ; ++tileIdxX)
                 {
-                    const auto tileXStBegin = culbm::blocking_core::calcValidPrev<std::int32_t>(tileIdxX  , launchExtent.x, tileCounts.x, config.innerLoop, config.domainDim.x);
-                    const auto tileXStEnd   = culbm::blocking_core::calcValidPrev<std::int32_t>(tileIdxX + 1, launchExtent.x, tileCounts.x, config.innerLoop, config.domainDim.x);
+                    const auto tileXStBegin = culbm::core::blocking::calcValidPrev<std::int32_t>(tileIdxX  , launchExtent.x, tileCounts.x, config.innerLoop, config.domainDim.x);
+                    const auto tileXStEnd   = culbm::core::blocking::calcValidPrev<std::int32_t>(tileIdxX + 1, launchExtent.x, tileCounts.x, config.innerLoop, config.domainDim.x);
                     const auto tileXLdBegin  = std::max<std::int32_t>(tileXStBegin - (config.innerLoop - 1), 0);
                     const auto tileXLdEnd    = std::min<std::int32_t>(tileXStEnd + (config.innerLoop - 1), config.domainDim.x);
 
