@@ -1,6 +1,6 @@
 # cuLBM
 
-cuLBM is a CUDA-native lattice Boltzmann toolkit with two complementary GPU drivers: the cache-aware, single-device experimentation path (`single_dev_expt_main`) and the domain-decomposed multi-device path (`multi_dev_main`). The repository bundles the core solver sources, configuration helpers, binary dump visualizers, and performance-analysis notebooks required to define initial states, run experiments, and interpret MLUPS trends end to end.
+cuLBM is a CUDA-native lattice Boltzmann toolkit with two complementary GPU drivers: the cache-aware, single-device solver (`single_dev_main`) and the domain-decomposed multi-device path (`multi_dev_main`). The repository bundles the core solver sources, configuration helpers, binary dump visualizers, and performance-analysis notebooks required to define initial states, run experiments, and interpret MLUPS trends end to end.
 
 ## Usage
 
@@ -13,28 +13,30 @@ cmake --build build
 
 ### Runtimes
 
-#### `single_dev_expt_main`
+#### `single_dev_main`
 
 ##### CLI reference
 
-`single_dev_expt_main` is parameterized entirely through CLI flags. Vectors must be passed in bracket form (e.g., `[32,16,2]`).
+`single_dev_main` is parameterized entirely through CLI flags. Vectors must be passed in bracket form (e.g., `[32,16,2]`).
 
 | Flag | Purpose | Default |
 | --- | --- | --- |
 | `--devId` | CUDA device index. | `0` |
 | `--blockDim [bx,by,bz]` | CUDA block configuration for kernel launch. | `[32,16,2]` |
-| `--gridDim [gx,gy,gz]` | CUDA grid configuration for kernel launch. | `[2,3,19]` |
+| `--gridDim [gx,gy,gz]` | CUDA grid configuration; plain CUDA derives it from the domain when omitted. | `[2,3,19]` for blocking |
 | `--domainDim [Nx,Ny,Nz]` | Logical simulation domain; can exceed `blockDim * gridDim` when halo blocking is active. | `[256,256,256]` |
 | `--innerLoop` | Iterations executed while a tile remains resident (halo blocking depth). | `5` |
-| `--streamPolicy {0,1}` | `0`: pull-stream double buffering, `1`: in-place streaming. | `0` |
-| `--optPolicy {0…3}` | `0`: none, `1`: static L2 blocking, `2`: L1/L2 mixed, `3`: dynamic L2 blocking. | `0` |
+| `--streamPolicy {0,1}` | `0`: plain pull (`--optPolicy 0`); `1`: in-place blocking (`--optPolicy 3`). | `0` |
+| `--optPolicy {0,3}` | `0`: plain CUDA, `3`: overlapped blocking. | `0` |
+| `--velSet {15,19,27}` | Number of lattice velocities. | `27` |
+| `--collision {bgk,mrt,cumulant}` | Collision operator; cumulant requires D3Q19 or D3Q27. | `bgk` |
 | `--invTau` | Reciprocal relaxation time. | `0.5` |
 | `--nstep`, `--dstep` | Total steps and dump cadence. | `1000`, `100` |
 | `--initStateFolder <path>` | Optional folder with `flag.dat`, `rho.dat`, `vx.dat`, `vy.dat`, `vz.dat`. Omitting this flag triggers uniform default initialization. | empty |
 | `--dumpFolder <path>` | Output directory for binary dumps. | `data/left_inlet_right_outlet_256_256_256_output` |
 | `--dumpRho`, `--dumpVx`, `--dumpVy`, `--dumpVz` | When present, dump per-field snapshots every `dstep` steps as `rho_<step>.dat`, `vx_<step>.dat`, … | disabled |
 
-Additional expert knobs include `--streamPolicy`, `--optPolicy`, and `--innerLoop`. Their interactions mirror the implementation in [src/simulator/single_dev_expt/platform.cu](src/simulator/single_dev_expt/platform.cu).
+Additional expert knobs include `--streamPolicy`, `--optPolicy`, and `--innerLoop`. Their interactions mirror the implementation in [src/simulator/single_dev/simulator.cpp](src/simulator/single_dev/simulator.cpp).
 
 ##### Typical launches
 
@@ -43,7 +45,7 @@ The second command is a reference pull-stream run with no optimizations and same
 The reference pull-stream run reaches **3805 MLUPS** and the tuned setup hits **6810 MLUPS** (a 1.8x speedup).
 
 ```bash
-./build/src/single_dev_expt_main \
+./build/src/single_dev_main \
 	--blockDim [32,16,2] \
 	--gridDim [2,6,38] \
 	--domainDim [288,272,280] \
@@ -53,7 +55,7 @@ The reference pull-stream run reaches **3805 MLUPS** and the tuned setup hits **
 ```
 
 ```bash
-./build/src/single_dev_expt_main \
+./build/src/single_dev_main \
     --blockDim [32,16,2] \
     --gridDim [9,17,140] \
     --domainDim [288,272,280] \
@@ -65,13 +67,15 @@ The reference pull-stream run reaches **3805 MLUPS** and the tuned setup hits **
 
 ##### CLI reference
 
-`multi_dev_main` launches a synchronous decomposition across `devDim.x * devDim.y * devDim.z` GPUs, assigns a tile of size `blkDim * gridDim` to each device, and optionally dumps per-field sub-volumes every `dstep` steps. Unlike `single_dev_expt_main`, it does **not** expose a `--domainDim` override; the global domain is fixed by `blkDim * gridDim * devDim`. It also does **not** accept `--initStateFolder` inputs yet, so the multi-GPU path currently seeds domain data internally rather than consuming obstacle/boundary masks authored via [scripts/state_initialization.ipynb](scripts/state_initialization.ipynb).
+`multi_dev_main` launches a synchronous decomposition across `devDim.x * devDim.y * devDim.z` GPUs, assigns a tile of size `blkDim * gridDim` to each device, and optionally dumps per-field sub-volumes every `dstep` steps. Unlike `single_dev_main`, it does **not** expose a `--domainDim` override; the global domain is fixed by `blkDim * gridDim * devDim`. It also does **not** accept `--initStateFolder` inputs yet, so the multi-GPU path currently seeds domain data internally rather than consuming obstacle/boundary masks authored via [scripts/state_initialization.ipynb](scripts/state_initialization.ipynb).
 
 | Flag | Purpose | Default |
 | --- | --- | --- |
 | `--devDim [dx,dy,dz]` | Logical device grid describing how many GPUs participate along each axis. | `[1,1,1]` |
 | `--blkDim [bx,by,bz]` | CUDA block geometry for kernel launch on each GPU. | `[32,8,4]` |
 | `--gridDim [gx,gy,gz]` | CUDA grid dimensions for kernel launch on each GPU; the per-device domain is `blkDim * gridDim`. | `[16,32,64]` |
+| `--velSet {15,19,27}` | Number of lattice velocities. | `27` |
+| `--collision {bgk,mrt,cumulant}` | Collision operator; cumulant requires D3Q19 or D3Q27. | `bgk` |
 | `--invTau` | Reciprocal relaxation time. | `0.5` |
 | `--nstep`, `--dstep` | Total steps and dump cadence. | `1000`, `100` |
 | `--dumpFolder <path>` | Root folder for tiled dumps; each GPU writes `<field>_<step>_dev_{x}_{y}_{z}.dat` (e.g., `vx_200_dev_0_1_0.dat`). | `data/multi_dev_output` |
@@ -112,10 +116,10 @@ Scenarios 1–4 cover complementary workflows: Scenario 1 stays on a single GPU 
 #### Scenario 1 (Single-GPU): Custom domains → snapshots → visualization
 
 1. **Generate boundary/obstacle masks.** Use [scripts/state_initialization.ipynb](scripts/state_initialization.ipynb) to run helpers such as `leftInletRightOutletCubeObs`. Each run writes `flag.dat`, `vx.dat`, and related seeds into a folder like `data/left_inlet_right_outlet_cube_obs_288_272_280_init_state`.
-2. **Launch `single_dev_expt_main`.** Point `single_dev_expt_main` at the generated folder via `--initStateFolder`, choose a dump target via `--dumpFolder`, and enable any subset of `--dumpRho/--dumpVx/--dumpVy/--dumpVz`. Snapshot frequency follows `--dstep`, so the example command above emits frames at steps 200, 400, …
+2. **Launch `single_dev_main`.** Point `single_dev_main` at the generated folder via `--initStateFolder`, choose a dump target via `--dumpFolder`, and enable any subset of `--dumpRho/--dumpVx/--dumpVy/--dumpVz`. Snapshot frequency follows `--dstep`, so the example command above emits frames at steps 200, 400, …
 
 ```bash
-./build/src/single_dev_expt_main \
+./build/src/single_dev_main \
     --devId 0 \
     --blockDim [32,16,2] \
     --gridDim [2,6,38] \
@@ -157,7 +161,7 @@ This pipeline keeps everything binary-compatible with the CUDA kernels (no inter
 
 #### Scenario 3 (Single-GPU): Blocking experiments → curve fitting
 
-1. **Enumerate configurations.** [analysis/blocking_experiments.py](analysis/blocking_experiments.py) scans combinations of block-count triplets and inner-loop depths. Each configuration spawns `single_dev_expt_main` with arguments assembled from the constants near the top of the script (e.g., `BLOCK_DIM`, `GRID_DIM`, `STREAM_POLICY`, `OPT_POLICY`). Update those tuples to match the hardware you are targeting.
+1. **Enumerate configurations.** [analysis/blocking_experiments.py](analysis/blocking_experiments.py) scans combinations of block-count triplets and inner-loop depths. Each configuration spawns `single_dev_main` with arguments assembled from the constants near the top of the script (e.g., `BLOCK_DIM`, `GRID_DIM`, `STREAM_POLICY`, `OPT_POLICY`). Update those tuples to match the hardware you are targeting.
 2. **Collect MLUPS logs.** Running the script produces a pickle (`blocking_experiment_results_s{stream}o{opt}.pkl`) that stores the raw speeds reported by the executable alongside the exact CLI used.
 3. **Fit performance surfaces.** Load the pickle in [analysis/blocking_analysis.ipynb](analysis/blocking_analysis.ipynb). The notebook already demonstrates how to compute averages, filter high-throughput cases, regress the amortization factor $\,1/\psi(I,\lambda)$, and visualize acceleration contours $\kappa(I,B)$.
 

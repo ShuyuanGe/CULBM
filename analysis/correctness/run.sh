@@ -34,4 +34,4 @@ common=(
     --innerLoop 9 \
     --streamPolicy 1 \
     --optPolicy 3 \
-    --useRingDDFBuf
+    --ddfBuffer ring

@@ -10,7 +10,7 @@ int main(int argc, char** argv)
         Simulator simulator(argc, argv);
         simulator.run();
     }
-    catch(const std::exception& e)
+    catch (const std::exception& e)
     {
         std::cerr << e.what() << std::endl;
         exit(1);

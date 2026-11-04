@@ -1,6 +1,6 @@
 # Correctness
 
-Requires Python with NumPy and a built `single_dev_expt_main`.
+Requires Python with NumPy and a built `single_dev_main`.
 
 This case was configured for the NVIDIA RTX PRO 6000 Blackwell Workstation Edition.
 
@@ -25,6 +25,6 @@ remains the requirement.
 
 ```bash
 python generate.py case/
-./run.sh ../../build/src/single_dev_expt_main case/ dumps/
+./run.sh ../../build/src/single_dev_main case/ dumps/
 ./compare.sh dumps/
 ```

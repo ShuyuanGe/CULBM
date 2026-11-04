@@ -12,7 +12,7 @@ def mul3(a: tuple[int, int, int], b: tuple[int, int, int]) -> tuple[int, int, in
 work_dir = Path(__file__).parent.parent.resolve()
 print(f"Working directory: {work_dir}")
 
-BINARY = work_dir / "build/src/single_dev_expt_main"    
+BINARY = work_dir / "build/src/single_dev_main"
 BLOCK_DIM = (32, 16, 2)
 GRID_DIM = (8, 16, 114)
 STREAM_POLICY = 1

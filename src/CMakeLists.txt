@@ -4,17 +4,8 @@ add_subdirectory(blocking_core)
 add_subdirectory(lbm_core)
 add_subdirectory(simulator)
 
-add_executable(main main.cpp)
-target_link_libraries(main PRIVATE simulator_single_dev)
-
 add_executable(multi_dev_main multi_dev_main.cpp)
 target_link_libraries(multi_dev_main PRIVATE simulator_multi_dev)
 
-add_executable(single_dev_expt_main single_dev_expt_main.cpp)
-target_link_libraries(single_dev_expt_main PRIVATE single_dev_expt)
-
-add_executable(single_dev_expt_no_persist_no_hint_main single_dev_expt_main.cpp)
-target_link_libraries(single_dev_expt_no_persist_no_hint_main PRIVATE single_dev_expt_no_persist_no_hint)
-
-add_executable(single_dev_expt_no_persist_hint_only_main single_dev_expt_main.cpp)
-target_link_libraries(single_dev_expt_no_persist_hint_only_main PRIVATE single_dev_expt_no_persist_hint_only)
+add_executable(single_dev_main single_dev_main.cpp)
+target_link_libraries(single_dev_main PRIVATE single_dev)

@@ -1,15 +1,15 @@
 #include <iostream>
 #include <stdexcept>
-#include "platform.hpp"
+#include "simulator.hpp"
 
 int main(int argc, char** argv)
 {
     try
     {
-        culbm::simulator::single_dev_expt::Simulator simulator(argc, argv);
+        culbm::simulator::single_dev::Simulator simulator(argc, argv);
         simulator.run();
     }
-    catch(const std::exception& e)
+    catch (const std::exception& e)
     {
         std::cerr << e.what() << std::endl;
         exit(1);

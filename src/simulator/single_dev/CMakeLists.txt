@@ -1,7 +1,20 @@
-file(GLOB simulator_single_dev_src ./*.cpp ./*.cu)
+file(GLOB single_dev_src ./*.cpp ./*.cu)
 
-add_library(simulator_single_dev STATIC ${simulator_single_dev_src})
+add_library(single_dev STATIC ${single_dev_src})
 
-target_include_directories(simulator_single_dev PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(single_dev PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(simulator_single_dev PUBLIC lbm_core blocking_core)
+target_link_libraries(single_dev PUBLIC CUDA::cudart lbm_core blocking_core PRIVATE CUDA::cuda_driver)
+
+target_compile_options(
+    single_dev
+    PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:-Xptxas=-v -lineinfo>
+)
+
+# Template kernels are defined in .cu files and dispatched by the host.
+set_target_properties(
+    single_dev
+    PROPERTIES
+    CUDA_SEPARABLE_COMPILATION ON
+)
