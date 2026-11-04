@@ -307,7 +307,7 @@ namespace culbm::simulator::multi_dev
 
             for (std::uint32_t step = _data->_step ; step < stepBnd ; ++step)
             {
-                kernelArgs[0] = ((step % 2) == 0 ? (void*)&evenParam : (void*)&oddParam);
+                kernelArgs[0] = ((step % 2) == 0 ? &evenParam : &oddParam);
 
                 error::check(
                     cudaLaunchKernel(
