@@ -1,7 +1,7 @@
 #pragma once
 
 #include <string>
-#include <iostream>
+#include <cstdio>
 #include <source_location>
 
 namespace culbm::basic
@@ -10,7 +10,7 @@ namespace culbm::basic
     {
         private:
             std::string     _name;
-            std::ostream&   _os;
+            std::FILE*      _os;
 
             enum struct Level
             {
@@ -23,7 +23,7 @@ namespace culbm::basic
             void _log(Level lvl, std::string msg, const std::source_location& loc);
 
         public:
-            Logger(std::string name, std::ostream& os = std::cout) : _name(std::move(name)), _os(os) {}
+            Logger(std::string name, std::FILE* os = stdout) : _name(std::move(name)), _os(os) {}
 
             inline void info(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::Info, std::move(msg), loc); }
             inline void debug(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::Debug, std::move(msg), loc); }

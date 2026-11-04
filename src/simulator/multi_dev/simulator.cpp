@@ -3,7 +3,7 @@
 #include <vector>
 #include <filesystem>
 #include "types.hpp"
-#include <ostream>
+#include <print>
 #include "CLI11.hpp"
 #include "flags.hpp"
 #include "kernel.cuh"
@@ -126,17 +126,16 @@ namespace culbm::simulator::multi_dev
                 return _gridDim;
             }
 
-            std::ostream& log(std::ostream& os) const
+            void log() const
             {
                 auto domainDim = getDomainDim();
-                os << std::format(
+                std::println(
                     "InvTau: {}\nTotal Time Step: {}\nDevice Dimension: [{},{},{}]\nSingle Device Domain Dimension: [{},{},{}]\nAll Device Domain Dimension: [{},{},{}]\n",
                     _invTau, _nStep,
                     _devDim.x, _devDim.y, _devDim.z,
                     domainDim.x, domainDim.y, domainDim.z,
                     _devDim.x * domainDim.x, _devDim.y * domainDim.y, _devDim.z * domainDim.z
-                ) << std::endl;
-                return os;
+                );
             }
     };
 
@@ -144,7 +143,7 @@ namespace culbm::simulator::multi_dev
         _data(std::make_unique<Data>(argc, argv)),
         _pool(_data->getDevNum())
     {
-        _data->log(std::cout);
+        _data->log();
 
         auto initDevData = [this](std::uint32_t devId, culbm::basic::Logger& logger, std::barrier<>& barrier)
         {

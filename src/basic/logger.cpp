@@ -1,5 +1,6 @@
 #include <chrono>
 #include <format>
+#include <print>
 #include "logger.hpp"
 
 namespace culbm::basic
@@ -39,8 +40,8 @@ namespace culbm::basic
             return "UNKNOWN";
         };
 
-        _os << std::format(
-            "[{}] [{}] [{}] [{}:{}] message: {}\n", 
+        std::println(_os,
+            "[{}] [{}] [{}] [{}:{}] message: {}",
             getTimeRepr(),
             _name,
             getLogLevelRepr(),

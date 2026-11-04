@@ -1,8 +1,8 @@
 #pragma once
 
 #include "kind.hpp"
+#include <format>
 #include <stdexcept>
-#include <string>
 #include <string_view>
 
 namespace culbm::lbm_core::method
@@ -18,6 +18,6 @@ namespace culbm::lbm_core::method
         if (q == 27 && kind == "bgk")      return make.template operator()<27, Kind::Bgk>();
         if (q == 27 && kind == "mrt")      return make.template operator()<27, Kind::Mrt>();
         if (q == 27 && kind == "cumulant") return make.template operator()<27, Kind::Cumulant>();
-        throw std::invalid_argument("Unsupported combination: D3Q" + std::to_string(q) + " / " + std::string(kind));
+        throw std::invalid_argument(std::format("Unsupported combination: D3Q{} / {}", q, kind));
     }
 }
