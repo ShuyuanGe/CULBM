@@ -126,6 +126,10 @@ namespace culbm::simulator::multi_dev
             culbm::lbm_core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, std::begin(fin));
             Method<Kind, NDir>::collide(param.invTau, std::begin(fin));
         }
+        else if ((flagn & STORE_DDF_BIT) and not (flagn & EQU_DDF_BIT))
+        {
+            culbm::lbm_core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, std::begin(fin));
+        }
 
         if (flagn & STORE_DDF_BIT)
         {
