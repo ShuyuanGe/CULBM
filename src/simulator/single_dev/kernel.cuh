@@ -44,8 +44,9 @@ namespace culbm::simulator::single_dev
     struct Kernels
     {
         void (*equilibrium)(real_t, real_t, real_t, real_t, ddf_t*);
-        const void *firstOne, *first, *middleEven, *middleOdd, *lastEven, *lastOdd;
-        const void *blockingDump, *plain, *plainDump;
+        struct { const void *step, *dump; } plain;
+        struct { const void *stepEven, *stepOdd, *dumpEven, *dumpOdd; } plainEso;
+        struct { const void *single, *first, *middleEven, *middleOdd, *lastEven, *lastOdd, *dump; } blocking;
     };
 
     template <int NDir, culbm::lbm_core::method::Kind Kind>

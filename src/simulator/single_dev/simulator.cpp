@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
@@ -50,7 +51,8 @@ namespace culbm::simulator::single_dev
             enum struct DDFBuffer
             {
                 Double,
-                Ring
+                Ring,
+                EsoTwist
             };
 
             StreamPolicy    _streamPolicy = StreamPolicy::PullStream;
@@ -121,8 +123,11 @@ namespace culbm::simulator::single_dev
 
             void initFlag()
             {
-                error::check(cudaMalloc(&_flagBuf, sizeof(flag_t) * getDomainSize()));
                 const auto flag = readFlag();
+                if (_ddfBuffer == DDFBuffer::EsoTwist and
+                    std::any_of(flag.begin(), flag.end(), [](flag_t f) { return not (f & STORE_DDF_BIT); }))
+                    throw std::invalid_argument("--ddfBuffer esotwist requires STORE_DDF_BIT for every domain cell.");
+                error::check(cudaMalloc(&_flagBuf, sizeof(flag_t) * getDomainSize()));
                 if (not _initStateFolder.empty())
                     std::cout << std::format("Init flag successfully, from file: {}/flag.dat.", _initStateFolder) << std::endl;
                 error::check(cudaMemcpy(_flagBuf, flag.data(), flag.size() * sizeof(flag_t), cudaMemcpyHostToDevice));
@@ -242,7 +247,7 @@ namespace culbm::simulator::single_dev
                     if (_ddfBuffer == DDFBuffer::Double)
                         fill(_dstDDFBuf + dir * size, size, feq[dir], _stream);
                 }
-                std::cout << (_ddfBuffer == DDFBuffer::Ring ? "Init ring ddf buffer successfully." : "Init double ddf buffer successfully.") << std::endl;
+                std::cout << "Init ddf buffer successfully." << std::endl;
             }
 
             void mapGlobalMem2PersistL2(void* basePtr, std::size_t numBytes)
@@ -324,8 +329,8 @@ namespace culbm::simulator::single_dev
                 app.add_flag("--dumpVx", _dumpVx, "Enable dumping the x-axis velocity every `dstep` time steps in the simulation.");
                 app.add_flag("--dumpVy", _dumpVy, "Enable dumping the y-axis velocity every `dstep` time steps in the simulation.");
                 app.add_flag("--dumpVz", _dumpVz, "Enable dumping the z-axis velocity every `dstep` time steps in the simulation.");
-                app.add_option("--ddfBuffer", _ddfBuffer, "DDF buffer mode: double or ring (ring requires overlapped blocking).")
-                    ->transform(CLI::CheckedTransformer({{"double", "0"}, {"ring", "1"}}))
+                app.add_option("--ddfBuffer", _ddfBuffer, "DDF buffer mode: double, ring, or esotwist.")
+                    ->transform(CLI::CheckedTransformer({{"double", "0"}, {"ring", "1"}, {"esotwist", "2"}}))
                     ->default_val(DDFBuffer::Double);
                 app.add_flag("--interior-tiles-only", _interiorTilesOnly, "Run only tiles that are non-boundary along all three axes.");
 
@@ -361,6 +366,9 @@ namespace culbm::simulator::single_dev
                 {
                     throw std::runtime_error("--ddfBuffer ring requires --streamPolicy 1 --optPolicy 3.");
                 }
+
+                if (_ddfBuffer == DDFBuffer::EsoTwist and _optPolicy != OptPolicy::Plain)
+                    throw std::runtime_error("--ddfBuffer esotwist requires plain CUDA.");
 
                 if (_interiorTilesOnly and (_streamPolicy != StreamPolicy::InplaceStream or _optPolicy != OptPolicy::OverlappedBlocking))
                 {
@@ -531,7 +539,7 @@ namespace culbm::simulator::single_dev
             const dim3 blockDim = _data->_blockDim;
             void* kernelArgs[] = {&param};
 
-            const auto& k = _data->_kernels;
+            const auto& k = _data->_kernels.blocking;
 
             const auto blockingDim = _data->getBlockingDim();
             const auto blockingNumDim = _data->getBlockingNumDim();
@@ -569,7 +577,7 @@ namespace culbm::simulator::single_dev
                             {
                                 if (_data->_innerLoop == 1)
                                 {
-                                    error::check(cudaLaunchKernel(k.firstOne, gridDim, blockDim, kernelArgs, 0, _data->_stream));
+                                    error::check(cudaLaunchKernel(k.single, gridDim, blockDim, kernelArgs, 0, _data->_stream));
                                 }
                                 else
                                 {
@@ -638,7 +646,7 @@ namespace culbm::simulator::single_dev
                     param.offy = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxY, blockingDim.y, blockingNumDim.y, _data->_innerLoop, _data->_domDim.y) - (_data->_innerLoop - 1), 0);
                     param.offz = std::max<idx_t>(culbm::blocking_core::calcValidPrev<idx_t>(blkIdxZ, blockingDim.z, blockingNumDim.z, _data->_innerLoop, _data->_domDim.z) - (_data->_innerLoop - 1), 0);
                     param.flagBuf = _data->_flagBuf + blkIdx * blockingDim.x * blockingDim.y * blockingDim.z;
-                    error::check(cudaLaunchKernel(k.blockingDump, gridDim, blockDim, kernelArgs, 0, _data->_stream));
+                    error::check(cudaLaunchKernel(k.dump, gridDim, blockDim, kernelArgs, 0, _data->_stream));
                 }
 
                 error::check(cudaStreamSynchronize(_data->_stream));
@@ -657,7 +665,7 @@ namespace culbm::simulator::single_dev
                 .glbVyBuf   = _data->_vyBuf,
                 .glbVzBuf   = _data->_vzBuf,
                 .glbSrcDDFBuf = _data->_srcDDFBuf,
-                .glbDstDDFBuf = _data->_dstDDFBuf
+                .glbDstDDFBuf = _data->_ddfBuffer == Data::DDFBuffer::EsoTwist ? _data->_srcDDFBuf : _data->_dstDDFBuf
             };
 
             const dim3 gridDim = _data->_gridDim;
@@ -672,14 +680,23 @@ namespace culbm::simulator::single_dev
             }
 
             void* kernelArgs[] = {&param};
+            const auto& k = _data->_kernels;
 
             while (_data->_step < _data->_nStep)
             {
                 error::check(cudaEventRecord(_data->_start, _data->_stream));
                 for (std::uint32_t locStep = 0 ; locStep < _data->_dStep ; ++locStep)
                 {
-                    error::check(cudaLaunchKernel(_data->_kernels.plain, gridDim, blockDim, kernelArgs, 0, _data->_stream));
-                    std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
+                    if (_data->_ddfBuffer == Data::DDFBuffer::EsoTwist)
+                    {
+                        const bool even = ((_data->_step + locStep) % 2) == 0;
+                        error::check(cudaLaunchKernel(even ? k.plainEso.stepEven : k.plainEso.stepOdd, gridDim, blockDim, kernelArgs, 0, _data->_stream));
+                    }
+                    else
+                    {
+                        error::check(cudaLaunchKernel(k.plain.step, gridDim, blockDim, kernelArgs, 0, _data->_stream));
+                        std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
+                    }
                 }
                 error::check(cudaEventRecord(_data->_end, _data->_stream));
                 error::check(cudaEventSynchronize(_data->_end));
@@ -689,7 +706,13 @@ namespace culbm::simulator::single_dev
                 std::cout << std::format("speed = {:.4f} (MLUPS)", mlups) << std::endl;
                 _data->_step += _data->_dStep;
 
-                error::check(cudaLaunchKernel(_data->_kernels.plainDump, gridDim, blockDim, kernelArgs, 0, _data->_stream));
+                if (_data->_ddfBuffer == Data::DDFBuffer::EsoTwist)
+                {
+                    const bool even = (_data->_step % 2) == 0;
+                    error::check(cudaLaunchKernel(even ? k.plainEso.dumpEven : k.plainEso.dumpOdd, gridDim, blockDim, kernelArgs, 0, _data->_stream));
+                }
+                else
+                    error::check(cudaLaunchKernel(k.plain.dump, gridDim, blockDim, kernelArgs, 0, _data->_stream));
                 error::check(cudaStreamSynchronize(_data->_stream));
                 dumpRes();
             }

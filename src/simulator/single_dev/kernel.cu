@@ -17,10 +17,13 @@ namespace culbm::simulator::single_dev
     using culbm::lbm_core::method::Kind;
     using culbm::lbm_core::Stencil;
 
-    enum class Mode { Plain, Single, First, MiddleOdd, MiddleEven, LastOdd, LastEven };
+    enum class Mode { Plain, Single, First, MiddleOdd, MiddleEven, LastOdd, LastEven, EsoEven, EsoOdd };
+
+    template <Mode mode>
+    constexpr bool isPlain = mode == Mode::Plain || mode == Mode::EsoEven || mode == Mode::EsoOdd;
 
     template <int NDir, Kind Kind, Mode mode, bool CacheHints, bool UseRing>
-    __global__ void StreamCollideKernel(const std::conditional_t<mode == Mode::Plain, PlainParam, BlockingParam> __grid_constant__ param)
+    __global__ void StreamCollideKernel(const std::conditional_t<isPlain<mode>, PlainParam, BlockingParam> __grid_constant__ param)
     {
         using GlobalIO = std::conditional_t<CacheHints, mem::Streaming, mem::Default>;
         using TileIO   = std::conditional_t<CacheHints, mem::Cached,    mem::Default>;
@@ -37,11 +40,14 @@ namespace culbm::simulator::single_dev
             ]<typename Param = decltype(param)> { return mapping::makeTileView<Param>(param, pos, offsets); };
 
         ddf_t f[NDir];
-
         if (flag & LOAD_DDF_BIT)
         {
             if      constexpr (mode == Mode::Plain || mode == Mode::Single || mode == Mode::First)
                 ddf::load<NDir, GlobalAccessor, GlobalIO>(f, makeGlobal());
+            else if constexpr (mode == Mode::EsoEven)
+                ddf::load<NDir, EvenAccessor, GlobalIO>(f, makeGlobal());
+            else if constexpr (mode == Mode::EsoOdd)
+                ddf::load<NDir, OddAccessor, GlobalIO>(f, makeGlobal());
             else if constexpr (mode == Mode::MiddleOdd || mode == Mode::LastOdd)
                 ddf::load<NDir, EvenAccessor, TileIO>(f, makeTile());
             else if constexpr (mode == Mode::MiddleEven || mode == Mode::LastEven)
@@ -71,6 +77,10 @@ namespace culbm::simulator::single_dev
         {
             if      constexpr (mode == Mode::Plain || mode == Mode::Single)
                 ddf::store<NDir, GlobalAccessor, GlobalIO>(f, makeGlobal());
+            else if constexpr (mode == Mode::EsoEven)
+                ddf::store<NDir, EvenAccessor, GlobalIO>(f, makeGlobal());
+            else if constexpr (mode == Mode::EsoOdd)
+                ddf::store<NDir, OddAccessor, GlobalIO>(f, makeGlobal());
             else if constexpr (mode == Mode::First || mode == Mode::MiddleEven)
                 ddf::store<NDir, OddAccessor, TileIO>(f, makeTile());
             else if constexpr (mode == Mode::MiddleOdd)
@@ -81,7 +91,7 @@ namespace culbm::simulator::single_dev
         }
     }
 
-    template <int NDir, bool Plain, bool UseRing>
+    template <int NDir, bool Plain, bool UseRing, bool Eso, bool Even>
     __global__ void DumpKernel(const std::conditional_t<Plain, PlainParam, BlockingParam> __grid_constant__ param)
     {
         const auto pos = mapping::makePosition(param);
@@ -90,7 +100,13 @@ namespace culbm::simulator::single_dev
             if (not (flag & CORRECT_BIT)) return;
 
         ddf_t f[NDir];
-        ddf::load<NDir, accessor::PullTwoFields, mem::Default>(f, mapping::makeGlobalView<UseRing>(param, pos));
+        const auto view = mapping::makeGlobalView<UseRing>(param, pos);
+        if      constexpr (not Eso)
+            ddf::load<NDir, accessor::PullTwoFields, mem::Default>(f, view);
+        else if constexpr (Even)
+            ddf::load<NDir, accessor::EsoTwistEven, mem::Default>(f, view);
+        else if constexpr (not Even)
+            ddf::load<NDir, accessor::EsoTwistOdd, mem::Default>(f, view);
         real_t rho, vx, vy, vz;
         culbm::lbm_core::macroscopic::compute<NDir>(rho, vx, vy, vz, f);
 
@@ -105,15 +121,26 @@ namespace culbm::simulator::single_dev
     {
         return {
             .equilibrium  = &Method<Kind, NDir>::equilibrium,
-            .firstOne     = (const void*)&StreamCollideKernel<NDir, Kind, Mode::Single,     CacheHints, UseRing>,
-            .first        = (const void*)&StreamCollideKernel<NDir, Kind, Mode::First,      CacheHints, UseRing>,
-            .middleEven   = (const void*)&StreamCollideKernel<NDir, Kind, Mode::MiddleEven, CacheHints, false>,
-            .middleOdd    = (const void*)&StreamCollideKernel<NDir, Kind, Mode::MiddleOdd,  CacheHints, false>,
-            .lastEven     = (const void*)&StreamCollideKernel<NDir, Kind, Mode::LastEven,   CacheHints, UseRing>,
-            .lastOdd      = (const void*)&StreamCollideKernel<NDir, Kind, Mode::LastOdd,    CacheHints, UseRing>,
-            .blockingDump = (const void*)&DumpKernel<NDir, false, UseRing>,
-            .plain        = (const void*)&StreamCollideKernel<NDir, Kind, Mode::Plain, false, false>,
-            .plainDump    = (const void*)&DumpKernel<NDir, true, false>
+
+            .plain = {
+                .step = (const void*)&StreamCollideKernel<NDir, Kind, Mode::Plain, false, false>,
+                .dump = (const void*)&DumpKernel<NDir, true, false, false, false>
+            },
+            .plainEso = {
+                .stepEven = (const void*)&StreamCollideKernel<NDir, Kind, Mode::EsoEven, false, false>,
+                .stepOdd  = (const void*)&StreamCollideKernel<NDir, Kind, Mode::EsoOdd,  false, false>,
+                .dumpEven = (const void*)&DumpKernel<NDir, true, false, true, true>,
+                .dumpOdd  = (const void*)&DumpKernel<NDir, true, false, true, false>
+            },
+            .blocking = {
+                .single     = (const void*)&StreamCollideKernel<NDir, Kind, Mode::Single,     CacheHints, UseRing>,
+                .first      = (const void*)&StreamCollideKernel<NDir, Kind, Mode::First,      CacheHints, UseRing>,
+                .middleEven = (const void*)&StreamCollideKernel<NDir, Kind, Mode::MiddleEven, CacheHints, false>,
+                .middleOdd  = (const void*)&StreamCollideKernel<NDir, Kind, Mode::MiddleOdd,  CacheHints, false>,
+                .lastEven   = (const void*)&StreamCollideKernel<NDir, Kind, Mode::LastEven,   CacheHints, UseRing>,
+                .lastOdd    = (const void*)&StreamCollideKernel<NDir, Kind, Mode::LastOdd,    CacheHints, UseRing>,
+                .dump       = (const void*)&DumpKernel<NDir, false, UseRing, false, false>
+            }
         };
     }
 

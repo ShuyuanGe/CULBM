@@ -35,17 +35,21 @@ namespace culbm::simulator::single_dev::mapping
     }
 
     template <int Delta>
+    constexpr idx_t wrappedOffset(idx_t coord, idx_t size, idx_t stride)
+    {
+        static_assert(Delta >= -1 && Delta <= 1);
+        if      constexpr (Delta == -1) return coord == 0 ? (size - 1) * stride : -stride;
+        else if constexpr (Delta ==  1) return coord == size - 1 ? (1 - size) * stride : stride;
+        else if constexpr (Delta ==  0) return 0;
+    }
+
+    template <int Delta>
     constexpr idx_t clampedOffset(idx_t coord, idx_t size, idx_t stride)
     {
         static_assert(Delta >= -1 && Delta <= 1);
         if      constexpr (Delta == -1) return coord == 0 ? 0 : -stride;
         else if constexpr (Delta ==  1) return coord == size - 1 ? 0 : stride;
         else if constexpr (Delta ==  0) return 0;
-    }
-
-    constexpr idx_t wrappedOffset(idx_t coord, idx_t size, idx_t stride)
-    {
-        return coord == size - 1 ? (1 - size) * stride : stride;
     }
 
     struct GlobalView
@@ -58,9 +62,9 @@ namespace culbm::simulator::single_dev::mapping
         constexpr idx_t cellOffset() const
         {
             return pos.glbi
-                + clampedOffset<DX>(pos.glbx, pos.glbnx, 1)
-                + clampedOffset<DY>(pos.glby, pos.glbny, pos.glbnx)
-                + clampedOffset<DZ>(pos.glbz, pos.glbnz, pos.glbnx * pos.glbny);
+                + wrappedOffset<DX>(pos.glbx, pos.glbnx, 1)
+                + wrappedOffset<DY>(pos.glby, pos.glbny, pos.glbnx)
+                + wrappedOffset<DZ>(pos.glbz, pos.glbnz, pos.glbnx * pos.glbny);
         }
 
         template <int Dir, int DX, int DY, int DZ>
@@ -123,9 +127,9 @@ namespace culbm::simulator::single_dev::mapping
         const idx_t pdx, pdy, pdz;
 
         constexpr TileOffsets(const Position& pos)
-            : pdx(wrappedOffset(pos.blkx, pos.blknx, 1)),
-              pdy(wrappedOffset(pos.blky, pos.blkny, pos.blknx)),
-              pdz(wrappedOffset(pos.blkz, pos.blknz, pos.blknx * pos.blkny)) {}
+            : pdx(wrappedOffset<1>(pos.blkx, pos.blknx, 1)),
+              pdy(wrappedOffset<1>(pos.blky, pos.blkny, pos.blknx)),
+              pdz(wrappedOffset<1>(pos.blkz, pos.blknz, pos.blknx * pos.blkny)) {}
     };
 
     struct TileView

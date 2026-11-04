@@ -28,6 +28,7 @@ cmake --build build
 | `--innerLoop` | Iterations executed while a tile remains resident (halo blocking depth). | `5` |
 | `--streamPolicy {0,1}` | `0`: plain pull (`--optPolicy 0`); `1`: in-place blocking (`--optPolicy 3`). | `0` |
 | `--optPolicy {0,3}` | `0`: plain CUDA, `3`: overlapped blocking. | `0` |
+| `--ddfBuffer {double,ring,esotwist}` | Global DDF storage; `esotwist` requires plain CUDA and `STORE` on every domain cell. | `double` |
 | `--velSet {15,19,27}` | Number of lattice velocities. | `27` |
 | `--collision {bgk,mrt,cumulant}` | Collision operator; cumulant requires D3Q19 or D3Q27. | `bgk` |
 | `--invTau` | Reciprocal relaxation time. | `0.5` |
@@ -35,6 +36,8 @@ cmake --build build
 | `--initStateFolder <path>` | Optional folder with `flag.dat`, `rho.dat`, `vx.dat`, `vy.dat`, `vz.dat`. Omitting this flag triggers uniform default initialization. | empty |
 | `--dumpFolder <path>` | Output directory for binary dumps. | `data/left_inlet_right_outlet_256_256_256_output` |
 | `--dumpRho`, `--dumpVx`, `--dumpVy`, `--dumpVz` | When present, dump per-field snapshots every `dstep` steps as `rho_<step>.dat`, `vx_<step>.dat`, … | disabled |
+
+Single-device `GlobalView` wraps at the domain boundary; `RingView` retains clamped physical boundaries. Multi-step overlapped blocking does not yet support general periodic fluid-domain halos.
 
 Additional expert knobs include `--streamPolicy`, `--optPolicy`, and `--innerLoop`. Their interactions mirror the implementation in [src/simulator/single_dev/simulator.cpp](src/simulator/single_dev/simulator.cpp).
 
