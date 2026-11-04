@@ -18,6 +18,6 @@ namespace culbm::basic::error
 
     void check(cudaError_t err, const std::source_location& loc)
     {
-        if(err != cudaSuccess) throw CudaRuntimeError(err, loc);
+        if (err != cudaSuccess) throw CudaRuntimeError(err, loc);
     }
 }

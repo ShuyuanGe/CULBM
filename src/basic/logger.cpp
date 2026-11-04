@@ -6,7 +6,7 @@ namespace culbm::basic
 {
     void Logger::_log(Level lvl, std::string msg, const std::source_location& loc)
     {
-        auto getTimeRepr = []()->std::string
+        auto getTimeRepr = []() -> std::string
         {
             using namespace std::chrono;
 
@@ -27,14 +27,14 @@ namespace culbm::basic
                 );
         };
 
-        auto getLogLevelRepr = [lvl]()->std::string_view
+        auto getLogLevelRepr = [lvl]() -> std::string_view
         {
-            switch(lvl)
+            switch (lvl)
             {
-                case Level::INFO:       return "\033[32mINFO\033[0m";
-                case Level::DEBUG:      return "\033[34mDEBUG\033[0m";
-                case Level::WARNING:    return "\033[33mWARNING\033[0m";
-                case Level::ERROR:      return "\033[31mERROR\033[0m";
+                case Level::Info:       return "\033[32mINFO\033[0m";
+                case Level::Debug:      return "\033[34mDEBUG\033[0m";
+                case Level::Warning:    return "\033[33mWARNING\033[0m";
+                case Level::Error:      return "\033[31mERROR\033[0m";
             }
             return "UNKNOWN";
         };

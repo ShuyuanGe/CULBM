@@ -14,10 +14,10 @@ namespace culbm::basic
 
             enum struct Level
             {
-                INFO,
-                DEBUG,
-                WARNING,
-                ERROR
+                Info,
+                Debug,
+                Warning,
+                Error
             };
 
             void _log(Level lvl, std::string msg, const std::source_location& loc);
@@ -25,9 +25,9 @@ namespace culbm::basic
         public:
             Logger(std::string name, std::ostream& os = std::cout) : _name(std::move(name)), _os(os) {}
 
-            inline void info(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::INFO, std::move(msg), loc); }
-            inline void debug(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::DEBUG, std::move(msg), loc); }
-            inline void warning(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::WARNING, std::move(msg), loc); }
-            inline void error(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::ERROR, std::move(msg), loc); }
+            inline void info(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::Info, std::move(msg), loc); }
+            inline void debug(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::Debug, std::move(msg), loc); }
+            inline void warning(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::Warning, std::move(msg), loc); }
+            inline void error(std::string msg, std::source_location loc = std::source_location::current()) { _log(Level::Error, std::move(msg), loc); }
     };
 }

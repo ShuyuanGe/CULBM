@@ -7,18 +7,18 @@ namespace culbm::basic
     {
         Logger logger(std::format("Worker-{}", tid));
 
-        while(not stoken.stop_requested())
+        while (not stoken.stop_requested())
         {
             Task currTask;
 
             {
                 std::unique_lock lock(_mtx);
 
-                _waitNewTask.wait(lock, [&,this](){
+                _waitNewTask.wait(lock, [&, this]() {
                     return stoken.stop_requested() or (not _tasks.empty());
                 });
 
-                if(stoken.stop_requested()) break;
+                if (stoken.stop_requested()) break;
 
                 currTask = _tasks.front();
             }
@@ -27,18 +27,18 @@ namespace culbm::basic
             {
                 currTask(tid, logger, _workerLoopBarrier);
             }
-            catch(const std::exception& e)
+            catch (const std::exception& e)
             {
                 logger.error(e.what());
             }
 
             _workerLoopBarrier.arrive_and_wait();
 
-            if(tid == 0)
+            if (tid == 0)
             {
                 std::unique_lock lock (_mtx);
                 _tasks.pop();
-                if(_tasks.empty()) _finishAllTask.notify_all();
+                if (_tasks.empty()) _finishAllTask.notify_all();
             }
 
             _workerLoopBarrier.arrive_and_wait();
@@ -49,18 +49,18 @@ namespace culbm::basic
     ThreadPool::ThreadPool(std::uint32_t numWorker) : 
         _workerLoopBarrier(numWorker)
     {
-        for(std::uint32_t tid=0 ; tid<numWorker ; ++tid)
+        for (std::uint32_t tid = 0 ; tid < numWorker ; ++tid)
         {
-            _workers.emplace_back(&ThreadPool::_workerLoop, this, tid);
+            _workers.emplace_back([this, tid](std::stop_token stoken) { _workerLoop(stoken, tid); });
         }
     }
 
     ThreadPool::~ThreadPool() noexcept
     {
         waitAll();
-        for(auto& worker : _workers) worker.request_stop();
+        for (auto& worker : _workers) worker.request_stop();
         _waitNewTask.notify_all();
-        for(auto& worker : _workers) worker.join();
+        for (auto& worker : _workers) worker.join();
     }
 
     void ThreadPool::addTask(Task task)
@@ -76,7 +76,7 @@ namespace culbm::basic
     {
         std::unique_lock lock (_mtx);
 
-        _finishAllTask.wait(lock, [this]()->bool{
+        _finishAllTask.wait(lock, [this]() -> bool {
             return _tasks.empty();
         });
     }
