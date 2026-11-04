@@ -1,10 +1,11 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 #include <cuda_runtime.h>
 #include "types.hpp"
 #include "flags.hpp"
-#include "method/kind.hpp"
+#include "execution.hpp"
 
 namespace culbm::simulator::single_dev
 {
@@ -13,6 +14,7 @@ namespace culbm::simulator::single_dev
 
     struct BlockingParam
     {
+        static constexpr bool dumpCorrectOnly = true;
         real_t invTau = 0;
         idx_t offx = 0, offy = 0, offz = 0;
         idx_t glbnx = 0, glbny = 0, glbnz = 0;
@@ -23,7 +25,7 @@ namespace culbm::simulator::single_dev
         real_t* glbVzBuf = nullptr;
         ddf_t* glbSrcDDFBuf = nullptr;
         ddf_t* glbDstDDFBuf = nullptr;
-        ddf_t* blkDDFBuf = nullptr;
+        ddf_t* tileDDFBuf = nullptr;
         idx_t glbDDFRingNz = 0;
         idx_t glbSrcDDFOffz = 0;
         idx_t glbDstDDFOffz = 0;
@@ -31,6 +33,7 @@ namespace culbm::simulator::single_dev
 
     struct PlainParam
     {
+        static constexpr bool dumpCorrectOnly = false;
         real_t invTau = 0;
         const flag_t* flagBuf = nullptr;
         real_t* glbRhoBuf = nullptr;
@@ -41,14 +44,29 @@ namespace culbm::simulator::single_dev
         ddf_t* glbDstDDFBuf = nullptr;
     };
 
-    struct Kernels
+    using Equilibrium = void (*)(real_t, real_t, real_t, real_t, ddf_t*);
+
+    struct PlainPullKernels
     {
-        void (*equilibrium)(real_t, real_t, real_t, real_t, ddf_t*);
-        struct { const void *step, *dump; } plain;
-        struct { const void *stepEven, *stepOdd, *dumpEven, *dumpOdd; } plainEso;
-        struct { const void *single, *first, *middleEven, *middleOdd, *lastEven, *lastOdd, *dump; } blocking;
+        static constexpr PlainScheme scheme = PlainScheme::TwoFieldPull;
+        Equilibrium equilibrium;
+        const void *step, *dump;
     };
 
-    template <int NDir, culbm::lbm_core::method::Kind Kind>
-    Kernels kernels(bool cacheHints, bool ring);
+    struct PlainEsoKernels
+    {
+        static constexpr PlainScheme scheme = PlainScheme::EsoTwist;
+        Equilibrium equilibrium;
+        const void *stepEven, *stepOdd, *dumpEven, *dumpOdd;
+    };
+
+    struct BlockingKernels
+    {
+        Equilibrium equilibrium;
+        const void *single, *first, *middleEven, *middleOdd, *lastEven, *lastOdd, *dump;
+    };
+
+    using KernelSelection = std::variant<PlainPullKernels, PlainEsoKernels, BlockingKernels>;
+
+    KernelSelection makeKernels(int q, std::string_view kind, const StrategySelection& strategy, bool hints);
 }

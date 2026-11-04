@@ -1,17 +1,17 @@
 #pragma once
 
-#include <memory>
+#include "simulation.hpp"
 
 namespace culbm::simulator::single_dev
 {
-    class Simulator
+    struct Simulator
     {
-        private:
-            class Data;
-            std::unique_ptr<Data> _data;
-        public:
-            Simulator(int argc, char** argv);
-            void run();
-            ~Simulator();
+        SimulationConfig config;
+        KernelSelection kernels;
+        SimulationState state;
+        Simulator(int argc, char** argv);
+        Simulator(const Simulator&) = delete;
+        Simulator& operator=(const Simulator&) = delete;
+        void run();
     };
 }

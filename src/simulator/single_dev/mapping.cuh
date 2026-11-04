@@ -6,33 +6,23 @@ namespace culbm::simulator::single_dev::mapping
 {
     struct Position
     {
-        idx_t blkx, blky, blkz, blknx, blkny, blknz, blki, blkn;
+        idx_t localX, localY, localZ, localNx, localNy, localNz, localIndex, localSize;
         idx_t glbx, glby, glbz, glbnx, glbny, glbnz, glbi, glbn;
 
         constexpr Position() = default;
 
         __device__ Position(idx_t offx, idx_t offy, idx_t offz, idx_t nx, idx_t ny, idx_t nz)
-            : blkx(blockDim.x * blockIdx.x + threadIdx.x),
-              blky(blockDim.y * blockIdx.y + threadIdx.y),
-              blkz(blockDim.z * blockIdx.z + threadIdx.z),
-              blknx(gridDim.x * blockDim.x),
-              blkny(gridDim.y * blockDim.y),
-              blknz(gridDim.z * blockDim.z),
-              blki((blkny * blkz + blky) * blknx + blkx), blkn(blknx * blkny * blknz),
-              glbx(offx + blkx), glby(offy + blky), glbz(offz + blkz),
+            : localX(blockDim.x * blockIdx.x + threadIdx.x),
+              localY(blockDim.y * blockIdx.y + threadIdx.y),
+              localZ(blockDim.z * blockIdx.z + threadIdx.z),
+              localNx(gridDim.x * blockDim.x),
+              localNy(gridDim.y * blockDim.y),
+              localNz(gridDim.z * blockDim.z),
+              localIndex((localNy * localZ + localY) * localNx + localX), localSize(localNx * localNy * localNz),
+              glbx(offx + localX), glby(offy + localY), glbz(offz + localZ),
               glbnx(nx), glbny(ny), glbnz(nz),
               glbi((glbny * glbz + glby) * glbnx + glbx), glbn(glbnx * glbny * glbnz) {}
     };
-
-    __device__ inline Position makePosition(const PlainParam&)
-    {
-        return Position(0, 0, 0, gridDim.x * blockDim.x, gridDim.y * blockDim.y, gridDim.z * blockDim.z);
-    }
-
-    __device__ inline Position makePosition(const BlockingParam& param)
-    {
-        return Position{param.offx, param.offy, param.offz, param.glbnx, param.glbny, param.glbnz};
-    }
 
     template <int Delta>
     constexpr idx_t wrappedOffset(idx_t coord, idx_t size, idx_t stride)
@@ -52,11 +42,19 @@ namespace culbm::simulator::single_dev::mapping
         else if constexpr (Delta ==  0) return 0;
     }
 
+    enum class ViewSpace { Global, Tile };
+
     struct GlobalView
     {
+        static constexpr ViewSpace space = ViewSpace::Global;
         ddf_t* src;
         ddf_t* dst;
         Position pos;
+
+        static constexpr GlobalView make(const auto& param, const Position& pos)
+        {
+            return {param.glbSrcDDFBuf, param.glbDstDDFBuf, pos};
+        }
 
         template <int DX, int DY, int DZ>
         constexpr idx_t cellOffset() const
@@ -82,8 +80,14 @@ namespace culbm::simulator::single_dev::mapping
 
     struct RingView
     {
+        static constexpr ViewSpace space = ViewSpace::Global;
         GlobalView global;
         idx_t nz, srcOffz, dstOffz;
+
+        static constexpr RingView make(const BlockingParam& param, const Position& pos)
+        {
+            return {{param.glbSrcDDFBuf, param.glbDstDDFBuf, pos}, param.glbDDFRingNz, param.glbSrcDDFOffz, param.glbDstDDFOffz};
+        }
 
         template <int Dir, int DX, int DY, int DZ>
         constexpr glb_idx_t offset(idx_t offz) const
@@ -113,36 +117,50 @@ namespace culbm::simulator::single_dev::mapping
         }
     };
 
-    template <bool UseRing>
-    constexpr auto makeGlobalView(const auto& param, const Position& pos)
-    {
-        if constexpr (UseRing)
-            return RingView{{param.glbSrcDDFBuf, param.glbDstDDFBuf, pos}, param.glbDDFRingNz, param.glbSrcDDFOffz, param.glbDstDDFOffz};
-        else
-            return GlobalView{param.glbSrcDDFBuf, param.glbDstDDFBuf, pos};
-    }
-
     struct TileOffsets
     {
         const idx_t pdx, pdy, pdz;
 
         constexpr TileOffsets(const Position& pos)
-            : pdx(wrappedOffset<1>(pos.blkx, pos.blknx, 1)),
-              pdy(wrappedOffset<1>(pos.blky, pos.blkny, pos.blknx)),
-              pdz(wrappedOffset<1>(pos.blkz, pos.blknz, pos.blknx * pos.blkny)) {}
+            : pdx(wrappedOffset<1>(pos.localX, pos.localNx, 1)),
+              pdy(wrappedOffset<1>(pos.localY, pos.localNy, pos.localNx)),
+              pdz(wrappedOffset<1>(pos.localZ, pos.localNz, pos.localNx * pos.localNy)) {}
     };
+
+    struct TilePosition : Position
+    {
+        // Precalculate offsets once for load and store.
+        TileOffsets offsets;
+
+        constexpr explicit TilePosition(const Position& pos) : Position(pos), offsets(pos) {}
+    };
+
+    __device__ inline Position makePosition(const PlainParam&)
+    {
+        return Position(0, 0, 0, gridDim.x * blockDim.x, gridDim.y * blockDim.y, gridDim.z * blockDim.z);
+    }
+
+    __device__ inline TilePosition makePosition(const BlockingParam& param)
+    {
+        return TilePosition(Position(param.offx, param.offy, param.offz, param.glbnx, param.glbny, param.glbnz));
+    }
 
     struct TileView
     {
+        static constexpr ViewSpace space = ViewSpace::Tile;
         ddf_t* data;
-        Position pos;
-        TileOffsets offsets;
+        TilePosition pos;
+
+        static constexpr TileView make(const BlockingParam& param, const TilePosition& pos)
+        {
+            return {param.tileDDFBuf, pos};
+        }
 
         template <int Dir, int DX, int DY, int DZ>
         constexpr ddf_t* address() const
         {
-            const idx_t offset = Dir * pos.blkn + pos.blki
-                + DX * offsets.pdx + DY * offsets.pdy + DZ * offsets.pdz;
+            const idx_t offset = Dir * pos.localSize + pos.localIndex
+                + DX * pos.offsets.pdx + DY * pos.offsets.pdy + DZ * pos.offsets.pdz;
             return data + offset;
         }
 
@@ -153,8 +171,4 @@ namespace culbm::simulator::single_dev::mapping
         constexpr ddf_t* writeAddress() const { return address<Dir, DX, DY, DZ>(); }
     };
 
-    constexpr TileView makeTileView(const auto& param, const Position& pos, const TileOffsets& offsets)
-    {
-        return TileView{param.blkDDFBuf, pos, offsets};
-    }
 }

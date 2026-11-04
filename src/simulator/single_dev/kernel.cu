@@ -1,5 +1,6 @@
 #include "kernel.cuh"
 #include "method/method.hpp"
+#include "method/dispatch.hpp"
 #include "macroscopic.hpp"
 #include "mapping.cuh"
 #include "accessor.hpp"
@@ -7,6 +8,7 @@
 #include "mem.cuh"
 #include <algorithm>
 #include <type_traits>
+#include <utility>
 
 namespace culbm::simulator::single_dev
 {
@@ -17,42 +19,28 @@ namespace culbm::simulator::single_dev
     using culbm::lbm_core::method::Kind;
     using culbm::lbm_core::Stencil;
 
-    enum class Mode { Plain, Single, First, MiddleOdd, MiddleEven, LastOdd, LastEven, EsoEven, EsoOdd };
+    template <typename AccessorType, typename ViewType>
+    struct Access
+    {
+        using Accessor = AccessorType;
+        using View = ViewType;
+    };
 
-    template <Mode mode>
-    constexpr bool isPlain = mode == Mode::Plain || mode == Mode::EsoEven || mode == Mode::EsoOdd;
+    enum class StoreScope { Flagged, Correct };
 
-    template <int NDir, Kind Kind, Mode mode, bool CacheHints, bool UseRing>
-    __global__ void StreamCollideKernel(const std::conditional_t<isPlain<mode>, PlainParam, BlockingParam> __grid_constant__ param)
+    template <int NDir, Kind Kind, typename Param, typename Read, typename Write, bool CacheHints, StoreScope Scope>
+    __global__ void StreamCollideKernel(const Param param)
     {
         using GlobalIO = std::conditional_t<CacheHints, mem::Streaming, mem::Default>;
         using TileIO   = std::conditional_t<CacheHints, mem::Cached,    mem::Default>;
-        using GlobalAccessor = accessor::PullTwoFields;
-        using EvenAccessor   = accessor::EsoTwistEven;
-        using OddAccessor    = accessor::EsoTwistOdd;
+        using ReadIO   = std::conditional_t<Read::View::space  == mapping::ViewSpace::Tile, TileIO, GlobalIO>;
+        using WriteIO  = std::conditional_t<Write::View::space == mapping::ViewSpace::Tile, TileIO, GlobalIO>;
         const auto pos = mapping::makePosition(param);
-        const auto flag = param.flagBuf[pos.blki];
-        const auto makeGlobal = [&] { return mapping::makeGlobalView<UseRing>(param, pos); };
-        const auto makeTile =
-            [&, param, /* capture value to consume more regs and generate less instructions;
-                        * capture reference instead to help resue reg when it spills */
-             offsets = mapping::TileOffsets{pos} /* reuse offset across load and store */
-            ]<typename Param = decltype(param)> { return mapping::makeTileView<Param>(param, pos, offsets); };
+        const auto flag = param.flagBuf[pos.localIndex];
 
         ddf_t f[NDir];
         if (flag & LOAD_DDF_BIT)
-        {
-            if      constexpr (mode == Mode::Plain || mode == Mode::Single || mode == Mode::First)
-                ddf::load<NDir, GlobalAccessor, GlobalIO>(f, makeGlobal());
-            else if constexpr (mode == Mode::EsoEven)
-                ddf::load<NDir, EvenAccessor, GlobalIO>(f, makeGlobal());
-            else if constexpr (mode == Mode::EsoOdd)
-                ddf::load<NDir, OddAccessor, GlobalIO>(f, makeGlobal());
-            else if constexpr (mode == Mode::MiddleOdd || mode == Mode::LastOdd)
-                ddf::load<NDir, EvenAccessor, TileIO>(f, makeTile());
-            else if constexpr (mode == Mode::MiddleEven || mode == Mode::LastEven)
-                ddf::load<NDir, OddAccessor, TileIO>(f, makeTile());
-        }
+            ddf::load<NDir, typename Read::Accessor, ReadIO>(f, Read::View::make(param, pos));
 
         if (flag & EQU_DDF_BIT)
         {
@@ -75,38 +63,25 @@ namespace culbm::simulator::single_dev
 
         if (flag & STORE_DDF_BIT)
         {
-            if      constexpr (mode == Mode::Plain || mode == Mode::Single)
-                ddf::store<NDir, GlobalAccessor, GlobalIO>(f, makeGlobal());
-            else if constexpr (mode == Mode::EsoEven)
-                ddf::store<NDir, EvenAccessor, GlobalIO>(f, makeGlobal());
-            else if constexpr (mode == Mode::EsoOdd)
-                ddf::store<NDir, OddAccessor, GlobalIO>(f, makeGlobal());
-            else if constexpr (mode == Mode::First || mode == Mode::MiddleEven)
-                ddf::store<NDir, OddAccessor, TileIO>(f, makeTile());
-            else if constexpr (mode == Mode::MiddleOdd)
-                ddf::store<NDir, EvenAccessor, TileIO>(f, makeTile());
-            else if constexpr (mode == Mode::LastOdd || mode == Mode::LastEven)
+            if constexpr (Scope == StoreScope::Flagged)
+                ddf::store<NDir, typename Write::Accessor, WriteIO>(f, Write::View::make(param, pos));
+            else if constexpr (Scope == StoreScope::Correct)
                 if (flag & CORRECT_BIT)
-                    ddf::store<NDir, GlobalAccessor, GlobalIO>(f, makeGlobal());
+                    ddf::store<NDir, typename Write::Accessor, WriteIO>(f, Write::View::make(param, pos));
         }
     }
 
-    template <int NDir, bool Plain, bool UseRing, bool Eso, bool Even>
-    __global__ void DumpKernel(const std::conditional_t<Plain, PlainParam, BlockingParam> __grid_constant__ param)
+    template <int NDir, typename Param, typename Read>
+    __global__ void DumpKernel(const Param param)
     {
         const auto pos = mapping::makePosition(param);
-        const auto flag = param.flagBuf[pos.blki];
-        if constexpr (not Plain)
+        const auto flag = param.flagBuf[pos.localIndex];
+        if constexpr (Param::dumpCorrectOnly)
             if (not (flag & CORRECT_BIT)) return;
 
         ddf_t f[NDir];
-        const auto view = mapping::makeGlobalView<UseRing>(param, pos);
-        if      constexpr (not Eso)
-            ddf::load<NDir, accessor::PullTwoFields, mem::Default>(f, view);
-        else if constexpr (Even)
-            ddf::load<NDir, accessor::EsoTwistEven, mem::Default>(f, view);
-        else if constexpr (not Even)
-            ddf::load<NDir, accessor::EsoTwistOdd, mem::Default>(f, view);
+        const auto view = Read::View::make(param, pos);
+        ddf::load<NDir, typename Read::Accessor, mem::Default>(f, view);
         real_t rho, vx, vy, vz;
         culbm::lbm_core::macroscopic::compute<NDir>(rho, vx, vy, vz, f);
 
@@ -116,54 +91,79 @@ namespace culbm::simulator::single_dev
         if (flag & DUMP_VZ_BIT)  param.glbVzBuf[pos.glbi] = vz;
     }
 
-    template <int NDir, Kind Kind, bool UseRing, bool CacheHints>
-    Kernels makeKernels()
+    template <int NDir, Kind Kind>
+    PlainPullKernels plainPullKernels()
     {
+        using Pull = Access<accessor::PullTwoFields, mapping::GlobalView>;
         return {
-            .equilibrium  = &Method<Kind, NDir>::equilibrium,
-
-            .plain = {
-                .step = (const void*)&StreamCollideKernel<NDir, Kind, Mode::Plain, false, false>,
-                .dump = (const void*)&DumpKernel<NDir, true, false, false, false>
-            },
-            .plainEso = {
-                .stepEven = (const void*)&StreamCollideKernel<NDir, Kind, Mode::EsoEven, false, false>,
-                .stepOdd  = (const void*)&StreamCollideKernel<NDir, Kind, Mode::EsoOdd,  false, false>,
-                .dumpEven = (const void*)&DumpKernel<NDir, true, false, true, true>,
-                .dumpOdd  = (const void*)&DumpKernel<NDir, true, false, true, false>
-            },
-            .blocking = {
-                .single     = (const void*)&StreamCollideKernel<NDir, Kind, Mode::Single,     CacheHints, UseRing>,
-                .first      = (const void*)&StreamCollideKernel<NDir, Kind, Mode::First,      CacheHints, UseRing>,
-                .middleEven = (const void*)&StreamCollideKernel<NDir, Kind, Mode::MiddleEven, CacheHints, false>,
-                .middleOdd  = (const void*)&StreamCollideKernel<NDir, Kind, Mode::MiddleOdd,  CacheHints, false>,
-                .lastEven   = (const void*)&StreamCollideKernel<NDir, Kind, Mode::LastEven,   CacheHints, UseRing>,
-                .lastOdd    = (const void*)&StreamCollideKernel<NDir, Kind, Mode::LastOdd,    CacheHints, UseRing>,
-                .dump       = (const void*)&DumpKernel<NDir, false, UseRing, false, false>
-            }
+            .equilibrium = &Method<Kind, NDir>::equilibrium,
+            .step = (const void*)&StreamCollideKernel<NDir, Kind, PlainParam, Pull, Pull, false, StoreScope::Flagged>,
+            .dump = (const void*)&DumpKernel<NDir, PlainParam, Pull>
         };
     }
 
-    template <int NDir, Kind Kind, bool UseRing>
-    Kernels selectKernels(bool hints)
+    template <int NDir, Kind Kind>
+    PlainEsoKernels plainEsoKernels()
     {
-        if (hints) return makeKernels<NDir, Kind, UseRing, true>();
-        else       return makeKernels<NDir, Kind, UseRing, false>();
+        using Even = Access<accessor::EsoTwistEven, mapping::GlobalView>;
+        using Odd  = Access<accessor::EsoTwistOdd, mapping::GlobalView>;
+        return {
+            .equilibrium = &Method<Kind, NDir>::equilibrium,
+            .stepEven = (const void*)&StreamCollideKernel<NDir, Kind, PlainParam, Even, Even, false, StoreScope::Flagged>,
+            .stepOdd  = (const void*)&StreamCollideKernel<NDir, Kind, PlainParam, Odd,  Odd,  false, StoreScope::Flagged>,
+            .dumpEven = (const void*)&DumpKernel<NDir, PlainParam, Even>,
+            .dumpOdd  = (const void*)&DumpKernel<NDir, PlainParam, Odd>
+        };
+    }
+
+    template <int NDir, Kind Kind, typename GlobalView, bool CacheHints>
+    BlockingKernels makeBlockingKernels()
+    {
+        using GlobalPull = Access<accessor::PullTwoFields, GlobalView>;
+        using TileEven = Access<accessor::EsoTwistEven, mapping::TileView>;
+        using TileOdd  = Access<accessor::EsoTwistOdd,  mapping::TileView>;
+        return {
+            .equilibrium = &Method<Kind, NDir>::equilibrium,
+            .single     = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, GlobalPull, CacheHints, StoreScope::Flagged>,
+            .first      = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, TileOdd,    CacheHints, StoreScope::Flagged>,
+            .middleEven = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    TileOdd,    CacheHints, StoreScope::Flagged>,
+            .middleOdd  = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   TileEven,   CacheHints, StoreScope::Flagged>,
+            .lastEven   = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    GlobalPull, CacheHints, StoreScope::Correct>,
+            .lastOdd    = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   GlobalPull, CacheHints, StoreScope::Correct>,
+            .dump       = (const void*)&DumpKernel<NDir, BlockingParam, GlobalPull>
+        };
+    }
+
+    template <int NDir, Kind Kind, typename GlobalView>
+    BlockingKernels selectBlockingKernels(bool hints)
+    {
+        if (hints) return makeBlockingKernels<NDir, Kind, GlobalView, true>();
+        else       return makeBlockingKernels<NDir, Kind, GlobalView, false>();
     }
 
     template <int NDir, Kind Kind>
-    Kernels kernels(bool hints, bool ring)
+    BlockingKernels blockingKernels(bool hints, BlockingGlobalBuffer buffer)
     {
-        if (ring) return selectKernels<NDir, Kind, true>(hints);
-        else      return selectKernels<NDir, Kind, false>(hints);
+        switch (buffer)
+        {
+            case BlockingGlobalBuffer::Double: return selectBlockingKernels<NDir, Kind, mapping::GlobalView>(hints);
+            case BlockingGlobalBuffer::Ring:   return selectBlockingKernels<NDir, Kind, mapping::RingView>(hints);
+        }
+        std::unreachable();
     }
 
-    template Kernels kernels<15, Kind::Bgk>(bool, bool);
-    template Kernels kernels<15, Kind::Mrt>(bool, bool);
-    template Kernels kernels<19, Kind::Bgk>(bool, bool);
-    template Kernels kernels<19, Kind::Mrt>(bool, bool);
-    template Kernels kernels<19, Kind::Cumulant>(bool, bool);
-    template Kernels kernels<27, Kind::Bgk>(bool, bool);
-    template Kernels kernels<27, Kind::Mrt>(bool, bool);
-    template Kernels kernels<27, Kind::Cumulant>(bool, bool);
+    KernelSelection makeKernels(int q, std::string_view kind, const StrategySelection& strategy, bool hints)
+    {
+        return culbm::lbm_core::method::dispatch(q, kind, [&]<int NDir, Kind Kind>() -> KernelSelection {
+            if (const auto* scheme = std::get_if<PlainScheme>(&strategy))
+                switch (*scheme)
+                {
+                    case PlainScheme::TwoFieldPull: return plainPullKernels<NDir, Kind>();
+                    case PlainScheme::EsoTwist:     return plainEsoKernels<NDir, Kind>();
+                }
+            else if (const auto* buffer = std::get_if<BlockingGlobalBuffer>(&strategy))
+                return blockingKernels<NDir, Kind>(hints, *buffer);
+            std::unreachable();
+        });
+    }
 }

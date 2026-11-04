@@ -1,6 +1,4 @@
-file(GLOB single_dev_src ./*.cpp ./*.cu)
-
-add_library(single_dev STATIC ${single_dev_src})
+add_library(single_dev STATIC config.cpp runner.cpp simulator.cpp state.cpp kernel.cu)
 
 target_include_directories(single_dev PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
