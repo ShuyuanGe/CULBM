@@ -2,10 +2,12 @@ cmake_minimum_required(VERSION 4.0.1)
 
 project(cuLBM LANGUAGES CXX CUDA)
 
+find_package(CUDAToolkit REQUIRED)
+
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 20)
-set(CMAKE_CUDA_STANDARD_REQUIRED 20)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 add_subdirectory(src)
-add_subdirectory(example)
+add_subdirectory(tools)
