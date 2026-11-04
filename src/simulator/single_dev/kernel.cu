@@ -152,18 +152,21 @@ namespace culbm::simulator::single_dev
         std::unreachable();
     }
 
-    KernelSelection makeKernels(int q, std::string_view kind, const StrategySelection& strategy, bool hints)
+    PlainPullKernels makePlainPullKernels(int q, std::string_view kind)
     {
-        return culbm::core::method::dispatch(q, kind, [&]<int NDir, Kind Kind>() -> KernelSelection {
-            if (const auto* scheme = std::get_if<PlainScheme>(&strategy))
-                switch (*scheme)
-                {
-                    case PlainScheme::TwoFieldPull: return plainPullKernels<NDir, Kind>();
-                    case PlainScheme::EsoTwist:     return plainEsoKernels<NDir, Kind>();
-                }
-            else if (const auto* buffer = std::get_if<BlockingGlobalBuffer>(&strategy))
-                return blockingKernels<NDir, Kind>(hints, *buffer);
-            std::unreachable();
+        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainPullKernels<NDir, Kind>();
+        });
+    }
+
+    PlainEsoKernels makePlainEsoKernels(int q, std::string_view kind)
+    {
+        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainEsoKernels<NDir, Kind>();
+        });
+    }
+
+    BlockingKernels makeBlockingKernels(int q, std::string_view kind, BlockingGlobalBuffer buffer, bool hints)
+    {
+        return culbm::core::method::dispatch(q, kind, [&]<int NDir, Kind Kind> { return blockingKernels<NDir, Kind>(hints, buffer);
         });
     }
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include "math.hpp"
 
 namespace culbm::core::blocking
@@ -30,5 +31,20 @@ namespace culbm::core::blocking
         if (tileIdx == 0)
             return 0;
         return (tileLen + 1 - tileIter) + (tileIdx - 1) * (tileLen + 2 - 2 * tileIter);
+    }
+    template <std::signed_integral T>
+    struct TileBounds
+    {
+        T storeBegin, storeEnd, loadBegin, loadEnd;
+    };
+
+    template <std::signed_integral T>
+    constexpr TileBounds<T> calcTileBounds(T tileIdx, T tileLen, T tileCount, T tileIter, T domLen)
+    {
+        const T storeBegin = calcValidPrev<T>(tileIdx, tileLen, tileCount, tileIter, domLen);
+        const T storeEnd = calcValidPrev<T>(tileIdx + 1, tileLen, tileCount, tileIter, domLen);
+        return {storeBegin, storeEnd,
+                std::max<T>(storeBegin - (tileIter - 1), 0),
+                std::min<T>(storeEnd + (tileIter - 1), domLen)};
     }
 }

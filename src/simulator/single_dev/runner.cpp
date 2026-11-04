@@ -1,3 +1,4 @@
+#include <concepts>
 #include <cstdio>
 #include <filesystem>
 #include <format>
@@ -25,10 +26,10 @@ namespace culbm::simulator::single_dev
             const auto nbytes = sizeof(real_t) * config.domainSize();
             std::unique_ptr<char[]> hostBuf;
             for (const auto& [enabled, prefix, devicePtr] : {
-                std::tuple{config.dumpRho, "rho", state.rhoBuf},
-                std::tuple{config.dumpVx,  "vx",  state.vxBuf},
-                std::tuple{config.dumpVy,  "vy",  state.vyBuf},
-                std::tuple{config.dumpVz,  "vz",  state.vzBuf}
+                std::tuple{config.dumpRho, "rho", state.rhoBuf.get()},
+                std::tuple{config.dumpVx,  "vx",  state.vxBuf.get()},
+                std::tuple{config.dumpVy,  "vy",  state.vyBuf.get()},
+                std::tuple{config.dumpVz,  "vz",  state.vzBuf.get()}
             })
             {
                 if (not enabled) continue;
@@ -42,10 +43,20 @@ namespace culbm::simulator::single_dev
             }
         }
 
-        template <typename Strategy, typename Kernels>
-        void run(SimulationState& state, const Kernels& kernels)
+        template <typename T>
+        concept Strategy = requires(const SimulationConfig& config, SimulationState& simulation, T& strategy, const T& constStrategy) {
+            T{simulation, T::makeKernels(config)};
+            { strategy.advance() } -> std::same_as<std::uint32_t>;
+            { strategy.computeMacros() } -> std::same_as<void>;
+            { constStrategy.cellsPerStep() } -> std::convertible_to<std::size_t>;
+        };
+
+        template <Strategy T>
+        void run(const SimulationConfig& config)
         {
-            Strategy strategy(state, kernels);
+            auto kernels = T::makeKernels(config);
+            SimulationState state(config); // init rho, v_xyz
+            T strategy(state, kernels); // init ddf, flags
             while (state.step < state.config.targetStep)
             {
                 error::check(cudaEventRecord(state.startEvent, state.stream));
@@ -65,18 +76,22 @@ namespace culbm::simulator::single_dev
         }
     }
 
-    void simulate(SimulationState& state, const KernelSelection& kernels)
+    void simulate(const SimulationConfig& config)
     {
-        if (const auto* plain = std::get_if<PlainPullKernels>(&kernels))
-            run<strategy::Plain<PlainPullKernels>>(state, *plain);
-        else if (const auto* eso = std::get_if<PlainEsoKernels>(&kernels))
-            run<strategy::Plain<PlainEsoKernels>>(state, *eso);
-        else if (const auto* blocking = std::get_if<BlockingKernels>(&kernels))
+        if (const auto* plain = std::get_if<PlainScheme>(&config.strategy))
         {
-            switch (std::get<BlockingGlobalBuffer>(state.config.strategy))
+            switch (*plain)
             {
-                case BlockingGlobalBuffer::Double: run<strategy::Blocking<BlockingGlobalBuffer::Double>>(state, *blocking); break;
-                case BlockingGlobalBuffer::Ring:   run<strategy::Blocking<BlockingGlobalBuffer::Ring>>(state, *blocking); break;
+                case PlainScheme::TwoFieldPull: run<strategy::Plain<PlainPullKernels>>(config); break;
+                case PlainScheme::EsoTwist:     run<strategy::Plain<PlainEsoKernels>>(config); break;
+            }
+        }
+        else if (const auto* blocking = std::get_if<BlockingGlobalBuffer>(&config.strategy))
+        {
+            switch (*blocking)
+            {
+                case BlockingGlobalBuffer::Double: run<strategy::Blocking<BlockingGlobalBuffer::Double>>(config); break;
+                case BlockingGlobalBuffer::Ring:   run<strategy::Blocking<BlockingGlobalBuffer::Ring>>(config); break;
             }
         }
     }

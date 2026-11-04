@@ -9,6 +9,22 @@
 
 namespace culbm::simulator::single_dev
 {
+    struct ParsedOptions
+    {
+        enum class StreamPolicy { PullStream, InplaceStream };
+        enum class OptPolicy { Plain, OverlappedBlocking = 3 };
+        enum class BufferOption { Double, Ring, EsoTwist };
+
+        SimulationConfig config;
+        StreamPolicy stream = StreamPolicy::PullStream;
+        OptPolicy opt = OptPolicy::Plain;
+        BufferOption buffer = BufferOption::Double;
+
+        ParsedOptions(int argc, char** argv);
+        void validate() const;
+        StrategySelection selectStrategy() const;
+    };
+
     ParsedOptions::ParsedOptions(int argc, char** argv)
     {
         CLI::App app {"Single Device Fluid Solver"};
@@ -133,6 +149,14 @@ namespace culbm::simulator::single_dev
             else if (buffer == BufferOption::Ring) return BlockingGlobalBuffer::Ring;
         }
         std::unreachable();
+    }
+
+    SimulationConfig makeConfig(int argc, char** argv)
+    {
+        ParsedOptions options(argc, argv);
+        options.validate();
+        options.config.strategy = options.selectStrategy();
+        return std::move(options.config);
     }
 
     std::size_t SimulationConfig::domainSize() const noexcept

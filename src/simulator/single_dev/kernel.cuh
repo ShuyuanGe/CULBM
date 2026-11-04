@@ -66,7 +66,7 @@ namespace culbm::simulator::single_dev
         const void *single, *first, *middleEven, *middleOdd, *lastEven, *lastOdd, *dump;
     };
 
-    using KernelSelection = std::variant<PlainPullKernels, PlainEsoKernels, BlockingKernels>;
-
-    KernelSelection makeKernels(int q, std::string_view kind, const StrategySelection& strategy, bool hints);
+    PlainPullKernels makePlainPullKernels(int q, std::string_view kind);
+    PlainEsoKernels makePlainEsoKernels(int q, std::string_view kind);
+    BlockingKernels makeBlockingKernels(int q, std::string_view kind, BlockingGlobalBuffer buffer, bool hints);
 }
