@@ -20,3 +20,9 @@ struct Vec3
     constexpr Vec3(T x, T y, T z) : x(x), y(y), z(z) {}
     constexpr Vec3(T v) : x(v), y(v), z(v) {}
 };
+
+namespace culbm
+{
+    using real_t = float;
+    using ddf_t = float;
+}

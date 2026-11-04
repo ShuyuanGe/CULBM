@@ -1,0 +1,16 @@
+#pragma once
+
+#include "method/generated/d3q15.cuh"
+#include "method/generated/d3q19.cuh"
+#include "method/generated/d3q27.cuh"
+
+namespace culbm::lbm_core::macroscopic
+{
+    template <int NDir>
+    constexpr void compute(real_t& rho, real_t& ux, real_t& uy, real_t& uz, const ddf_t* f)
+    {
+        if      constexpr (NDir == 15) method::generated::d3q15::calc_rho_u(rho, ux, uy, uz, f);
+        else if constexpr (NDir == 19) method::generated::d3q19::calc_rho_u(rho, ux, uy, uz, f);
+        else if constexpr (NDir == 27) method::generated::d3q27::calc_rho_u(rho, ux, uy, uz, f);
+    }
+}
