@@ -88,24 +88,24 @@ namespace culbm::simulator::single_dev::strategy
             return makeBlockingKernels(config.q, config.collision, Buffer, config.cacheHint == 1);
         }
 
-        uint3 tileCoordinates(std::uint32_t index) const
+        uint3 coordinates(std::uint32_t index) const
         {
             return { index % tileCounts.x,
                      (index / tileCounts.x) % tileCounts.y,
                      index / (tileCounts.x * tileCounts.y) };
         }
 
-        void setTileParams(std::uint32_t index, uint3 tile)
+        void setTile(std::uint32_t index, uint3 tile)
         {
             const auto& config = simulation.config;
-            using culbm::core::blocking::calcTileBounds;
-            param.offx = calcTileBounds<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x).loadBegin;
-            param.offy = calcTileBounds<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y).loadBegin;
-            param.offz = calcTileBounds<idx_t>(tile.z, tileDim.z, tileCounts.z, config.innerLoop, config.domainDim.z).loadBegin;
+            using culbm::core::blocking::tileBounds;
+            param.offx = tileBounds<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x).loadBegin;
+            param.offy = tileBounds<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y).loadBegin;
+            param.offz = tileBounds<idx_t>(tile.z, tileDim.z, tileCounts.z, config.innerLoop, config.domainDim.z).loadBegin;
             param.flagBuf = flags.get() + index * tileDim.x * tileDim.y * tileDim.z;
         }
 
-        void launchTileSteps(void** args) const
+        void launchSteps(void** args) const
         {
             const auto& config = simulation.config;
             for (std::int32_t loop = 0; loop < config.innerLoop; ++loop)
@@ -142,14 +142,14 @@ namespace culbm::simulator::single_dev::strategy
             {
                 for (std::uint32_t index = 0; index < tileCount; ++index)
                 {
-                    const auto tile = tileCoordinates(index);
+                    const auto tile = coordinates(index);
                     if (config.interiorTilesOnly and
                         (tile.x == 0 or tile.x == tileCounts.x - 1 or
                          tile.y == 0 or tile.y == tileCounts.y - 1 or
                          tile.z == 0 or tile.z == tileCounts.z - 1))
                         continue;
-                    setTileParams(index, tile);
-                    launchTileSteps(args);
+                    setTile(index, tile);
+                    launchSteps(args);
                 }
                 if constexpr (Buffer == BlockingGlobalBuffer::Ring)
                 {
@@ -169,7 +169,7 @@ namespace culbm::simulator::single_dev::strategy
             void* args[] = {&param};
             for (std::uint32_t index = 0; index < tileCount; ++index)
             {
-                setTileParams(index, tileCoordinates(index));
+                setTile(index, coordinates(index));
                 error::check(cudaLaunchKernel(kernels.dump, config.gridDim, config.blockDim, args, 0, simulation.stream));
             }
         }

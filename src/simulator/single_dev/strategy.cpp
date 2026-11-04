@@ -125,13 +125,13 @@ namespace culbm::simulator::single_dev::strategy
         std::int32_t istIdx = 0;
         for (std::int32_t tileIdxZ = 0 ; tileIdxZ < tileCounts.z ; ++tileIdxZ)
         {
-            const auto boundsZ = culbm::core::blocking::calcTileBounds<std::int32_t>(tileIdxZ, launchExtent.z, tileCounts.z, config.innerLoop, config.domainDim.z);
+            const auto boundsZ = culbm::core::blocking::tileBounds<std::int32_t>(tileIdxZ, launchExtent.z, tileCounts.z, config.innerLoop, config.domainDim.z);
             for (std::int32_t tileIdxY = 0 ; tileIdxY < tileCounts.y ; ++tileIdxY)
             {
-                const auto boundsY = culbm::core::blocking::calcTileBounds<std::int32_t>(tileIdxY, launchExtent.y, tileCounts.y, config.innerLoop, config.domainDim.y);
+                const auto boundsY = culbm::core::blocking::tileBounds<std::int32_t>(tileIdxY, launchExtent.y, tileCounts.y, config.innerLoop, config.domainDim.y);
                 for (std::int32_t tileIdxX = 0 ; tileIdxX < tileCounts.x ; ++tileIdxX)
                 {
-                    const auto boundsX = culbm::core::blocking::calcTileBounds<std::int32_t>(tileIdxX, launchExtent.x, tileCounts.x, config.innerLoop, config.domainDim.x);
+                    const auto boundsX = culbm::core::blocking::tileBounds<std::int32_t>(tileIdxX, launchExtent.x, tileCounts.x, config.innerLoop, config.domainDim.x);
 
                     for (std::int32_t tileOffZ = 0, glbOffZ = boundsZ.loadBegin ; glbOffZ < boundsZ.loadEnd ; ++tileOffZ, ++glbOffZ)
                     {

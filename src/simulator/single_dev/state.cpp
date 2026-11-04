@@ -16,10 +16,10 @@ namespace culbm::simulator::single_dev
         stream.create();
         startEvent.create();
         endEvent.create();
-        initMacros();
+        init();
     }
 
-    void SimulationState::initMacros()
+    void SimulationState::init()
     {
         const std::size_t domSize = config.domainSize();
         for (auto& buf : {std::ref(rhoBuf), std::ref(vxBuf), std::ref(vyBuf), std::ref(vzBuf)})

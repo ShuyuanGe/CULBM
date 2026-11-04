@@ -6,7 +6,7 @@
 namespace culbm::core::blocking
 {
     template <std::integral T>
-    constexpr bool validTileAxisConfig(T domLen, T tileLen, T tileIter)
+    constexpr bool validAxis(T domLen, T tileLen, T tileIter)
     {
         if (tileLen < domLen and tileLen + 1 <= tileIter) return false;
         if (2 * (tileLen + 1 - tileIter) < domLen and tileLen + 2 <= tileIter) return false;
@@ -14,7 +14,7 @@ namespace culbm::core::blocking
     }
 
     template <std::integral T>
-    constexpr T calcTileCount(T domLen, T tileLen, T tileIter)
+    constexpr T tileCount(T domLen, T tileLen, T tileIter)
     {
         if (domLen <= tileLen)
             return 1;
@@ -24,7 +24,7 @@ namespace culbm::core::blocking
     }
 
     template <std::integral T>
-    constexpr T calcValidPrev(T tileIdx, T tileLen, T tileCount, T tileIter, T domLen)
+    constexpr T boundary(T tileIdx, T tileLen, T tileCount, T tileIter, T domLen)
     {
         if (tileIdx == tileCount)
             return domLen;
@@ -39,10 +39,10 @@ namespace culbm::core::blocking
     };
 
     template <std::signed_integral T>
-    constexpr TileBounds<T> calcTileBounds(T tileIdx, T tileLen, T tileCount, T tileIter, T domLen)
+    constexpr TileBounds<T> tileBounds(T tileIdx, T tileLen, T tileCount, T tileIter, T domLen)
     {
-        const T storeBegin = calcValidPrev<T>(tileIdx, tileLen, tileCount, tileIter, domLen);
-        const T storeEnd = calcValidPrev<T>(tileIdx + 1, tileLen, tileCount, tileIter, domLen);
+        const T storeBegin = boundary<T>(tileIdx, tileLen, tileCount, tileIter, domLen);
+        const T storeEnd = boundary<T>(tileIdx + 1, tileLen, tileCount, tileIter, domLen);
         return {storeBegin, storeEnd,
                 std::max<T>(storeBegin - (tileIter - 1), 0),
                 std::min<T>(storeEnd + (tileIter - 1), domLen)};

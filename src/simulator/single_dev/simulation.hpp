@@ -40,7 +40,7 @@ namespace culbm::simulator::single_dev
         basic::cuda::DeviceBuffer<real_t> rhoBuf, vxBuf, vyBuf, vzBuf;
 
         explicit SimulationState(const SimulationConfig& config);
-        void initMacros();
+        void init();
     };
 
     SimulationConfig makeConfig(int argc, char** argv);

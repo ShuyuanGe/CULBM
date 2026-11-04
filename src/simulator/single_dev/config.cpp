@@ -22,7 +22,7 @@ namespace culbm::simulator::single_dev
 
         ParsedOptions(int argc, char** argv);
         void validate() const;
-        StrategySelection selectStrategy() const;
+        StrategySelection strategy() const;
     };
 
     ParsedOptions::ParsedOptions(int argc, char** argv)
@@ -136,7 +136,7 @@ namespace culbm::simulator::single_dev
         }
     }
 
-    StrategySelection ParsedOptions::selectStrategy() const
+    StrategySelection ParsedOptions::strategy() const
     {
         if (opt == OptPolicy::Plain)
         {
@@ -155,7 +155,7 @@ namespace culbm::simulator::single_dev
     {
         ParsedOptions options(argc, argv);
         options.validate();
-        options.config.strategy = options.selectStrategy();
+        options.config.strategy = options.strategy();
         return std::move(options.config);
     }
 
@@ -180,17 +180,17 @@ namespace culbm::simulator::single_dev
         using namespace culbm::core::blocking;
         const auto dim = launchExtent();
         const bool valid =
-            validTileAxisConfig<std::uint32_t>(domainDim.x, dim.x, innerLoop) and
-            validTileAxisConfig<std::uint32_t>(domainDim.y, dim.y, innerLoop) and
-            validTileAxisConfig<std::uint32_t>(domainDim.z, dim.z, innerLoop);
+            validAxis<std::uint32_t>(domainDim.x, dim.x, innerLoop) and
+            validAxis<std::uint32_t>(domainDim.y, dim.y, innerLoop) and
+            validAxis<std::uint32_t>(domainDim.z, dim.z, innerLoop);
         if (not valid)
         {
             throw std::invalid_argument("<Domain Dimension, Blocking Dimension and InnerLoop> don't match!");
         }
         return {
-            calcTileCount<std::uint32_t>(domainDim.x, dim.x, innerLoop),
-            calcTileCount<std::uint32_t>(domainDim.y, dim.y, innerLoop),
-            calcTileCount<std::uint32_t>(domainDim.z, dim.z, innerLoop)
+            tileCount<std::uint32_t>(domainDim.x, dim.x, innerLoop),
+            tileCount<std::uint32_t>(domainDim.y, dim.y, innerLoop),
+            tileCount<std::uint32_t>(domainDim.z, dim.z, innerLoop)
         };
     }
 }
