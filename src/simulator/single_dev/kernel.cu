@@ -154,19 +154,16 @@ namespace culbm::simulator::single_dev
 
     PlainPullKernels makePlainPullKernels(int q, std::string_view kind)
     {
-        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainPullKernels<NDir, Kind>();
-        });
+        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainPullKernels<NDir, Kind>(); });
     }
 
     PlainEsoKernels makePlainEsoKernels(int q, std::string_view kind)
     {
-        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainEsoKernels<NDir, Kind>();
-        });
+        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainEsoKernels<NDir, Kind>(); });
     }
 
     BlockingKernels makeBlockingKernels(int q, std::string_view kind, BlockingGlobalBuffer buffer, bool hints)
     {
-        return culbm::core::method::dispatch(q, kind, [&]<int NDir, Kind Kind> { return blockingKernels<NDir, Kind>(hints, buffer);
-        });
+        return culbm::core::method::dispatch(q, kind, [&]<int NDir, Kind Kind> { return blockingKernels<NDir, Kind>(hints, buffer); });
     }
 }
