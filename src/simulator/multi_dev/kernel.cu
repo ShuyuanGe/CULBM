@@ -1,5 +1,6 @@
 #include "kernel.cuh"
 #include "method/method.hpp"
+#include "method/dispatch.hpp"
 #include "macroscopic.hpp"
 #include "accessor.hpp"
 #include "ddf.hpp"
@@ -240,12 +241,8 @@ namespace culbm::simulator::multi_dev
         };
     }
 
-    template Kernels kernels<15, Kind::Bgk>();
-    template Kernels kernels<15, Kind::Mrt>();
-    template Kernels kernels<19, Kind::Bgk>();
-    template Kernels kernels<19, Kind::Mrt>();
-    template Kernels kernels<19, Kind::Cumulant>();
-    template Kernels kernels<27, Kind::Bgk>();
-    template Kernels kernels<27, Kind::Mrt>();
-    template Kernels kernels<27, Kind::Cumulant>();
+    Kernels makeKernels(int q, std::string_view kind)
+    {
+        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return kernels<NDir, Kind>(); });
+    }
 }

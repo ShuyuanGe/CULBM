@@ -8,7 +8,6 @@
 #include "CLI11.hpp"
 #include "flags.hpp"
 #include "kernel.cuh"
-#include "method/dispatch.hpp"
 #include "logger.hpp"
 #include "simulator.hpp"
 #include <cuda_runtime.h>
@@ -90,9 +89,7 @@ namespace culbm::simulator::multi_dev
                 {
                     std::exit(app.exit(e));
                 }
-                kernels = culbm::core::method::dispatch(q, collision, []<int NDir, culbm::core::method::Kind Kind>() {
-                    return culbm::simulator::multi_dev::kernels<NDir, Kind>();
-                });
+                kernels = makeKernels(q, collision);
                 devices.resize(getDevNum());
             }
 

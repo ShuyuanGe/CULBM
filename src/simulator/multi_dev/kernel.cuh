@@ -1,10 +1,10 @@
 #pragma once
 
 #include <array>
+#include <string_view>
 #include <cuda_runtime.h>
 #include "types.hpp"
 #include "flags.hpp"
-#include "method/kind.hpp"
 
 namespace culbm::simulator::multi_dev
 {
@@ -35,6 +35,5 @@ namespace culbm::simulator::multi_dev
 
     struct Kernels { void (*init)(InitKernelParam); void (*step)(KernelParam); };
 
-    template <int NDir, culbm::core::method::Kind Kind>
-    Kernels kernels();
+    Kernels makeKernels(int q, std::string_view kind);
 }
