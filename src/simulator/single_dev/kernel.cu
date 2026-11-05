@@ -6,6 +6,7 @@
 #include "accessor.hpp"
 #include "ddf.hpp"
 #include "mem.cuh"
+#include "compat.hpp" // IWYU pragma: keep
 #include <type_traits>
 #include <utility>
 
