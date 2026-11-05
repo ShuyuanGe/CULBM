@@ -44,8 +44,8 @@ namespace culbm::simulator::single_dev
         }
 
         template <typename T>
-        concept Strategy = requires(const SimulationConfig& config, SimulationState& state, T& strategy, const T& constStrategy) {
-            T{state, T::makeKernels(config)};
+        concept Strategy = requires(SimulationState& state, T& strategy, const T& constStrategy) {
+            T{state};
             { strategy.advance() } -> std::same_as<std::uint32_t>;
             { strategy.computeMacros() } -> std::same_as<void>;
             { constStrategy.cellsPerStep() } -> std::same_as<std::size_t>;
@@ -54,10 +54,9 @@ namespace culbm::simulator::single_dev
         template <Strategy T>
         void run(const SimulationConfig& config)
         {
-            auto kernels = T::makeKernels(config);
             SimulationState state(config); // init rho, v_xyz
-            T strategy(state, kernels); // init ddf, flags
-            while (state.step < state.config.targetStep)
+            T strategy(state); // init ddf, flags
+            while (state.step < config.targetStep)
             {
                 error::check(cudaEventRecord(state.startEvent, state.stream));
                 const auto steps = strategy.advance();

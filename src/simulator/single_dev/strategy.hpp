@@ -64,19 +64,15 @@ namespace culbm::simulator::single_dev::strategy
         basic::cuda::DeviceBuffer<ddf_t> src, dst;
         PlainParam param;
 
-        static Kernels makeKernels(const SimulationConfig& config)
-        {
-            if constexpr (Kernels::scheme == PlainScheme::TwoFieldPull)
-                return makePlainPullKernels(config.q, config.collision);
-            else if constexpr (Kernels::scheme == PlainScheme::EsoTwist)
-                return makePlainEsoKernels(config.q, config.collision);
-        }
-
-        Plain(SimulationState& state, const Kernels& kernels) : state(state), kernels(kernels)
+        Plain(SimulationState& state) : state(state)
         {
             constexpr auto scheme = Kernels::scheme;
-            const auto equilibrium = kernels.equilibrium;
             const auto& config = state.config;
+            if constexpr (scheme == PlainScheme::TwoFieldPull)
+                kernels = makePlainPullKernels(config.q, config.collision);
+            else if constexpr (scheme == PlainScheme::EsoTwist)
+                kernels = makePlainEsoKernels(config.q, config.collision);
+            const auto equilibrium = kernels.equilibrium;
             const auto flag = detail::loadFlags(config);
             if (scheme == PlainScheme::EsoTwist and
                 std::ranges::any_of(flag, [](flag_t f) { return not (f & STORE_DDF_BIT); }))
@@ -154,13 +150,9 @@ namespace culbm::simulator::single_dev::strategy
         std::uint32_t tileCount;
         idx_t ringOffsetStep;
 
-        static BlockingKernels makeKernels(const SimulationConfig& config)
-        {
-            return makeBlockingKernels(config.q, config.collision, Buffer, config.cacheHint == 1);
-        }
-
-        Blocking(SimulationState& state, const BlockingKernels& kernels) :
-            state(state), kernels(kernels), tileDim(state.config.launchExtent()), tileCounts(state.config.tileCounts()),
+        Blocking(SimulationState& state) :
+            state(state), kernels(makeBlockingKernels(state.config.q, state.config.collision, Buffer, state.config.cacheHint == 1)),
+            tileDim(state.config.launchExtent()), tileCounts(state.config.tileCounts()),
             tileCount(tileCounts.x * tileCounts.y * tileCounts.z),
             ringOffsetStep(tileDim.z + 1)
         {
