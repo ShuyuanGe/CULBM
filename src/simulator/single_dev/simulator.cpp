@@ -3,7 +3,7 @@
 namespace culbm::simulator::single_dev
 {
     Simulator::Simulator(int argc, char** argv) :
-        config(makeConfig(argc, argv))
+        config(SimulationConfig::parse(argc, argv))
     {
     }
 

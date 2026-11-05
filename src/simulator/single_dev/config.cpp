@@ -151,7 +151,7 @@ namespace culbm::simulator::single_dev
         std::unreachable();
     }
 
-    SimulationConfig makeConfig(int argc, char** argv)
+    SimulationConfig SimulationConfig::parse(int argc, char** argv)
     {
         ParsedOptions options(argc, argv);
         options.validate();

@@ -26,6 +26,8 @@ namespace culbm::simulator::single_dev
         bool disablePersistentL2 = false;
         std::int32_t innerLoop = 0;
 
+        static SimulationConfig parse(int argc, char** argv);
+
         std::size_t domainSize() const noexcept;
         uint3 launchExtent() const noexcept;
         std::uint32_t tileSize() const noexcept;
@@ -44,6 +46,5 @@ namespace culbm::simulator::single_dev
         void init();
     };
 
-    SimulationConfig makeConfig(int argc, char** argv);
     void simulate(const SimulationConfig& config);
 }
