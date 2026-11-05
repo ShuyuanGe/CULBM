@@ -21,23 +21,23 @@ namespace culbm::simulator::single_dev
 
     void SimulationState::init()
     {
-        const std::size_t domSize = config.domainSize();
+        const std::size_t size = config.domainSize();
         for (auto& buf : {std::ref(rhoBuf), std::ref(vxBuf), std::ref(vyBuf), std::ref(vzBuf)})
-            buf.get() = basic::cuda::allocate<real_t>(domSize);
+            buf.get() = basic::cuda::allocate<real_t>(size);
 
-        auto initField = [this, domSize](std::string_view desc, real_t dftv, real_t* devBuf)
+        auto initField = [this, size](std::string_view name, real_t defaultValue, real_t* deviceBuf)
         {
-            if (std::ifstream f (std::format("{}/{}.dat", config.initStateFolder, desc), std::ios::binary) ; f)
+            if (std::ifstream f (std::format("{}/{}.dat", config.initFolder, name), std::ios::binary) ; f)
             {
-                std::vector<real_t> hostBuf(domSize);
-                f.read(reinterpret_cast<char*>(hostBuf.data()), domSize * sizeof(real_t));
-                error::check(cudaMemcpy(devBuf, hostBuf.data(), domSize * sizeof(real_t), cudaMemcpyHostToDevice));
-                std::println("Init {} successfully, from file: {}/{}.dat.", desc, config.initStateFolder, desc);
+                std::vector<real_t> hostBuf(size);
+                f.read(reinterpret_cast<char*>(hostBuf.data()), size * sizeof(real_t));
+                error::check(cudaMemcpy(deviceBuf, hostBuf.data(), size * sizeof(real_t), cudaMemcpyHostToDevice));
+                std::println("Init {} successfully, from file: {}/{}.dat.", name, config.initFolder, name);
             }
             else
             {
-                basic::cuda::fill(devBuf, domSize, dftv, stream);
-                std::println("Init {} successfully, default init with value {}.", desc, dftv);
+                basic::cuda::fill(deviceBuf, size, defaultValue, stream);
+                std::println("Init {} successfully, default init with value {}.", name, defaultValue);
             }
         };
 

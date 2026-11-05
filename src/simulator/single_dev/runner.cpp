@@ -44,8 +44,8 @@ namespace culbm::simulator::single_dev
         }
 
         template <typename T>
-        concept Strategy = requires(const SimulationConfig& config, SimulationState& simulation, T& strategy, const T& constStrategy) {
-            T{simulation, T::makeKernels(config)};
+        concept Strategy = requires(const SimulationConfig& config, SimulationState& state, T& strategy, const T& constStrategy) {
+            T{state, T::makeKernels(config)};
             { strategy.advance() } -> std::same_as<std::uint32_t>;
             { strategy.computeMacros() } -> std::same_as<void>;
             { constStrategy.cellsPerStep() } -> std::same_as<std::size_t>;

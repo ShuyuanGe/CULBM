@@ -9,8 +9,8 @@ namespace culbm::simulator::multi_dev
     {
         private:
             class Data;
-            std::unique_ptr<Data> _data;
-            culbm::basic::ThreadPool _pool;
+            std::unique_ptr<Data> data;
+            culbm::basic::ThreadPool pool;
         public:
             Simulator(int argc, char** argv);
             void run();

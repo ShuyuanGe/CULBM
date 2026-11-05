@@ -16,17 +16,17 @@ namespace culbm::simulator::single_dev::strategy
         std::vector<flag_t> loadFlags(const SimulationConfig& config)
         {
             std::vector<flag_t> flag(config.domainSize());
-            if (config.initStateFolder.empty())
+            if (config.initFolder.empty())
             {
                 std::ranges::fill(flag, LOAD_DDF_BIT | COLLIDE_BIT | STORE_DDF_BIT | DUMP_RHO_BIT | DUMP_VX_BIT | DUMP_VY_BIT | DUMP_VZ_BIT);
             }
-            else if (std::ifstream f (std::format("{}/flag.dat", config.initStateFolder), std::ios::binary); f)
+            else if (std::ifstream f (std::format("{}/flag.dat", config.initFolder), std::ios::binary); f)
             {
                 f.read(reinterpret_cast<char*>(flag.data()), flag.size() * sizeof(flag_t));
             }
             else
             {
-                throw std::runtime_error(std::format("File: {}/flag.dat doesn't exist!", config.initStateFolder));
+                throw std::runtime_error(std::format("File: {}/flag.dat doesn't exist!", config.initFolder));
             }
             return flag;
         }
@@ -49,7 +49,7 @@ namespace culbm::simulator::single_dev::strategy
     }
 
     template <typename Kernels>
-    Plain<Kernels>::Plain(SimulationState& state, const Kernels& kernels) : simulation(state), kernels(kernels)
+    Plain<Kernels>::Plain(SimulationState& state, const Kernels& kernels) : state(state), kernels(kernels)
     {
         constexpr auto scheme = Kernels::scheme;
         const auto equilibrium = kernels.equilibrium;
@@ -59,17 +59,17 @@ namespace culbm::simulator::single_dev::strategy
             std::ranges::any_of(flag, [](flag_t f) { return not (f & STORE_DDF_BIT); }))
             throw std::invalid_argument("--ddfBuffer esotwist requires STORE_DDF_BIT for every domain cell.");
         flags = basic::cuda::allocate<flag_t>(flag.size());
-        if (not config.initStateFolder.empty())
-            std::println("Init flag successfully, from file: {}/flag.dat.", config.initStateFolder);
+        if (not config.initFolder.empty())
+            std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
         error::check(cudaMemcpy(flags.get(), flag.data(), flag.size() * sizeof(flag_t), cudaMemcpyHostToDevice));
         initDDF(state, equilibrium, config.domainSize(), scheme == PlainScheme::TwoFieldPull, src, dst);
         param = PlainParam{
             .invTau = state.config.invTau,
             .flagBuf = flags.get(),
-            .glbRhoBuf = state.rhoBuf.get(),
-            .glbVxBuf = state.vxBuf.get(),
-            .glbVyBuf = state.vyBuf.get(),
-            .glbVzBuf = state.vzBuf.get(),
+            .rhoBuf = state.rhoBuf.get(),
+            .vxBuf = state.vxBuf.get(),
+            .vyBuf = state.vyBuf.get(),
+            .vzBuf = state.vzBuf.get(),
             .glbSrcDDFBuf = src.get(),
             .glbDstDDFBuf = dst.get()
         };
@@ -109,7 +109,7 @@ namespace culbm::simulator::single_dev::strategy
 
     template <BlockingGlobalBuffer Buffer>
     Blocking<Buffer>::Blocking(SimulationState& state, const BlockingKernels& kernels) :
-        simulation(state), kernels(kernels), tileDim(state.config.launchExtent()), tileCounts(state.config.tileCounts()),
+        state(state), kernels(kernels), tileDim(state.config.launchExtent()), tileCounts(state.config.tileCounts()),
         tileCount(tileCounts.x * tileCounts.y * tileCounts.z),
         ringOffsetStep(tileDim.z + 1)
     {
@@ -163,7 +163,7 @@ namespace culbm::simulator::single_dev::strategy
         }
 
         error::check(cudaMemcpy(flags.get(), tileFlags.data(), sizeof(flag_t) * tileCount * tileSize, cudaMemcpyHostToDevice));
-        std::println("Init flag successfully, from file: {}/flag.dat.", config.initStateFolder);
+        std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
         auto size = config.domainSize();
         if (buffer == BlockingGlobalBuffer::Ring)
         {
@@ -180,10 +180,10 @@ namespace culbm::simulator::single_dev::strategy
             .glbny = static_cast<idx_t>(state.config.domainDim.y),
             .glbnz = static_cast<idx_t>(state.config.domainDim.z),
             .flagBuf = nullptr,
-            .glbRhoBuf = state.rhoBuf.get(),
-            .glbVxBuf = state.vxBuf.get(),
-            .glbVyBuf = state.vyBuf.get(),
-            .glbVzBuf = state.vzBuf.get(),
+            .rhoBuf = state.rhoBuf.get(),
+            .vxBuf = state.vxBuf.get(),
+            .vyBuf = state.vyBuf.get(),
+            .vzBuf = state.vzBuf.get(),
             .glbSrcDDFBuf = src.get(),
             .glbDstDDFBuf = dst.get(),
             .tileDDFBuf = tile.get(),
@@ -203,7 +203,7 @@ namespace culbm::simulator::single_dev::strategy
     Blocking<Buffer>::~Blocking()
     {
         cudaStreamAttrValue attr{};
-        cudaStreamSetAttribute(simulation.stream, cudaStreamAttributeAccessPolicyWindow, &attr);
+        cudaStreamSetAttribute(state.stream, cudaStreamAttributeAccessPolicyWindow, &attr);
     }
     template struct Plain<PlainPullKernels>;
     template struct Plain<PlainEsoKernels>;

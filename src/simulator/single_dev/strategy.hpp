@@ -14,7 +14,7 @@ namespace culbm::simulator::single_dev::strategy
     template <typename Kernels>
     struct Plain
     {
-        SimulationState& simulation;
+        SimulationState& state;
         Kernels kernels;
         basic::cuda::DeviceBuffer<flag_t> flags;
         basic::cuda::DeviceBuffer<ddf_t> src, dst;
@@ -28,22 +28,22 @@ namespace culbm::simulator::single_dev::strategy
                 return makePlainEsoKernels(config.q, config.collision);
         }
 
-        Plain(SimulationState& simulation, const Kernels& kernels);
+        Plain(SimulationState& state, const Kernels& kernels);
 
         std::uint32_t advance()
         {
-            const auto& config = simulation.config;
+            const auto& config = state.config;
             void* args[] = {&param};
             for (std::uint32_t step = 0; step < config.stepsPerBatch; ++step)
             {
                 if constexpr (Kernels::scheme == PlainScheme::EsoTwist)
                 {
-                    const bool even = ((simulation.step + step) % 2) == 0;
-                    error::check(cudaLaunchKernel(even ? kernels.stepEven : kernels.stepOdd, config.gridDim, config.blockDim, args, 0, simulation.stream));
+                    const bool even = ((state.step + step) % 2) == 0;
+                    error::check(cudaLaunchKernel(even ? kernels.stepEven : kernels.stepOdd, config.gridDim, config.blockDim, args, 0, state.stream));
                 }
                 else if constexpr (Kernels::scheme == PlainScheme::TwoFieldPull)
                 {
-                    error::check(cudaLaunchKernel(kernels.step, config.gridDim, config.blockDim, args, 0, simulation.stream));
+                    error::check(cudaLaunchKernel(kernels.step, config.gridDim, config.blockDim, args, 0, state.stream));
                     std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
                 }
             }
@@ -52,27 +52,27 @@ namespace culbm::simulator::single_dev::strategy
 
         void computeMacros()
         {
-            const auto& config = simulation.config;
+            const auto& config = state.config;
             void* args[] = {&param};
             if constexpr (Kernels::scheme == PlainScheme::EsoTwist)
             {
-                const bool even = (simulation.step % 2) == 0;
-                error::check(cudaLaunchKernel(even ? kernels.dumpEven : kernels.dumpOdd, config.gridDim, config.blockDim, args, 0, simulation.stream));
+                const bool even = (state.step % 2) == 0;
+                error::check(cudaLaunchKernel(even ? kernels.dumpEven : kernels.dumpOdd, config.gridDim, config.blockDim, args, 0, state.stream));
             }
             else if constexpr (Kernels::scheme == PlainScheme::TwoFieldPull)
-                error::check(cudaLaunchKernel(kernels.dump, config.gridDim, config.blockDim, args, 0, simulation.stream));
+                error::check(cudaLaunchKernel(kernels.dump, config.gridDim, config.blockDim, args, 0, state.stream));
         }
 
         std::size_t cellsPerStep() const
         {
-            return simulation.config.domainSize();
+            return state.config.domainSize();
         }
     };
 
     template <BlockingGlobalBuffer Buffer>
     struct Blocking
     {
-        SimulationState& simulation;
+        SimulationState& state;
         BlockingKernels kernels;
         basic::cuda::DeviceBuffer<flag_t> flags;
         basic::cuda::DeviceBuffer<ddf_t> src, dst, tile;
@@ -86,12 +86,12 @@ namespace culbm::simulator::single_dev::strategy
             return makeBlockingKernels(config.q, config.collision, Buffer, config.cacheHint == 1);
         }
 
-        Blocking(SimulationState& simulation, const BlockingKernels& kernels);
+        Blocking(SimulationState& state, const BlockingKernels& kernels);
         ~Blocking();
 
         std::uint32_t advance()
         {
-            const auto& config = simulation.config;
+            const auto& config = state.config;
             void* args[] = {&param};
             std::uint32_t step = 0;
             for (; step < config.stepsPerBatch; step += config.innerLoop)
@@ -123,7 +123,7 @@ namespace culbm::simulator::single_dev::strategy
                             if (loop % 2 == 0) kernel = kernels.lastEven;
                             else               kernel = kernels.lastOdd;
                         }
-                        error::check(cudaLaunchKernel(kernel, config.gridDim, config.blockDim, args, 0, simulation.stream));
+                        error::check(cudaLaunchKernel(kernel, config.gridDim, config.blockDim, args, 0, state.stream));
                     }
                 }
                 if constexpr (Buffer == BlockingGlobalBuffer::Ring)
@@ -140,18 +140,18 @@ namespace culbm::simulator::single_dev::strategy
 
         void computeMacros()
         {
-            const auto& config = simulation.config;
+            const auto& config = state.config;
             void* args[] = {&param};
             for (std::uint32_t index = 0; index < tileCount; ++index)
             {
                 setTile(index, coordinates(index));
-                error::check(cudaLaunchKernel(kernels.dump, config.gridDim, config.blockDim, args, 0, simulation.stream));
+                error::check(cudaLaunchKernel(kernels.dump, config.gridDim, config.blockDim, args, 0, state.stream));
             }
         }
 
         std::size_t cellsPerStep() const
         {
-            const auto& config = simulation.config;
+            const auto& config = state.config;
             if (config.interiorTilesOnly)
                 return static_cast<std::size_t>(tileCounts.x - 2) * (tileCounts.y - 2) * (tileCounts.z - 2) *
                     (tileDim.x - 2 * (config.innerLoop - 1)) *
@@ -169,7 +169,7 @@ namespace culbm::simulator::single_dev::strategy
 
         void setTile(std::uint32_t index, uint3 tile)
         {
-            const auto& config = simulation.config;
+            const auto& config = state.config;
             using culbm::core::blocking::tileBounds;
             param.offx = tileBounds<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x).loadBegin;
             param.offy = tileBounds<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y).loadBegin;

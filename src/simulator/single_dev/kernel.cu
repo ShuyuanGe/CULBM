@@ -43,10 +43,10 @@ namespace culbm::simulator::single_dev
 
         if (flag & EQU_DDF_BIT)
         {
-            const auto rho = param.glbRhoBuf[pos.glbi];
-            const auto vx = param.glbVxBuf[pos.glbi];
-            const auto vy = param.glbVyBuf[pos.glbi];
-            const auto vz = param.glbVzBuf[pos.glbi];
+            const auto rho = param.rhoBuf[pos.glbi];
+            const auto vx = param.vxBuf[pos.glbi];
+            const auto vy = param.vyBuf[pos.glbi];
+            const auto vz = param.vzBuf[pos.glbi];
             Method<Kind, NDir>::equilibrium(rho, vx, vy, vz, f);
         }
 
@@ -84,10 +84,10 @@ namespace culbm::simulator::single_dev
         real_t rho, vx, vy, vz;
         culbm::core::macroscopic::compute<NDir>(rho, vx, vy, vz, f);
 
-        if (flag & DUMP_RHO_BIT) param.glbRhoBuf[pos.glbi] = rho;
-        if (flag & DUMP_VX_BIT)  param.glbVxBuf[pos.glbi] = vx;
-        if (flag & DUMP_VY_BIT)  param.glbVyBuf[pos.glbi] = vy;
-        if (flag & DUMP_VZ_BIT)  param.glbVzBuf[pos.glbi] = vz;
+        if (flag & DUMP_RHO_BIT) param.rhoBuf[pos.glbi] = rho;
+        if (flag & DUMP_VX_BIT)  param.vxBuf[pos.glbi] = vx;
+        if (flag & DUMP_VY_BIT)  param.vyBuf[pos.glbi] = vy;
+        if (flag & DUMP_VZ_BIT)  param.vzBuf[pos.glbi] = vz;
     }
 
     template <int NDir, Kind Kind>

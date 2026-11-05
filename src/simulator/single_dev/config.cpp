@@ -67,7 +67,7 @@ namespace culbm::simulator::single_dev
         app.add_option("--collision", config.collision, "Collision operator: bgk, mrt, or cumulant.")
             ->default_val("bgk")->check(CLI::IsMember({"bgk", "mrt", "cumulant"}));
 
-        app.add_option("--initStateFolder", config.initStateFolder, "The folder contains initial state of the simulation.");
+        app.add_option("--initStateFolder", config.initFolder, "The folder contains initial state of the simulation.");
 
         app.add_option("--dumpFolder", config.dumpFolder, "The folder contains final output.")
             ->default_val("data/left_inlet_right_outlet_256_256_256_output");

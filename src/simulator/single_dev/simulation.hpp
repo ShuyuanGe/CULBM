@@ -19,7 +19,7 @@ namespace culbm::simulator::single_dev
         StrategySelection strategy = PlainScheme::TwoFieldPull;
         int q = 27;
         std::string collision = "bgk";
-        std::string initStateFolder, dumpFolder;
+        std::string initFolder, dumpFolder;
         bool dumpRho = false, dumpVx = false, dumpVy = false, dumpVz = false;
         bool interiorTilesOnly = false;
         int cacheHint = 1;
