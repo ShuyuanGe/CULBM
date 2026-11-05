@@ -115,7 +115,7 @@ namespace culbm::simulator::single_dev::strategy
             return config.stepsPerBatch;
         }
 
-        void computeMacros()
+        void dump()
         {
             const auto& config = state.config;
             void* args[] = {&param};
@@ -317,7 +317,7 @@ namespace culbm::simulator::single_dev::strategy
             return step;
         }
 
-        void computeMacros()
+        void dump()
         {
             const auto& config = state.config;
             void* args[] = {&param};

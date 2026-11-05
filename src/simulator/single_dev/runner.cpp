@@ -47,7 +47,7 @@ namespace culbm::simulator::single_dev
         concept Strategy = requires(SimulationState& state, T& strategy, const T& constStrategy) {
             T{state};
             { strategy.advance() } -> std::same_as<std::uint32_t>;
-            { strategy.computeMacros() } -> std::same_as<void>;
+            { strategy.dump() } -> std::same_as<void>;
             { constStrategy.cellsPerStep() } -> std::same_as<std::size_t>;
         };
 
@@ -68,7 +68,7 @@ namespace culbm::simulator::single_dev
                 std::println("speed = {:.4f} (MLUPS)", mlups);
                 std::fflush(stdout);
                 state.step += steps;
-                strategy.computeMacros();
+                strategy.dump();
                 error::check(cudaStreamSynchronize(state.stream));
                 write(state);
             }
