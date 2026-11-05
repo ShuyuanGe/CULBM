@@ -1,4 +1,4 @@
-add_library(single_dev STATIC config.cpp runner.cpp simulator.cpp state.cpp strategy.cpp kernel.cu)
+add_library(single_dev STATIC config.cpp runner.cpp simulator.cpp state.cpp kernel.cu)
 
 target_include_directories(single_dev PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
