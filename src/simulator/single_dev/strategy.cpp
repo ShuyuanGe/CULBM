@@ -111,7 +111,7 @@ namespace culbm::simulator::single_dev::strategy
     Blocking<Buffer>::Blocking(SimulationState& state, const BlockingKernels& kernels) :
         simulation(state), kernels(kernels), tileDim(state.config.launchExtent()), tileCounts(state.config.tileCounts()),
         tileCount(tileCounts.x * tileCounts.y * tileCounts.z),
-        ringOffsetStep(static_cast<idx_t>(tileDim.z) + 1)
+        ringOffsetStep(tileDim.z + 1)
     {
         constexpr auto buffer = Buffer;
         const auto equilibrium = kernels.equilibrium;

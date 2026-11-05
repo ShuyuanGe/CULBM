@@ -46,24 +46,27 @@ namespace culbm::simulator::single_dev
 
     using Equilibrium = void (*)(real_t, real_t, real_t, real_t, ddf_t*);
 
+    using PlainKernel = void (*)(PlainParam);
+    using BlockingKernel = void (*)(BlockingParam);
+
     struct PlainPullKernels
     {
         static constexpr PlainScheme scheme = PlainScheme::TwoFieldPull;
         Equilibrium equilibrium;
-        const void *step, *dump;
+        PlainKernel step, dump;
     };
 
     struct PlainEsoKernels
     {
         static constexpr PlainScheme scheme = PlainScheme::EsoTwist;
         Equilibrium equilibrium;
-        const void *stepEven, *stepOdd, *dumpEven, *dumpOdd;
+        PlainKernel stepEven, stepOdd, dumpEven, dumpOdd;
     };
 
     struct BlockingKernels
     {
         Equilibrium equilibrium;
-        const void *single, *first, *middleEven, *middleOdd, *lastEven, *lastOdd, *dump;
+        BlockingKernel single, first, middleEven, middleOdd, lastEven, lastOdd, dump;
     };
 
     PlainPullKernels makePlainPullKernels(int q, std::string_view kind);

@@ -33,7 +33,7 @@ namespace culbm::simulator::multi_dev
         ddf_t  *dstDDFBuf = nullptr;
     };
 
-    struct Kernels { const void* init; const void* step; };
+    struct Kernels { void (*init)(InitKernelParam); void (*step)(KernelParam); };
 
     template <int NDir, culbm::core::method::Kind Kind>
     Kernels kernels();

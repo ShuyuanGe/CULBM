@@ -96,8 +96,8 @@ namespace culbm::simulator::single_dev
         using Pull = Access<accessor::PullTwoFields, mapping::GlobalView>;
         return {
             .equilibrium = &Method<Kind, NDir>::equilibrium,
-            .step = (const void*)&StreamCollideKernel<NDir, Kind, PlainParam, Pull, Pull, false, StoreScope::Flagged>,
-            .dump = (const void*)&DumpKernel<NDir, PlainParam, Pull>
+            .step = &StreamCollideKernel<NDir, Kind, PlainParam, Pull, Pull, false, StoreScope::Flagged>,
+            .dump = &DumpKernel<NDir, PlainParam, Pull>
         };
     }
 
@@ -108,10 +108,10 @@ namespace culbm::simulator::single_dev
         using Odd  = Access<accessor::EsoTwistOdd, mapping::GlobalView>;
         return {
             .equilibrium = &Method<Kind, NDir>::equilibrium,
-            .stepEven = (const void*)&StreamCollideKernel<NDir, Kind, PlainParam, Even, Even, false, StoreScope::Flagged>,
-            .stepOdd  = (const void*)&StreamCollideKernel<NDir, Kind, PlainParam, Odd,  Odd,  false, StoreScope::Flagged>,
-            .dumpEven = (const void*)&DumpKernel<NDir, PlainParam, Even>,
-            .dumpOdd  = (const void*)&DumpKernel<NDir, PlainParam, Odd>
+            .stepEven = &StreamCollideKernel<NDir, Kind, PlainParam, Even, Even, false, StoreScope::Flagged>,
+            .stepOdd  = &StreamCollideKernel<NDir, Kind, PlainParam, Odd,  Odd,  false, StoreScope::Flagged>,
+            .dumpEven = &DumpKernel<NDir, PlainParam, Even>,
+            .dumpOdd  = &DumpKernel<NDir, PlainParam, Odd>
         };
     }
 
@@ -123,13 +123,13 @@ namespace culbm::simulator::single_dev
         using TileOdd  = Access<accessor::EsoTwistOdd,  mapping::TileView>;
         return {
             .equilibrium = &Method<Kind, NDir>::equilibrium,
-            .single     = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, GlobalPull, CacheHints, StoreScope::Flagged>,
-            .first      = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, TileOdd,    CacheHints, StoreScope::Flagged>,
-            .middleEven = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    TileOdd,    CacheHints, StoreScope::Flagged>,
-            .middleOdd  = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   TileEven,   CacheHints, StoreScope::Flagged>,
-            .lastEven   = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    GlobalPull, CacheHints, StoreScope::Correct>,
-            .lastOdd    = (const void*)&StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   GlobalPull, CacheHints, StoreScope::Correct>,
-            .dump       = (const void*)&DumpKernel<NDir, BlockingParam, GlobalPull>
+            .single     = &StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, GlobalPull, CacheHints, StoreScope::Flagged>,
+            .first      = &StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, TileOdd,    CacheHints, StoreScope::Flagged>,
+            .middleEven = &StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    TileOdd,    CacheHints, StoreScope::Flagged>,
+            .middleOdd  = &StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   TileEven,   CacheHints, StoreScope::Flagged>,
+            .lastEven   = &StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    GlobalPull, CacheHints, StoreScope::Correct>,
+            .lastOdd    = &StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   GlobalPull, CacheHints, StoreScope::Correct>,
+            .dump       = &DumpKernel<NDir, BlockingParam, GlobalPull>
         };
     }
 

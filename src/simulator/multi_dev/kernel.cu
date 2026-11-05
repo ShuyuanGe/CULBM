@@ -235,8 +235,8 @@ namespace culbm::simulator::multi_dev
     Kernels kernels()
     {
         return {
-            .init = (const void*)&InitKernel<NDir, Kind>,
-            .step = (const void*)&StepKernel<NDir, Kind>
+            .init = &InitKernel<NDir, Kind>,
+            .step = &StepKernel<NDir, Kind>
         };
     }
 
