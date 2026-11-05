@@ -48,7 +48,7 @@ namespace culbm::simulator::single_dev
             T{simulation, T::makeKernels(config)};
             { strategy.advance() } -> std::same_as<std::uint32_t>;
             { strategy.computeMacros() } -> std::same_as<void>;
-            { constStrategy.cellsPerStep() } -> std::convertible_to<std::size_t>;
+            { constStrategy.cellsPerStep() } -> std::same_as<std::size_t>;
         };
 
         template <Strategy T>

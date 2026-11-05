@@ -63,10 +63,9 @@ namespace culbm::simulator::single_dev::strategy
                 error::check(cudaLaunchKernel(kernels.dump, config.gridDim, config.blockDim, args, 0, simulation.stream));
         }
 
-        std::uint32_t cellsPerStep() const
+        std::size_t cellsPerStep() const
         {
-            const auto dim = simulation.config.domainDim;
-            return dim.x * dim.y * dim.z;
+            return simulation.config.domainSize();
         }
     };
 

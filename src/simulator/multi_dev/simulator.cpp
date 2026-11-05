@@ -1,4 +1,5 @@
 #include <array>
+#include <cstddef>
 #include <format>
 #include <vector>
 #include <filesystem>
@@ -110,10 +111,10 @@ namespace culbm::simulator::multi_dev
                 };
             }
 
-            std::uint32_t getDomainSize() const
+            std::size_t getDomainSize() const
             {
                 const auto domainDim = getDomainDim();
-                return domainDim.x * domainDim.y * domainDim.z;
+                return static_cast<std::size_t>(domainDim.x) * domainDim.y * domainDim.z;
             }
 
             dim3 getBlockDim() const
