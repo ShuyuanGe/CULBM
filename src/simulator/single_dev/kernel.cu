@@ -152,17 +152,17 @@ namespace culbm::simulator::single_dev
         std::unreachable();
     }
 
-    PlainPullKernels makePlainPullKernels(int q, std::string_view kind)
+    PlainPullKernels PlainPullKernels::make(int q, std::string_view kind)
     {
         return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainPullKernels<NDir, Kind>(); });
     }
 
-    PlainEsoKernels makePlainEsoKernels(int q, std::string_view kind)
+    PlainEsoKernels PlainEsoKernels::make(int q, std::string_view kind)
     {
         return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainEsoKernels<NDir, Kind>(); });
     }
 
-    BlockingKernels makeBlockingKernels(int q, std::string_view kind, BlockingGlobalBuffer buffer, bool hints)
+    BlockingKernels BlockingKernels::make(int q, std::string_view kind, BlockingGlobalBuffer buffer, bool hints)
     {
         return culbm::core::method::dispatch(q, kind, [&]<int NDir, Kind Kind> { return blockingKernels<NDir, Kind>(hints, buffer); });
     }

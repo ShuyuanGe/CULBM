@@ -64,14 +64,10 @@ namespace culbm::simulator::single_dev::strategy
         basic::cuda::DeviceBuffer<ddf_t> src, dst;
         PlainParam param;
 
-        Plain(SimulationState& state) : state(state)
+        Plain(SimulationState& state) : state(state), kernels(Kernels::make(state.config.q, state.config.collision))
         {
             constexpr auto scheme = Kernels::scheme;
             const auto& config = state.config;
-            if constexpr (scheme == PlainScheme::TwoFieldPull)
-                kernels = makePlainPullKernels(config.q, config.collision);
-            else if constexpr (scheme == PlainScheme::EsoTwist)
-                kernels = makePlainEsoKernels(config.q, config.collision);
             const auto equilibrium = kernels.equilibrium;
             const auto flag = detail::loadFlags(config);
             if (scheme == PlainScheme::EsoTwist and
@@ -151,7 +147,7 @@ namespace culbm::simulator::single_dev::strategy
         idx_t ringOffsetStep;
 
         Blocking(SimulationState& state) :
-            state(state), kernels(makeBlockingKernels(state.config.q, state.config.collision, Buffer, state.config.cacheHint == 1)),
+            state(state), kernels(BlockingKernels::make(state.config.q, state.config.collision, Buffer, state.config.cacheHint == 1)),
             tileDim(state.config.launchExtent()), tileCounts(state.config.tileCounts()),
             tileCount(tileCounts.x * tileCounts.y * tileCounts.z),
             ringOffsetStep(tileDim.z + 1)

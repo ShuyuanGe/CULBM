@@ -52,6 +52,7 @@ namespace culbm::simulator::single_dev
     struct PlainPullKernels
     {
         static constexpr PlainScheme scheme = PlainScheme::TwoFieldPull;
+        static PlainPullKernels make(int q, std::string_view kind);
         Equilibrium equilibrium;
         PlainKernel step, dump;
     };
@@ -59,17 +60,15 @@ namespace culbm::simulator::single_dev
     struct PlainEsoKernels
     {
         static constexpr PlainScheme scheme = PlainScheme::EsoTwist;
+        static PlainEsoKernels make(int q, std::string_view kind);
         Equilibrium equilibrium;
         PlainKernel stepEven, stepOdd, dumpEven, dumpOdd;
     };
 
     struct BlockingKernels
     {
+        static BlockingKernels make(int q, std::string_view kind, BlockingGlobalBuffer buffer, bool hints);
         Equilibrium equilibrium;
         BlockingKernel single, first, middleEven, middleOdd, lastEven, lastOdd, dump;
     };
-
-    PlainPullKernels makePlainPullKernels(int q, std::string_view kind);
-    PlainEsoKernels makePlainEsoKernels(int q, std::string_view kind);
-    BlockingKernels makeBlockingKernels(int q, std::string_view kind, BlockingGlobalBuffer buffer, bool hints);
 }
