@@ -1,5 +1,5 @@
 #include <iostream>
-#include <stdexcept>
+#include <exception>
 #include "simulator.hpp"
 
 int main(int argc, char** argv)

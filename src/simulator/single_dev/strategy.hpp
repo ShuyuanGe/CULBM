@@ -1,10 +1,9 @@
 #pragma once
 
-#include <algorithm>
 #include <cstdint>
-#include <stdexcept>
 #include <utility>
 #include "blocking.hpp"
+#include "kernel.cuh"
 #include "exception.cuh"
 #include "simulation.hpp"
 

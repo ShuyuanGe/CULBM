@@ -6,7 +6,6 @@
 #include "accessor.hpp"
 #include "ddf.hpp"
 #include "mem.cuh"
-#include <algorithm>
 #include <type_traits>
 #include <utility>
 

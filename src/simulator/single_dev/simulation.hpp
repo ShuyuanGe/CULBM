@@ -4,7 +4,8 @@
 #include <cstdint>
 #include <string>
 #include <cuda_runtime.h>
-#include "kernel.cuh"
+#include "types.hpp"
+#include "execution.hpp"
 #include "cuda.hpp"
 
 namespace culbm::simulator::single_dev
