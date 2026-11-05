@@ -5,7 +5,7 @@
 
 namespace culbm::basic
 {
-    void Logger::_log(Level lvl, std::string msg, const std::source_location& loc)
+    void Logger::log(Level lvl, std::string msg, const std::source_location& loc)
     {
         auto getTimeRepr = []() -> std::string
         {
@@ -40,10 +40,10 @@ namespace culbm::basic
             return "UNKNOWN";
         };
 
-        std::println(_os,
+        std::println(output,
             "[{}] [{}] [{}] [{}:{}] message: {}",
             getTimeRepr(),
-            _name,
+            name,
             getLogLevelRepr(),
             loc.file_name(), 
             loc.line(), 

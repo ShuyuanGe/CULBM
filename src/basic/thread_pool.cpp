@@ -3,81 +3,81 @@
 
 namespace culbm::basic
 {
-    void ThreadPool::_workerLoop(std::stop_token stoken, std::uint32_t tid)
+    void ThreadPool::workerLoop(std::stop_token stoken, std::uint32_t tid)
     {
         Logger logger(std::format("Worker-{}", tid));
 
         while (not stoken.stop_requested())
         {
-            Task currTask;
+            Task task;
 
             {
-                std::unique_lock lock(_mtx);
+                std::unique_lock lock(mutex);
 
-                _waitNewTask.wait(lock, [&, this]() {
-                    return stoken.stop_requested() or (not _tasks.empty());
+                taskReady.wait(lock, [&, this]() {
+                    return stoken.stop_requested() or (not tasks.empty());
                 });
 
                 if (stoken.stop_requested()) break;
 
-                currTask = _tasks.front();
+                task = tasks.front();
             }
 
             try
             {
-                currTask(tid, logger, _workerLoopBarrier);
+                task(tid, logger, barrier);
             }
             catch (const std::exception& e)
             {
                 logger.error(e.what());
             }
 
-            _workerLoopBarrier.arrive_and_wait();
+            barrier.arrive_and_wait();
 
             if (tid == 0)
             {
-                std::unique_lock lock (_mtx);
-                _tasks.pop();
-                if (_tasks.empty()) _finishAllTask.notify_all();
+                std::unique_lock lock (mutex);
+                tasks.pop();
+                if (tasks.empty()) tasksDone.notify_all();
             }
 
-            _workerLoopBarrier.arrive_and_wait();
+            barrier.arrive_and_wait();
         }
         logger.info("Exit successfully!");
     }
 
     ThreadPool::ThreadPool(std::uint32_t numWorker) : 
-        _workerLoopBarrier(numWorker)
+        barrier(numWorker)
     {
         for (std::uint32_t tid = 0 ; tid < numWorker ; ++tid)
         {
-            _workers.emplace_back([this, tid](std::stop_token stoken) { _workerLoop(stoken, tid); });
+            workers.emplace_back([this, tid](std::stop_token stoken) { workerLoop(stoken, tid); });
         }
     }
 
     ThreadPool::~ThreadPool() noexcept
     {
         waitAll();
-        for (auto& worker : _workers) worker.request_stop();
-        _waitNewTask.notify_all();
-        for (auto& worker : _workers) worker.join();
+        for (auto& worker : workers) worker.request_stop();
+        taskReady.notify_all();
+        for (auto& worker : workers) worker.join();
     }
 
     void ThreadPool::addTask(Task task)
     {
         {
-            std::unique_lock lock (_mtx);
-            _tasks.emplace(std::move(task));
+            std::unique_lock lock (mutex);
+            tasks.emplace(std::move(task));
         }
-        _waitNewTask.notify_all();
+        taskReady.notify_all();
     }
 
     void ThreadPool::waitAll()
     {
-        std::unique_lock lock (_mtx);
+        std::unique_lock lock (mutex);
 
-        _finishAllTask.wait(lock, [this]() -> bool {
-            return _tasks.empty();
+        tasksDone.wait(lock, [this]() -> bool {
+            return tasks.empty();
         });
     }
 }
