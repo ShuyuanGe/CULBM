@@ -20,10 +20,10 @@ namespace culbm::simulator::single_dev
         void write(const SimulationState& state)
         {
             const auto& config = state.config;
-            const auto dumpFolder = std::filesystem::path{config.dumpFolder};
-            std::filesystem::create_directories(dumpFolder);
+            const auto folder = std::filesystem::path{config.dumpFolder};
+            std::filesystem::create_directories(folder);
 
-            const auto nbytes = sizeof(real_t) * config.domainSize();
+            const auto bytes = sizeof(real_t) * config.domainSize();
             std::unique_ptr<char[]> hostBuf;
             for (const auto& [enabled, prefix, devicePtr] : {
                 std::tuple{config.dumpRho, "rho", state.rhoBuf.get()},
@@ -33,13 +33,13 @@ namespace culbm::simulator::single_dev
             })
             {
                 if (not enabled) continue;
-                if (not hostBuf) hostBuf = std::make_unique_for_overwrite<char[]>(nbytes);
-                const auto filePath = dumpFolder / std::format("{}_{}.dat", prefix, state.step);
-                std::ofstream f(filePath, std::ios::binary);
+                if (not hostBuf) hostBuf = std::make_unique_for_overwrite<char[]>(bytes);
+                const auto path = folder / std::format("{}_{}.dat", prefix, state.step);
+                std::ofstream f(path, std::ios::binary);
                 if (not f)
-                    throw std::runtime_error(std::format("Could not open the file: {}", filePath.string()));
-                error::check(cudaMemcpy(hostBuf.get(), devicePtr, nbytes, cudaMemcpyDeviceToHost));
-                f.write(hostBuf.get(), nbytes);
+                    throw std::runtime_error(std::format("Could not open the file: {}", path.string()));
+                error::check(cudaMemcpy(hostBuf.get(), devicePtr, bytes, cudaMemcpyDeviceToHost));
+                f.write(hostBuf.get(), bytes);
             }
         }
 

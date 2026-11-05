@@ -68,18 +68,17 @@ namespace culbm::simulator::single_dev::strategy
         {
             constexpr auto scheme = Kernels::scheme;
             const auto& config = state.config;
-            const auto equilibrium = kernels.equilibrium;
-            const auto flag = detail::loadFlags(config);
+            const auto domainFlags = detail::loadFlags(config);
             if (scheme == PlainScheme::EsoTwist and
-                std::ranges::any_of(flag, [](flag_t f) { return not (f & STORE_DDF_BIT); }))
+                std::ranges::any_of(domainFlags, [](flag_t f) { return not (f & STORE_DDF_BIT); }))
                 throw std::invalid_argument("--ddfBuffer esotwist requires STORE_DDF_BIT for every domain cell.");
-            flags = basic::cuda::allocate<flag_t>(flag.size());
+            flags = basic::cuda::allocate<flag_t>(domainFlags.size());
             if (not config.initFolder.empty())
                 std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
-            error::check(cudaMemcpy(flags.get(), flag.data(), flag.size() * sizeof(flag_t), cudaMemcpyHostToDevice));
-            detail::initDDF(state, equilibrium, config.domainSize(), scheme == PlainScheme::TwoFieldPull, src, dst);
+            error::check(cudaMemcpy(flags.get(), domainFlags.data(), domainFlags.size() * sizeof(flag_t), cudaMemcpyHostToDevice));
+            detail::initDDF(state, kernels.equilibrium, config.domainSize(), scheme == PlainScheme::TwoFieldPull, src, dst);
             param = PlainParam{
-                .invTau = state.config.invTau,
+                .invTau = config.invTau,
                 .flagBuf = flags.get(),
                 .rhoBuf = state.rhoBuf.get(),
                 .vxBuf = state.vxBuf.get(),
@@ -89,8 +88,8 @@ namespace culbm::simulator::single_dev::strategy
                 .glbDstDDFBuf = dst.get()
             };
             if (scheme == PlainScheme::EsoTwist) param.glbDstDDFBuf = src.get();
-            const auto launchExtent = state.config.launchExtent();
-            const auto domainDim = state.config.domainDim;
+            const auto launchExtent = config.launchExtent();
+            const auto domainDim = config.domainDim;
             if (launchExtent.x != domainDim.x or launchExtent.y != domainDim.y or launchExtent.z != domainDim.z)
                 throw std::runtime_error("Dimension of domain doesn't match computation grid!");
         }
@@ -152,64 +151,61 @@ namespace culbm::simulator::single_dev::strategy
             tileCount(tileCounts.x * tileCounts.y * tileCounts.z),
             ringOffsetStep(tileDim.z + 1)
         {
-            constexpr auto buffer = Buffer;
-            const auto equilibrium = kernels.equilibrium;
             const auto& config = state.config;
-            const auto launchExtent = tileDim;
-            const std::uint32_t tileSize = launchExtent.x * launchExtent.y * launchExtent.z;
+            const std::uint32_t tileSize = tileDim.x * tileDim.y * tileDim.z;
             flags = basic::cuda::allocate<flag_t>(tileCount * tileSize);
-            const auto orgFlag = detail::loadFlags(config);
+            const auto domainFlags = detail::loadFlags(config);
 
             std::vector<flag_t> tileFlags(tileCount * tileSize);
-            std::int32_t istIdx = 0;
-            for (std::int32_t tileIdxZ = 0 ; tileIdxZ < tileCounts.z ; ++tileIdxZ)
+            std::int32_t tileBase = 0;
+            for (std::int32_t tileZ = 0 ; tileZ < tileCounts.z ; ++tileZ)
             {
-                const auto boundsZ = culbm::core::blocking::tileBounds<std::int32_t>(tileIdxZ, launchExtent.z, tileCounts.z, config.innerLoop, config.domainDim.z);
-                for (std::int32_t tileIdxY = 0 ; tileIdxY < tileCounts.y ; ++tileIdxY)
+                const auto boundsZ = culbm::core::blocking::tileBounds<std::int32_t>(tileZ, tileDim.z, tileCounts.z, config.innerLoop, config.domainDim.z);
+                for (std::int32_t tileY = 0 ; tileY < tileCounts.y ; ++tileY)
                 {
-                    const auto boundsY = culbm::core::blocking::tileBounds<std::int32_t>(tileIdxY, launchExtent.y, tileCounts.y, config.innerLoop, config.domainDim.y);
-                    for (std::int32_t tileIdxX = 0 ; tileIdxX < tileCounts.x ; ++tileIdxX)
+                    const auto boundsY = culbm::core::blocking::tileBounds<std::int32_t>(tileY, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y);
+                    for (std::int32_t tileX = 0 ; tileX < tileCounts.x ; ++tileX)
                     {
-                        const auto boundsX = culbm::core::blocking::tileBounds<std::int32_t>(tileIdxX, launchExtent.x, tileCounts.x, config.innerLoop, config.domainDim.x);
+                        const auto boundsX = culbm::core::blocking::tileBounds<std::int32_t>(tileX, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x);
 
-                        for (std::int32_t tileOffZ = 0, glbOffZ = boundsZ.loadBegin ; glbOffZ < boundsZ.loadEnd ; ++tileOffZ, ++glbOffZ)
+                        for (std::int32_t localZ = 0, globalZ = boundsZ.loadBegin ; globalZ < boundsZ.loadEnd ; ++localZ, ++globalZ)
                         {
-                            for (std::int32_t tileOffY = 0, glbOffY = boundsY.loadBegin ; glbOffY < boundsY.loadEnd ; ++tileOffY, ++glbOffY)
+                            for (std::int32_t localY = 0, globalY = boundsY.loadBegin ; globalY < boundsY.loadEnd ; ++localY, ++globalY)
                             {
-                                for (std::int32_t tileOffX = 0, glbOffX = boundsX.loadBegin ; glbOffX < boundsX.loadEnd ; ++tileOffX, ++glbOffX)
+                                for (std::int32_t localX = 0, globalX = boundsX.loadBegin ; globalX < boundsX.loadEnd ; ++localX, ++globalX)
                                 {
-                                    const std::int32_t glbOff = glbOffX + config.domainDim.x * (glbOffY + config.domainDim.y * glbOffZ);
-                                    const std::int32_t tileOff = tileOffX + launchExtent.x * (tileOffY + launchExtent.y * tileOffZ);
+                                    const std::int32_t domainIndex = globalX + config.domainDim.x * (globalY + config.domainDim.y * globalZ);
+                                    const std::int32_t tileIndex = localX + tileDim.x * (localY + tileDim.y * localZ);
                                     if (
-                                        boundsZ.storeBegin <= glbOffZ and glbOffZ < boundsZ.storeEnd and
-                                        boundsY.storeBegin <= glbOffY and glbOffY < boundsY.storeEnd and
-                                        boundsX.storeBegin <= glbOffX and glbOffX < boundsX.storeEnd
+                                        boundsZ.storeBegin <= globalZ and globalZ < boundsZ.storeEnd and
+                                        boundsY.storeBegin <= globalY and globalY < boundsY.storeEnd and
+                                        boundsX.storeBegin <= globalX and globalX < boundsX.storeEnd
                                     )
                                     {
-                                        tileFlags[istIdx + tileOff] = orgFlag[glbOff] | CORRECT_BIT;
+                                        tileFlags[tileBase + tileIndex] = domainFlags[domainIndex] | CORRECT_BIT;
                                     }
                                     else
                                     {
-                                        tileFlags[istIdx + tileOff] = orgFlag[glbOff];
+                                        tileFlags[tileBase + tileIndex] = domainFlags[domainIndex];
                                     }
                                 }
                             }
                         }
 
-                        istIdx += tileSize;
+                        tileBase += tileSize;
                     }
                 }
             }
 
             error::check(cudaMemcpy(flags.get(), tileFlags.data(), sizeof(flag_t) * tileCount * tileSize, cudaMemcpyHostToDevice));
             std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
-            auto size = config.domainSize();
-            if (buffer == BlockingGlobalBuffer::Ring)
+            auto globalSize = config.domainSize();
+            if constexpr (Buffer == BlockingGlobalBuffer::Ring)
             {
                 assert(tileDim.z >= config.innerLoop);
-                size = static_cast<std::size_t>(config.domainDim.x) * config.domainDim.y * (config.domainDim.z + ringOffsetStep);
+                globalSize = static_cast<std::size_t>(config.domainDim.x) * config.domainDim.y * (config.domainDim.z + ringOffsetStep);
             }
-            detail::initDDF(state, equilibrium, size, buffer == BlockingGlobalBuffer::Double, src, dst);
+            detail::initDDF(state, kernels.equilibrium, globalSize, Buffer == BlockingGlobalBuffer::Double, src, dst);
             tile = basic::cuda::allocate<ddf_t>(static_cast<std::size_t>(config.q) * config.tileSize());
             if (config.disablePersistentL2)
             {
@@ -237,11 +233,11 @@ namespace culbm::simulator::single_dev::strategy
                 error::check(cudaStreamSetAttribute(state.stream, cudaLaunchAttributeID::cudaStreamAttributeAccessPolicyWindow, &streamAttr));
             }
             param = BlockingParam{
-                .invTau = state.config.invTau,
+                .invTau = config.invTau,
                 .offx = 0, .offy = 0, .offz = 0,
-                .glbnx = static_cast<idx_t>(state.config.domainDim.x),
-                .glbny = static_cast<idx_t>(state.config.domainDim.y),
-                .glbnz = static_cast<idx_t>(state.config.domainDim.z),
+                .glbnx = static_cast<idx_t>(config.domainDim.x),
+                .glbny = static_cast<idx_t>(config.domainDim.y),
+                .glbnz = static_cast<idx_t>(config.domainDim.z),
                 .flagBuf = nullptr,
                 .rhoBuf = state.rhoBuf.get(),
                 .vxBuf = state.vxBuf.get(),
@@ -254,10 +250,10 @@ namespace culbm::simulator::single_dev::strategy
                 .glbSrcDDFOffz = 0,
                 .glbDstDDFOffz = 0
             };
-            if (buffer == BlockingGlobalBuffer::Ring)
+            if constexpr (Buffer == BlockingGlobalBuffer::Ring)
             {
                 param.glbDstDDFBuf = src.get();
-                param.glbDstDDFOffz = state.config.domainDim.z;
+                param.glbDstDDFOffz = config.domainDim.z;
                 param.glbDDFRingNz = param.glbDstDDFOffz + ringOffsetStep;
             }
         }
