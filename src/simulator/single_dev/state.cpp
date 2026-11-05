@@ -16,23 +16,18 @@ namespace culbm::simulator::single_dev
         stream.create();
         startEvent.create();
         endEvent.create();
-        init();
-    }
-
-    void SimulationState::init()
-    {
         const std::size_t size = config.domainSize();
         for (auto& buf : {std::ref(rhoBuf), std::ref(vxBuf), std::ref(vyBuf), std::ref(vzBuf)})
             buf.get() = basic::cuda::allocate<real_t>(size);
 
         auto initField = [this, size](std::string_view name, real_t defaultValue, real_t* deviceBuf)
         {
-            if (std::ifstream f (std::format("{}/{}.dat", config.initFolder, name), std::ios::binary) ; f)
+            if (std::ifstream f (std::format("{}/{}.dat", this->config.initFolder, name), std::ios::binary) ; f)
             {
                 std::vector<real_t> hostBuf(size);
                 f.read(reinterpret_cast<char*>(hostBuf.data()), size * sizeof(real_t));
                 error::check(cudaMemcpy(deviceBuf, hostBuf.data(), size * sizeof(real_t), cudaMemcpyHostToDevice));
-                std::println("Init {} successfully, from file: {}/{}.dat.", name, config.initFolder, name);
+                std::println("Init {} successfully, from file: {}/{}.dat.", name, this->config.initFolder, name);
             }
             else
             {
