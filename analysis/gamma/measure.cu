@@ -1,9 +1,13 @@
-#include <cuda_runtime.h>
+#include <cuda/buffer>
+#include <cuda/devices>
+#include <cuda/launch>
+#include <cuda/memory_pool>
+#include <cuda/stream>
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdio>
+#include <print>
 
 constexpr std::size_t kWarpUnits = 1ULL << 23;
 constexpr int kThreads = 128;
@@ -18,7 +22,7 @@ __global__ void store_kernel(float* destination) {
     const std::size_t warp_stride = gridDim.x * blockDim.x / warpSize;
 
     for (std::size_t unit = warp; unit < kWarpUnits; unit += warp_stride) {
-        if (!Partial || lane < warpSize - kPartialOffset) {
+        if (not Partial || lane < warpSize - kPartialOffset) {
             const std::size_t offset = Partial ? lane + kPartialOffset : lane;
             __stcs(destination + unit * warpSize + offset, 0.0F);
         }
@@ -26,35 +30,31 @@ __global__ void store_kernel(float* destination) {
 }
 
 template <bool Partial>
-float time_store(float* destination, int blocks, cudaEvent_t start, cudaEvent_t stop) {
-    store_kernel<Partial><<<blocks, kThreads>>>(destination);
-    cudaEventRecord(start);
-    store_kernel<Partial><<<blocks, kThreads>>>(destination);
-    cudaEventRecord(stop);
-    cudaEventSynchronize(stop);
-
-    float elapsed_ms;
-    cudaEventElapsedTime(&elapsed_ms, start, stop);
-    return elapsed_ms;
+float time_store(float* destination, int blocks, cuda::stream_ref stream, cuda::timed_event& start, cuda::timed_event& stop) {
+    const auto launch = cuda::make_config(cuda::grid_dims(blocks), cuda::block_dims<kThreads>());
+    cuda::launch(stream, launch, store_kernel<Partial>, destination);
+    start.record(stream);
+    cuda::launch(stream, launch, store_kernel<Partial>, destination);
+    stop.record(stream);
+    stop.sync();
+    return (stop - start).count() * 1e-6f;
 }
 
 int main() {
-    int multiprocessors = 0;
-    cudaDeviceGetAttribute(&multiprocessors, cudaDevAttrMultiProcessorCount, 0);
+    const cuda::device_ref device{0};
+    const auto multiprocessors = device.attribute(cuda::device_attributes::multiprocessor_count);
     const int blocks = multiprocessors * kBlocksPerSm;
 
-    float* destination;
-    cudaMalloc(&destination, kWarpUnits * 128);
-
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
+    cuda::stream stream{device};
+    cuda::device_memory_pool pool{device};
+    cuda::timed_event start{device}, stop{device};
+    cuda::device_buffer<float> destination{stream, pool.as_ref(), kWarpUnits * 128 / sizeof(float), cuda::no_init};
 
     std::array<float, kSamples> full_times{};
     std::array<float, kSamples> partial_times{};
     for (int sample = 0; sample < kSamples; ++sample) {
-        full_times[sample] = time_store<false>(destination, blocks, start, stop);
-        partial_times[sample] = time_store<true>(destination, blocks, start, stop);
+        full_times[sample] = time_store<false>(destination.data(), blocks, stream, start, stop);
+        partial_times[sample] = time_store<true>(destination.data(), blocks, stream, start, stop);
     }
 
     std::sort(full_times.begin(), full_times.end());
@@ -63,7 +63,7 @@ int main() {
     const float partial_median = partial_times[kSamples / 2];
     const float gamma = 4.0F * partial_median / full_median - 3.0F;
 
-    std::printf("4F median: %.5f ms\n", full_median);
-    std::printf("3F+1P median: %.5f ms\n", partial_median);
-    std::printf("gamma: %.4f\n", gamma);
+    std::println("4F median: {:.5f} ms", full_median);
+    std::println("3F+1P median: {:.5f} ms", partial_median);
+    std::println("gamma: {:.4f}", gamma);
 }

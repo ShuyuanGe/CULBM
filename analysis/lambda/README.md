@@ -1,7 +1,9 @@
 # Lambda
 
+Requires CUDA 13.3 or newer.
+
 ```bash
-nvcc measure.cu -o measure
+nvcc -std=c++23 measure.cu -o measure
 ./measure
 ```
 
