@@ -41,7 +41,7 @@ namespace culbm::core::blocking
     template <std::signed_integral T>
     constexpr TileBounds<T> tileBounds(T tileIdx, T tileLen, T tileCount, T tileIter, T domLen)
     {
-        const T storeBegin = boundary<T>(tileIdx, tileLen, tileCount, tileIter, domLen);
+        const T storeBegin = boundary(tileIdx, tileLen, tileCount, tileIter, domLen);
         const T storeEnd = boundary<T>(tileIdx + 1, tileLen, tileCount, tileIter, domLen);
         return {storeBegin, storeEnd,
                 std::max<T>(storeBegin - (tileIter - 1), 0),
