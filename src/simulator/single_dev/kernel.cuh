@@ -9,9 +9,6 @@
 
 namespace culbm::simulator::single_dev
 {
-    using idx_t = std::int32_t;
-    using glb_idx_t = std::int64_t;
-
     struct BlockingParam
     {
         static constexpr bool dumpCorrectOnly = true;

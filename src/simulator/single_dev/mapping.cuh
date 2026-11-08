@@ -68,13 +68,13 @@ namespace culbm::simulator::single_dev::mapping
         template <int Dir, int DX, int DY, int DZ>
         constexpr const ddf_t* readAddress() const
         {
-            return src + static_cast<glb_idx_t>(Dir) * pos.glbn + cellOffset<DX, DY, DZ>();
+            return src + static_cast<ddf_offset_t>(Dir) * pos.glbn + cellOffset<DX, DY, DZ>();
         }
 
         template <int Dir, int DX, int DY, int DZ>
         constexpr ddf_t* writeAddress() const
         {
-            return dst + static_cast<glb_idx_t>(Dir) * pos.glbn + cellOffset<DX, DY, DZ>();
+            return dst + static_cast<ddf_offset_t>(Dir) * pos.glbn + cellOffset<DX, DY, DZ>();
         }
     };
 
@@ -90,7 +90,7 @@ namespace culbm::simulator::single_dev::mapping
         }
 
         template <int Dir, int DX, int DY, int DZ>
-        constexpr glb_idx_t offset(idx_t offz) const
+        constexpr ddf_offset_t offset(idx_t offz) const
         {
             const auto nx = global.pos.glbnx;
             const idx_t nxy = nx * global.pos.glbny;
@@ -100,8 +100,8 @@ namespace culbm::simulator::single_dev::mapping
             const idx_t z = global.pos.glbz + clampedOffset<DZ>(global.pos.glbz, global.pos.glbnz, 1);
             idx_t ringZ = z + offz;
             if (ringZ >= nz) ringZ -= nz;
-            return static_cast<glb_idx_t>(Dir) * nxy * nz
-                + static_cast<glb_idx_t>(ringZ) * nxy + xy;
+            return static_cast<ddf_offset_t>(Dir) * nxy * nz
+                + static_cast<ddf_offset_t>(ringZ) * nxy + xy;
         }
 
         template <int Dir, int DX, int DY, int DZ>

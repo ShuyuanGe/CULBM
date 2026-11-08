@@ -159,7 +159,7 @@ namespace culbm::simulator::multi_dev
             const std::int32_t devIdxZ = devId / (devDim.x * devDim.y);
             auto& device = data->devices[devId].emplace(devId, data->getDomainSize(), data->q);
             using PeerDirections = culbm::core::Stencil<27>;
-            for (std::uint32_t dir = 0 ; dir < 27 ; ++dir)
+            for (dir_t dir = 0 ; dir < 27 ; ++dir)
             {
                 const auto d = PeerDirections::directions[dir];
                 if (d.x == 0 and d.y == 0 and d.z == 0) continue;
@@ -272,7 +272,7 @@ namespace culbm::simulator::multi_dev
             const std::int32_t devIdxY = (devIdx / devDim.x) % devDim.y;
             const std::int32_t devIdxZ = devIdx / (devDim.x * devDim.y);
 
-            for (std::uint32_t dir = 0 ; dir < 27 ; ++dir)
+            for (dir_t dir = 0 ; dir < 27 ; ++dir)
             {
                 const auto d = culbm::core::Stencil<27>::directions[dir];
                 const auto nbrIdxX = std::min<std::int32_t>(devDim.x - 1, std::max(0, devIdxX + d.x));
