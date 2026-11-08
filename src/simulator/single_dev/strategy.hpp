@@ -234,21 +234,16 @@ namespace culbm::simulator::single_dev::strategy
             }
             param = BlockingParam{
                 .invTau = config.invTau,
-                .offx = 0, .offy = 0, .offz = 0,
                 .glbnx = static_cast<idx_t>(config.domainDim.x),
                 .glbny = static_cast<idx_t>(config.domainDim.y),
                 .glbnz = static_cast<idx_t>(config.domainDim.z),
-                .flagBuf = nullptr,
                 .rhoBuf = state.rhoBuf.get(),
                 .vxBuf = state.vxBuf.get(),
                 .vyBuf = state.vyBuf.get(),
                 .vzBuf = state.vzBuf.get(),
                 .glbSrcDDFBuf = src.get(),
                 .glbDstDDFBuf = dst.get(),
-                .tileDDFBuf = tile.get(),
-                .glbDDFRingNz = 0,
-                .glbSrcDDFOffz = 0,
-                .glbDstDDFOffz = 0
+                .tileDDFBuf = tile.get()
             };
             if constexpr (Buffer == BlockingGlobalBuffer::Ring)
             {

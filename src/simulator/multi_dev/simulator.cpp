@@ -114,16 +114,6 @@ namespace culbm::simulator::multi_dev
                 return static_cast<std::size_t>(domainDim.x) * domainDim.y * domainDim.z;
             }
 
-            dim3 getBlockDim() const
-            {
-                return blockDim;
-            }
-
-            dim3 getGridDim() const
-            {
-                return gridDim;
-            }
-
             void log() const
             {
                 auto domainDim = getDomainDim();
@@ -207,8 +197,8 @@ namespace culbm::simulator::multi_dev
             error::check(
                 cudaLaunchKernel(
                     data->kernels.init,
-                    data->getGridDim(),
-                    data->getBlockDim(),
+                    data->gridDim,
+                    data->blockDim,
                     kernelArgs,
                     0,
                     device.stream
@@ -269,18 +259,18 @@ namespace culbm::simulator::multi_dev
         {
             const auto devDim = data->devDim;
             auto& device = data->devices[devIdx];
-            KernelParam evenParam;
-            KernelParam oddParam;
+            KernelParam evenParam{
+                .invTau = data->invTau,
+                .flagBuf = device.flagBuf,
+                .rhoBuf = device.rhoBuf,
+                .vxBuf = device.vxBuf,
+                .vyBuf = device.vyBuf,
+                .vzBuf = device.vzBuf,
+                .dstDDFBuf = device.ddfBuf1
+            };
+            auto oddParam = evenParam;
+            oddParam.dstDDFBuf = device.ddfBuf0;
             void* kernelArgs[1] = {nullptr};
-
-            evenParam.invTau  = oddParam.invTau  = data->invTau;
-            evenParam.flagBuf = oddParam.flagBuf = device.flagBuf;
-            evenParam.rhoBuf  = oddParam.rhoBuf  = device.rhoBuf;
-            evenParam.vxBuf   = oddParam.vxBuf   = device.vxBuf;
-            evenParam.vyBuf   = oddParam.vyBuf   = device.vyBuf;
-            evenParam.vzBuf   = oddParam.vzBuf   = device.vzBuf;
-            evenParam.dstDDFBuf = device.ddfBuf1;
-            oddParam.dstDDFBuf  = device.ddfBuf0;
 
             const std::int32_t devIdxX = devIdx % devDim.x;
             const std::int32_t devIdxY = (devIdx / devDim.x) % devDim.y;
@@ -310,8 +300,8 @@ namespace culbm::simulator::multi_dev
                 error::check(
                     cudaLaunchKernel(
                         data->kernels.step,
-                        data->getGridDim(),
-                        data->getBlockDim(),
+                        data->gridDim,
+                        data->blockDim,
                         kernelArgs,
                         0,
                         device.stream
