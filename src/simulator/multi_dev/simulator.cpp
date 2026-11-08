@@ -1,8 +1,15 @@
 #include <array>
 #include <cstddef>
+#include <deque>
 #include <format>
-#include <vector>
+#include <optional>
 #include <filesystem>
+#include <cuda/algorithm>
+#include <cuda/buffer>
+#include <cuda/devices>
+#include <cuda/launch>
+#include <cuda/memory_pool>
+#include <cuda/std/span>
 #include "types.hpp"
 #include <print>
 #include "CLI11.hpp"
@@ -24,15 +31,23 @@ namespace culbm::simulator::multi_dev
 
         struct SingleDevData
         {
-            flag_t *flagBuf = nullptr;
-            real_t *rhoBuf  = nullptr;
-            real_t *vxBuf   = nullptr;
-            real_t *vyBuf   = nullptr;
-            real_t *vzBuf   = nullptr;
-            ddf_t  *ddfBuf0 = nullptr;
-            ddf_t  *ddfBuf1 = nullptr;
-            cudaStream_t stream;
-            cudaEvent_t start, end;
+            ::cuda::stream stream;
+            ::cuda::device_memory_pool pool;
+            ::cuda::timed_event start, end;
+            ::cuda::device_buffer<flag_t> flagBuf;
+            ::cuda::device_buffer<real_t> rhoBuf, vxBuf, vyBuf, vzBuf;
+            ::cuda::device_buffer<ddf_t> ddfBuf0, ddfBuf1;
+
+            SingleDevData(int id, std::size_t size, int q) :
+                stream(::cuda::device_ref{id}), pool(::cuda::device_ref{id}),
+                start(::cuda::device_ref{id}), end(::cuda::device_ref{id}),
+                flagBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+                rhoBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+                vxBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+                vyBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+                vzBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+                ddfBuf0(stream, pool.as_ref(), q * size, ::cuda::no_init),
+                ddfBuf1(stream, pool.as_ref(), q * size, ::cuda::no_init) {}
         };
 
         private:
@@ -43,21 +58,21 @@ namespace culbm::simulator::multi_dev
             std::string collision = "bgk";
             Kernels kernels;
             std::uint32_t targetStep;
-            uint3 devDim{};
-            uint3 blockDim{};
-            uint3 gridDim{};
+            dim3 devDim{};
+            dim3 blockDim{};
+            dim3 gridDim{};
             std::string dumpFolder = "data/multi_dev_output";
             bool dumpRho = false;
             bool dumpVx = false;
             bool dumpVy = false;
             bool dumpVz = false;
-            std::vector<SingleDevData>     devices;
+            std::deque<std::optional<SingleDevData>> devices;
         public:
             Data(int argc, char** argv)
             {
                 CLI::App app {"Multiple Device Fluid Solver"};
-                using DimValues = std::array<decltype(uint3::x), 3>;
-                const auto addDimOption = [&](const char* name, uint3& dim, DimValues defaultValue, const char* description) {
+                using DimValues = std::array<decltype(dim3::x), 3>;
+                const auto addDimOption = [&](const char* name, dim3& dim, DimValues defaultValue, const char* description) {
                     return app.add_option_function<DimValues>(name, [&dim](const auto& values) {
                         dim = {values[0], values[1], values[2]};
                     }, description)->run_callback_for_default()->default_val(defaultValue);
@@ -89,6 +104,8 @@ namespace culbm::simulator::multi_dev
                 {
                     std::exit(app.exit(e));
                 }
+                if (getDevNum() > ::cuda::devices.size())
+                    throw std::invalid_argument("Requested more devices than are available.");
                 kernels = makeKernels(q, collision);
                 devices.resize(getDevNum());
             }
@@ -98,7 +115,7 @@ namespace culbm::simulator::multi_dev
                 return devDim.x * devDim.y * devDim.z;
             }
 
-            uint3 getDomainDim() const
+            dim3 getDomainDim() const
             {
                 return
                 {
@@ -136,10 +153,11 @@ namespace culbm::simulator::multi_dev
         auto initDevData = [this](std::uint32_t devId, culbm::basic::Logger& logger, std::barrier<>& barrier)
         {
             error::check(cudaSetDevice(devId));
-            const uint3 devDim = data->devDim;
+            const auto devDim = data->devDim;
             const std::int32_t devIdxX = devId % devDim.x;
             const std::int32_t devIdxY = (devId / devDim.x) % devDim.y;
             const std::int32_t devIdxZ = devId / (devDim.x * devDim.y);
+            auto& device = data->devices[devId].emplace(devId, data->getDomainSize(), data->q);
             using PeerDirections = culbm::core::Stencil<27>;
             for (std::uint32_t dir = 0 ; dir < 27 ; ++dir)
             {
@@ -155,26 +173,13 @@ namespace culbm::simulator::multi_dev
                 )
                 {
                     const std::int32_t nbrIdx = nbrIdxX + devDim.x * (nbrIdxY + devDim.y * nbrIdxZ);
-                    error::check(cudaDeviceEnablePeerAccess(nbrIdx, 0));
+                    device.pool.enable_access_from(::cuda::device_ref{nbrIdx});
                 }
             }
 
             logger.info("Initialize cuda environment successfully!");
 
             barrier.arrive_and_wait();
-
-            const auto domainSize = data->getDomainSize();
-            Data::SingleDevData& device = data->devices[devId];
-            error::check(cudaMalloc(&device.flagBuf, sizeof(flag_t) * domainSize));
-            error::check(cudaMalloc(&device.rhoBuf,  sizeof(real_t) * domainSize));
-            error::check(cudaMalloc(&device.vxBuf,   sizeof(real_t) * domainSize));
-            error::check(cudaMalloc(&device.vyBuf,   sizeof(real_t) * domainSize));
-            error::check(cudaMalloc(&device.vzBuf,   sizeof(real_t) * domainSize));
-            error::check(cudaMalloc(&device.ddfBuf0, sizeof(ddf_t) * data->q * domainSize));
-            error::check(cudaMalloc(&device.ddfBuf1, sizeof(ddf_t) * data->q * domainSize));
-            error::check(cudaStreamCreate(&device.stream));
-            error::check(cudaEventCreate(&device.start));
-            error::check(cudaEventCreate(&device.end));
 
             logger.info("Allocate device memory successfully!");
 
@@ -185,27 +190,17 @@ namespace culbm::simulator::multi_dev
             param.devIdx.x = devIdxX;
             param.devIdx.y = devIdxY;
             param.devIdx.z = devIdxZ;
-            param.flagBuf = device.flagBuf;
-            param.rhoBuf  = device.rhoBuf;
-            param.vxBuf   = device.vxBuf;
-            param.vyBuf   = device.vyBuf;
-            param.vzBuf   = device.vzBuf;
-            param.srcDDFBuf = device.ddfBuf0;
-            param.dstDDFBuf = device.ddfBuf1;
+            param.flagBuf = device.flagBuf.data();
+            param.rhoBuf  = device.rhoBuf.data();
+            param.vxBuf   = device.vxBuf.data();
+            param.vyBuf   = device.vyBuf.data();
+            param.vzBuf   = device.vzBuf.data();
+            param.srcDDFBuf = device.ddfBuf0.data();
+            param.dstDDFBuf = device.ddfBuf1.data();
 
-            void* kernelArgs[] = {&param};
-            error::check(
-                cudaLaunchKernel(
-                    data->kernels.init,
-                    data->gridDim,
-                    data->blockDim,
-                    kernelArgs,
-                    0,
-                    device.stream
-                )
-            );
-
-            error::check(cudaStreamSynchronize(device.stream));
+            const auto launch = ::cuda::make_config(::cuda::grid_dims(data->gridDim), ::cuda::block_dims(data->blockDim));
+            ::cuda::launch(device.stream, launch, data->kernels.init, param);
+            device.stream.sync();
 
             logger.info("Set device data successfully!");
         };
@@ -228,11 +223,11 @@ namespace culbm::simulator::multi_dev
             const auto dumpFolder = std::filesystem::path{data->dumpFolder};
             std::filesystem::create_directories(dumpFolder);
 
-            const auto nbytes = data->getDomainSize() * sizeof(real_t);
-            auto hostBuf = std::make_unique<char[]>(nbytes);
-            const auto& device = data->devices[devIdx];
+            const auto size = data->getDomainSize();
+            auto hostBuf = std::make_unique_for_overwrite<real_t[]>(size);
+            const auto& device = *data->devices[devIdx];
 
-            auto dumpField = [&](bool enabled, std::string_view prefix, const void *devicePtr)
+            auto dumpField = [&](bool enabled, std::string_view prefix, const real_t* devicePtr)
             {
                 if (not enabled) return;
 
@@ -240,8 +235,9 @@ namespace culbm::simulator::multi_dev
 
                 if (std::ofstream f(filePath, std::ios::binary); f)
                 {
-                    error::check(cudaMemcpy(hostBuf.get(), devicePtr, nbytes, cudaMemcpyKind::cudaMemcpyDefault));
-                    f.write(hostBuf.get(), nbytes);
+                    ::cuda::copy_bytes(device.stream, ::cuda::std::span{devicePtr, size}, ::cuda::std::span{hostBuf.get(), size});
+                    device.stream.sync();
+                    f.write(reinterpret_cast<const char*>(hostBuf.get()), size * sizeof(real_t));
                 }
                 else
                 {
@@ -249,28 +245,28 @@ namespace culbm::simulator::multi_dev
                 }
             };
 
-            dumpField(data->dumpRho, "rho", device.rhoBuf);
-            dumpField(data->dumpVx,  "vx",  device.vxBuf);
-            dumpField(data->dumpVy,  "vy",  device.vyBuf);
-            dumpField(data->dumpVz,  "vz",  device.vzBuf);
+            dumpField(data->dumpRho, "rho", device.rhoBuf.data());
+            dumpField(data->dumpVx,  "vx",  device.vxBuf.data());
+            dumpField(data->dumpVy,  "vy",  device.vyBuf.data());
+            dumpField(data->dumpVz,  "vz",  device.vzBuf.data());
         };
 
         auto simulateLoop = [this, dumpRes](std::uint32_t devIdx, culbm::basic::Logger& logger, std::barrier<>& barrier)
         {
             const auto devDim = data->devDim;
-            auto& device = data->devices[devIdx];
+            auto& device = *data->devices[devIdx];
             KernelParam evenParam{
                 .invTau = data->invTau,
-                .flagBuf = device.flagBuf,
-                .rhoBuf = device.rhoBuf,
-                .vxBuf = device.vxBuf,
-                .vyBuf = device.vyBuf,
-                .vzBuf = device.vzBuf,
-                .dstDDFBuf = device.ddfBuf1
+                .flagBuf = device.flagBuf.data(),
+                .rhoBuf = device.rhoBuf.data(),
+                .vxBuf = device.vxBuf.data(),
+                .vyBuf = device.vyBuf.data(),
+                .vzBuf = device.vzBuf.data(),
+                .dstDDFBuf = device.ddfBuf1.data()
             };
             auto oddParam = evenParam;
-            oddParam.dstDDFBuf = device.ddfBuf0;
-            void* kernelArgs[1] = {nullptr};
+            oddParam.dstDDFBuf = device.ddfBuf0.data();
+            const auto launch = ::cuda::make_config(::cuda::grid_dims(data->gridDim), ::cuda::block_dims(data->blockDim));
 
             const std::int32_t devIdxX = devIdx % devDim.x;
             const std::int32_t devIdxY = (devIdx / devDim.x) % devDim.y;
@@ -279,45 +275,31 @@ namespace culbm::simulator::multi_dev
             for (std::uint32_t dir = 0 ; dir < 27 ; ++dir)
             {
                 const auto d = culbm::core::Stencil<27>::directions[dir];
-                const auto nbrIdxX = std::min<std::int32_t>(devDim.x - 1, std::max<std::int32_t>(0, devIdxX + d.x));
-                const auto nbrIdxY = std::min<std::int32_t>(devDim.y - 1, std::max<std::int32_t>(0, devIdxY + d.y));
-                const auto nbrIdxZ = std::min<std::int32_t>(devDim.z - 1, std::max<std::int32_t>(0, devIdxZ + d.z));
+                const auto nbrIdxX = std::min<std::int32_t>(devDim.x - 1, std::max(0, devIdxX + d.x));
+                const auto nbrIdxY = std::min<std::int32_t>(devDim.y - 1, std::max(0, devIdxY + d.y));
+                const auto nbrIdxZ = std::min<std::int32_t>(devDim.z - 1, std::max(0, devIdxZ + d.z));
                 const std::int32_t nbrIdx  = nbrIdxX + devDim.x * (nbrIdxY + devDim.y * nbrIdxZ);
-                evenParam.srcDDFBuf[dir] = data->devices[nbrIdx].ddfBuf0;
-                oddParam.srcDDFBuf[dir]  = data->devices[nbrIdx].ddfBuf1;
+                evenParam.srcDDFBuf[dir] = data->devices[nbrIdx]->ddfBuf0.data();
+                oddParam.srcDDFBuf[dir]  = data->devices[nbrIdx]->ddfBuf1.data();
             }
 
             barrier.arrive_and_wait();
 
-            const auto stepBnd = std::min<std::uint32_t>(data->targetStep, data->step + data->stepsPerBatch);
+            const auto stepBnd = std::min(data->targetStep, data->step + data->stepsPerBatch);
 
-            error::check(cudaEventRecord(device.start, device.stream));
+            device.start.record(device.stream);
 
             for (std::uint32_t step = data->step ; step < stepBnd ; ++step)
             {
-                kernelArgs[0] = ((step % 2) == 0 ? &evenParam : &oddParam);
-
-                error::check(
-                    cudaLaunchKernel(
-                        data->kernels.step,
-                        data->gridDim,
-                        data->blockDim,
-                        kernelArgs,
-                        0,
-                        device.stream
-                    )
-                );
-
-                error::check(cudaStreamSynchronize(device.stream));
+                ::cuda::launch(device.stream, launch, data->kernels.step, (step % 2) == 0 ? evenParam : oddParam);
+                device.stream.sync();
 
                 barrier.arrive_and_wait();
             }
 
-            error::check(cudaEventRecord(device.end, device.stream));
-
-            float ms;
-            error::check(cudaEventSynchronize(device.end));
-            error::check(cudaEventElapsedTime(&ms, device.start, device.end));
+            device.end.record(device.stream);
+            device.end.sync();
+            const float ms = (device.end - device.start).count() * 1e-6f;
             const float mlups = ((data->getDomainSize()) * 1e-6f) / (ms / 1000) * (stepBnd - data->step);
             logger.info(std::format("speed: {:.4f} (MLUPS)", mlups));
 
@@ -326,7 +308,7 @@ namespace culbm::simulator::multi_dev
 
         while (data->step < data->targetStep)
         {
-            const auto step = std::min<std::int32_t>(data->targetStep - data->step, data->stepsPerBatch);
+            const auto step = std::min(data->targetStep - data->step, data->stepsPerBatch);
             pool.addTask(simulateLoop);
             pool.waitAll();
             data->step += step;
@@ -337,24 +319,17 @@ namespace culbm::simulator::multi_dev
     {
         auto deinitDevData = [this](std::uint32_t devId, culbm::basic::Logger& logger, std::barrier<>& barrier)
         {
-            Data::SingleDevData& device = data->devices[devId];
-            error::check(cudaEventDestroy(device.end));
-            error::check(cudaEventDestroy(device.start));
-            error::check(cudaStreamDestroy(device.stream));
-            error::check(cudaFree(device.ddfBuf1));
-            device.ddfBuf1 = nullptr;
-            error::check(cudaFree(device.ddfBuf0));
-            device.ddfBuf0 = nullptr;
-            error::check(cudaFree(device.vzBuf));
-            device.vzBuf = nullptr;
-            error::check(cudaFree(device.vyBuf));
-            device.vyBuf = nullptr;
-            error::check(cudaFree(device.vxBuf));
-            device.vzBuf = nullptr;
-            error::check(cudaFree(device.rhoBuf));
-            device.rhoBuf = nullptr;
-            error::check(cudaFree(device.flagBuf));
-            device.flagBuf = nullptr;
+            error::check(cudaSetDevice(devId));
+            auto& device = *data->devices[devId];
+            device.ddfBuf1.destroy();
+            device.ddfBuf0.destroy();
+            device.vzBuf.destroy();
+            device.vyBuf.destroy();
+            device.vxBuf.destroy();
+            device.rhoBuf.destroy();
+            device.flagBuf.destroy();
+            device.stream.sync();
+            data->devices[devId].reset();
             logger.info("Deallocate device memory successfully!");
         };
 

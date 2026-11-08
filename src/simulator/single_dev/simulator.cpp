@@ -1,5 +1,4 @@
 #include <concepts>
-#include <cstdio>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -7,15 +6,14 @@
 #include <memory>
 #include <stdexcept>
 #include <tuple>
-#include "exception.cuh"
+#include <cuda/algorithm>
+#include <cuda/std/span>
 #include "simulation.hpp"
 #include "simulator.hpp"
 #include "strategy.hpp"
 
 namespace culbm::simulator::single_dev
 {
-    namespace error = culbm::basic::error;
-
     namespace
     {
         void write(const SimulationState& state)
@@ -24,23 +22,24 @@ namespace culbm::simulator::single_dev
             const auto folder = std::filesystem::path{config.dumpFolder};
             std::filesystem::create_directories(folder);
 
-            const auto bytes = sizeof(real_t) * config.domainSize();
-            std::unique_ptr<char[]> hostBuf;
+            const auto size = config.domainSize();
+            std::unique_ptr<real_t[]> hostBuf;
             for (const auto& [enabled, prefix, devicePtr] : {
-                std::tuple{config.dumpRho, "rho", state.rhoBuf.get()},
-                std::tuple{config.dumpVx,  "vx",  state.vxBuf.get()},
-                std::tuple{config.dumpVy,  "vy",  state.vyBuf.get()},
-                std::tuple{config.dumpVz,  "vz",  state.vzBuf.get()}
+                std::tuple{config.dumpRho, "rho", state.rhoBuf.data()},
+                std::tuple{config.dumpVx,  "vx",  state.vxBuf.data()},
+                std::tuple{config.dumpVy,  "vy",  state.vyBuf.data()},
+                std::tuple{config.dumpVz,  "vz",  state.vzBuf.data()}
             })
             {
                 if (not enabled) continue;
-                if (not hostBuf) hostBuf = std::make_unique_for_overwrite<char[]>(bytes);
+                if (not hostBuf) hostBuf = std::make_unique_for_overwrite<real_t[]>(size);
                 const auto path = folder / std::format("{}_{}.dat", prefix, state.step);
                 std::ofstream f(path, std::ios::binary);
                 if (not f)
                     throw std::runtime_error(std::format("Could not open the file: {}", path.string()));
-                error::check(cudaMemcpy(hostBuf.get(), devicePtr, bytes, cudaMemcpyDeviceToHost));
-                f.write(hostBuf.get(), bytes);
+                ::cuda::copy_bytes(state.stream, ::cuda::std::span{devicePtr, size}, ::cuda::std::span{hostBuf.get(), size});
+                state.stream.sync();
+                f.write(reinterpret_cast<const char*>(hostBuf.get()), size * sizeof(real_t));
             }
         }
 
@@ -59,17 +58,16 @@ namespace culbm::simulator::single_dev
             T strategy(state); // init ddf, flags
             while (state.step < config.targetStep)
             {
-                error::check(cudaEventRecord(state.startEvent, state.stream));
+                state.startEvent.record(state.stream);
                 const auto steps = strategy.advance();
-                error::check(cudaEventRecord(state.endEvent, state.stream));
-                error::check(cudaEventSynchronize(state.endEvent));
-                float ms;
-                error::check(cudaEventElapsedTime(&ms, state.startEvent, state.endEvent));
+                state.endEvent.record(state.stream);
+                state.endEvent.sync();
+                const float ms = (state.endEvent - state.startEvent).count() * 1e-6f;
                 const float mlups = strategy.cellsPerStep() * 1e-6f / (ms / 1000) * steps;
                 std::println("speed = {:.4f} (MLUPS)", mlups);
                 state.step += steps;
                 strategy.dump();
-                error::check(cudaStreamSynchronize(state.stream));
+                state.stream.sync();
                 write(state);
             }
         }

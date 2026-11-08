@@ -22,7 +22,7 @@ namespace culbm::simulator::multi_dev
 
     struct InitKernelParam
     {
-        uint3 devDim{};
+        dim3 devDim{};
         uint3 devIdx{};
         flag_t *flagBuf = nullptr;
         real_t *rhoBuf  = nullptr;

@@ -30,8 +30,8 @@ namespace culbm::simulator::single_dev
         Options::Options(int argc, char** argv)
         {
             CLI::App app {"Single Device Fluid Solver"};
-            using DimValues = std::array<decltype(uint3::x), 3>;
-            const auto addDimOption = [&](const char* name, uint3& dim, DimValues defaultValue, const char* description) {
+            using DimValues = std::array<decltype(dim3::x), 3>;
+            const auto addDimOption = [&](const char* name, dim3& dim, DimValues defaultValue, const char* description) {
                 return app.add_option_function<DimValues>(name, [&dim](const auto& values) {
                     dim = {values[0], values[1], values[2]};
                 }, description)->run_callback_for_default()->default_val(defaultValue);
@@ -167,7 +167,7 @@ namespace culbm::simulator::single_dev
         return static_cast<std::size_t>(domainDim.x) * domainDim.y * domainDim.z;
     }
 
-    uint3 SimulationConfig::launchExtent() const noexcept
+    dim3 SimulationConfig::launchExtent() const noexcept
     {
         return {gridDim.x * blockDim.x, gridDim.y * blockDim.y, gridDim.z * blockDim.z};
     }
@@ -178,7 +178,7 @@ namespace culbm::simulator::single_dev
         return dim.x * dim.y * dim.z;
     }
 
-    uint3 SimulationConfig::tileCounts() const
+    dim3 SimulationConfig::tileCounts() const
     {
         using namespace culbm::core::blocking;
         const auto dim = launchExtent();

@@ -9,9 +9,14 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+#include <cuda/algorithm>
+#include <cuda/devices>
+#include <cuda/launch>
+#include <cuda/std/span>
 #include "blocking.hpp"
 #include "kernel.cuh"
 #include "exception.cuh"
+#include "cuda.hpp"
 #include "simulation.hpp"
 
 namespace culbm::simulator::single_dev::strategy
@@ -39,17 +44,17 @@ namespace culbm::simulator::single_dev::strategy
         }
 
         inline void initDDF(SimulationState& state, Equilibrium equilibrium, std::size_t size, bool doubleBuffer,
-                            basic::cuda::DeviceBuffer<ddf_t>& src, basic::cuda::DeviceBuffer<ddf_t>& dst)
+                            ::cuda::device_buffer<ddf_t>& src, ::cuda::device_buffer<ddf_t>& dst)
         {
             const auto q = state.config.q;
-            src = basic::cuda::allocate<ddf_t>(q * size);
-            if (doubleBuffer) dst = basic::cuda::allocate<ddf_t>(q * size);
+            src = ::cuda::device_buffer<ddf_t>(state.stream, state.pool.as_ref(), q * size, ::cuda::no_init);
+            if (doubleBuffer) dst = ::cuda::device_buffer<ddf_t>(state.stream, state.pool.as_ref(), q * size, ::cuda::no_init);
             std::vector<ddf_t> feq(q);
             equilibrium(1, 0, 0, 0, feq.data());
             for (int dir = 0; dir < q; ++dir)
             {
-                basic::cuda::fill(src.get() + dir * size, size, feq[dir], state.stream);
-                if (doubleBuffer) basic::cuda::fill(dst.get() + dir * size, size, feq[dir], state.stream);
+                basic::cuda::fill(src.data() + dir * size, size, feq[dir], state.stream);
+                if (doubleBuffer) basic::cuda::fill(dst.data() + dir * size, size, feq[dir], state.stream);
             }
             std::println("Init ddf buffer successfully.");
         }
@@ -60,11 +65,13 @@ namespace culbm::simulator::single_dev::strategy
     {
         SimulationState& state;
         Kernels kernels;
-        basic::cuda::DeviceBuffer<flag_t> flags;
-        basic::cuda::DeviceBuffer<ddf_t> src, dst;
+        ::cuda::device_buffer<flag_t> flags;
+        ::cuda::device_buffer<ddf_t> src, dst;
         PlainParam param;
 
-        Plain(SimulationState& state) : state(state), kernels(Kernels::make(state.config.q, state.config.collision))
+        Plain(SimulationState& state) :
+            state(state), kernels(Kernels::make(state.config.q, state.config.collision)),
+            flags(state.stream, state.pool.as_ref()), src(state.stream, state.pool.as_ref()), dst(state.stream, state.pool.as_ref())
         {
             constexpr auto scheme = Kernels::scheme;
             const auto& config = state.config;
@@ -72,22 +79,23 @@ namespace culbm::simulator::single_dev::strategy
             if (scheme == PlainScheme::EsoTwist and
                 std::ranges::any_of(domainFlags, [](flag_t f) { return not (f & STORE_DDF_BIT); }))
                 throw std::invalid_argument("--ddfBuffer esotwist requires STORE_DDF_BIT for every domain cell.");
-            flags = basic::cuda::allocate<flag_t>(domainFlags.size());
+            flags = ::cuda::device_buffer<flag_t>(state.stream, state.pool.as_ref(), domainFlags.size(), ::cuda::no_init);
             if (not config.initFolder.empty())
                 std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
-            error::check(cudaMemcpy(flags.get(), domainFlags.data(), domainFlags.size() * sizeof(flag_t), cudaMemcpyHostToDevice));
+            ::cuda::copy_bytes(state.stream, ::cuda::std::span{domainFlags.data(), domainFlags.size()}, flags);
+            state.stream.sync();
             detail::initDDF(state, kernels.equilibrium, config.domainSize(), scheme == PlainScheme::TwoFieldPull, src, dst);
             param = PlainParam{
                 .invTau = config.invTau,
-                .flagBuf = flags.get(),
-                .rhoBuf = state.rhoBuf.get(),
-                .vxBuf = state.vxBuf.get(),
-                .vyBuf = state.vyBuf.get(),
-                .vzBuf = state.vzBuf.get(),
-                .glbSrcDDFBuf = src.get(),
-                .glbDstDDFBuf = dst.get()
+                .flagBuf = flags.data(),
+                .rhoBuf = state.rhoBuf.data(),
+                .vxBuf = state.vxBuf.data(),
+                .vyBuf = state.vyBuf.data(),
+                .vzBuf = state.vzBuf.data(),
+                .glbSrcDDFBuf = src.data(),
+                .glbDstDDFBuf = dst.data()
             };
-            if (scheme == PlainScheme::EsoTwist) param.glbDstDDFBuf = src.get();
+            if (scheme == PlainScheme::EsoTwist) param.glbDstDDFBuf = src.data();
             const auto launchExtent = config.launchExtent();
             const auto domainDim = config.domainDim;
             if (launchExtent.x != domainDim.x or launchExtent.y != domainDim.y or launchExtent.z != domainDim.z)
@@ -97,17 +105,17 @@ namespace culbm::simulator::single_dev::strategy
         std::uint32_t advance()
         {
             const auto& config = state.config;
-            void* args[] = {&param};
+            const auto launch = ::cuda::make_config(::cuda::grid_dims(config.gridDim), ::cuda::block_dims(config.blockDim));
             for (std::uint32_t step = 0; step < config.stepsPerBatch; ++step)
             {
                 if constexpr (Kernels::scheme == PlainScheme::EsoTwist)
                 {
                     const bool even = ((state.step + step) % 2) == 0;
-                    error::check(cudaLaunchKernel(even ? kernels.stepEven : kernels.stepOdd, config.gridDim, config.blockDim, args, 0, state.stream));
+                    ::cuda::launch(state.stream, launch, even ? kernels.stepEven : kernels.stepOdd, param);
                 }
                 else if constexpr (Kernels::scheme == PlainScheme::TwoFieldPull)
                 {
-                    error::check(cudaLaunchKernel(kernels.step, config.gridDim, config.blockDim, args, 0, state.stream));
+                    ::cuda::launch(state.stream, launch, kernels.step, param);
                     std::swap(param.glbSrcDDFBuf, param.glbDstDDFBuf);
                 }
             }
@@ -117,14 +125,14 @@ namespace culbm::simulator::single_dev::strategy
         void dump()
         {
             const auto& config = state.config;
-            void* args[] = {&param};
+            const auto launch = ::cuda::make_config(::cuda::grid_dims(config.gridDim), ::cuda::block_dims(config.blockDim));
             if constexpr (Kernels::scheme == PlainScheme::EsoTwist)
             {
                 const bool even = (state.step % 2) == 0;
-                error::check(cudaLaunchKernel(even ? kernels.dumpEven : kernels.dumpOdd, config.gridDim, config.blockDim, args, 0, state.stream));
+                ::cuda::launch(state.stream, launch, even ? kernels.dumpEven : kernels.dumpOdd, param);
             }
             else if constexpr (Kernels::scheme == PlainScheme::TwoFieldPull)
-                error::check(cudaLaunchKernel(kernels.dump, config.gridDim, config.blockDim, args, 0, state.stream));
+                ::cuda::launch(state.stream, launch, kernels.dump, param);
         }
 
         std::size_t cellsPerStep() const
@@ -138,44 +146,47 @@ namespace culbm::simulator::single_dev::strategy
     {
         SimulationState& state;
         BlockingKernels kernels;
-        basic::cuda::DeviceBuffer<flag_t> flags;
-        basic::cuda::DeviceBuffer<ddf_t> src, dst, tile;
+        ::cuda::device_buffer<flag_t> flags;
+        ::cuda::device_buffer<ddf_t> tile, src, dst;
         BlockingParam param;
-        uint3 tileDim, tileCounts;
+        dim3 tileDim, tileCounts;
         std::uint32_t tileCount;
         idx_t ringOffsetStep;
 
         Blocking(SimulationState& state) :
             state(state), kernels(BlockingKernels::make(state.config.q, state.config.collision, Buffer, state.config.cacheHint == 1)),
+            flags(state.stream, state.pool.as_ref()),
+            tile(state.stream, state.pool.as_ref(), static_cast<std::size_t>(state.config.q) * state.config.tileSize(), ::cuda::no_init),
+            src(state.stream, state.pool.as_ref()), dst(state.stream, state.pool.as_ref()),
             tileDim(state.config.launchExtent()), tileCounts(state.config.tileCounts()),
             tileCount(tileCounts.x * tileCounts.y * tileCounts.z),
             ringOffsetStep(tileDim.z + 1)
         {
             const auto& config = state.config;
             const std::uint32_t tileSize = tileDim.x * tileDim.y * tileDim.z;
-            flags = basic::cuda::allocate<flag_t>(tileCount * tileSize);
+            flags = ::cuda::device_buffer<flag_t>(state.stream, state.pool.as_ref(), tileCount * tileSize, ::cuda::no_init);
             const auto domainFlags = detail::loadFlags(config);
 
             std::vector<flag_t> tileFlags(tileCount * tileSize);
-            std::int32_t tileBase = 0;
-            for (std::int32_t tileZ = 0 ; tileZ < tileCounts.z ; ++tileZ)
+            idx_t tileBase = 0;
+            for (idx_t tileZ = 0 ; tileZ < tileCounts.z ; ++tileZ)
             {
-                const auto boundsZ = culbm::core::blocking::tileBounds<std::int32_t>(tileZ, tileDim.z, tileCounts.z, config.innerLoop, config.domainDim.z);
-                for (std::int32_t tileY = 0 ; tileY < tileCounts.y ; ++tileY)
+                const auto boundsZ = culbm::core::blocking::tileBounds<idx_t>(tileZ, tileDim.z, tileCounts.z, config.innerLoop, config.domainDim.z);
+                for (idx_t tileY = 0 ; tileY < tileCounts.y ; ++tileY)
                 {
-                    const auto boundsY = culbm::core::blocking::tileBounds<std::int32_t>(tileY, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y);
-                    for (std::int32_t tileX = 0 ; tileX < tileCounts.x ; ++tileX)
+                    const auto boundsY = culbm::core::blocking::tileBounds<idx_t>(tileY, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y);
+                    for (idx_t tileX = 0 ; tileX < tileCounts.x ; ++tileX)
                     {
-                        const auto boundsX = culbm::core::blocking::tileBounds<std::int32_t>(tileX, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x);
+                        const auto boundsX = culbm::core::blocking::tileBounds<idx_t>(tileX, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x);
 
-                        for (std::int32_t localZ = 0, globalZ = boundsZ.loadBegin ; globalZ < boundsZ.loadEnd ; ++localZ, ++globalZ)
+                        for (idx_t localZ = 0, globalZ = boundsZ.loadBegin ; globalZ < boundsZ.loadEnd ; ++localZ, ++globalZ)
                         {
-                            for (std::int32_t localY = 0, globalY = boundsY.loadBegin ; globalY < boundsY.loadEnd ; ++localY, ++globalY)
+                            for (idx_t localY = 0, globalY = boundsY.loadBegin ; globalY < boundsY.loadEnd ; ++localY, ++globalY)
                             {
-                                for (std::int32_t localX = 0, globalX = boundsX.loadBegin ; globalX < boundsX.loadEnd ; ++localX, ++globalX)
+                                for (idx_t localX = 0, globalX = boundsX.loadBegin ; globalX < boundsX.loadEnd ; ++localX, ++globalX)
                                 {
-                                    const std::int32_t domainIndex = globalX + config.domainDim.x * (globalY + config.domainDim.y * globalZ);
-                                    const std::int32_t tileIndex = localX + tileDim.x * (localY + tileDim.y * localZ);
+                                    const idx_t domainIndex = globalX + config.domainDim.x * (globalY + config.domainDim.y * globalZ);
+                                    const idx_t tileIndex = localX + tileDim.x * (localY + tileDim.y * localZ);
                                     if (
                                         boundsZ.storeBegin <= globalZ and globalZ < boundsZ.storeEnd and
                                         boundsY.storeBegin <= globalY and globalY < boundsY.storeEnd and
@@ -197,7 +208,8 @@ namespace culbm::simulator::single_dev::strategy
                 }
             }
 
-            error::check(cudaMemcpy(flags.get(), tileFlags.data(), sizeof(flag_t) * tileCount * tileSize, cudaMemcpyHostToDevice));
+            ::cuda::copy_bytes(state.stream, ::cuda::std::span{tileFlags.data(), tileFlags.size()}, flags);
+            state.stream.sync();
             std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
             auto globalSize = config.domainSize();
             if constexpr (Buffer == BlockingGlobalBuffer::Ring)
@@ -206,7 +218,6 @@ namespace culbm::simulator::single_dev::strategy
                 globalSize = static_cast<std::size_t>(config.domainDim.x) * config.domainDim.y * (config.domainDim.z + ringOffsetStep);
             }
             detail::initDDF(state, kernels.equilibrium, globalSize, Buffer == BlockingGlobalBuffer::Double, src, dst);
-            tile = basic::cuda::allocate<ddf_t>(static_cast<std::size_t>(config.q) * config.tileSize());
             if (config.disablePersistentL2)
             {
                 std::println("Persisting L2 configuration skipped.");
@@ -214,40 +225,39 @@ namespace culbm::simulator::single_dev::strategy
             else
             {
                 auto numBytes = static_cast<std::size_t>(config.q) * config.tileSize() * sizeof(ddf_t);
-                cudaDeviceProp prop;
-                error::check(cudaGetDeviceProperties(&prop, config.deviceId));
-                if (numBytes > prop.persistingL2CacheMaxSize) {
+                const auto maxSize = state.device.attribute(::cuda::device_attributes::max_persisting_l2_cache_size);
+                if (numBytes > maxSize) {
                     std::println(
                         "Warning: Requested persisting L2 cache size {} exceeds the maximum allowed size {}. Capping to maximum.",
-                        numBytes, prop.persistingL2CacheMaxSize
+                        numBytes, maxSize
                     );
-                    numBytes = prop.persistingL2CacheMaxSize;
+                    numBytes = maxSize;
                 }
                 error::check(cudaDeviceSetLimit(cudaLimit::cudaLimitPersistingL2CacheSize, numBytes));
                 cudaStreamAttrValue streamAttr;
-                streamAttr.accessPolicyWindow.base_ptr = tile.get();
+                streamAttr.accessPolicyWindow.base_ptr = tile.data();
                 streamAttr.accessPolicyWindow.num_bytes = numBytes;
                 streamAttr.accessPolicyWindow.hitRatio = 1.0;
                 streamAttr.accessPolicyWindow.hitProp = cudaAccessProperty::cudaAccessPropertyPersisting;
                 streamAttr.accessPolicyWindow.missProp = cudaAccessProperty::cudaAccessPropertyStreaming;
-                error::check(cudaStreamSetAttribute(state.stream, cudaLaunchAttributeID::cudaStreamAttributeAccessPolicyWindow, &streamAttr));
+                error::check(cudaStreamSetAttribute(state.stream.get(), cudaLaunchAttributeID::cudaStreamAttributeAccessPolicyWindow, &streamAttr));
             }
             param = BlockingParam{
                 .invTau = config.invTau,
                 .glbnx = static_cast<idx_t>(config.domainDim.x),
                 .glbny = static_cast<idx_t>(config.domainDim.y),
                 .glbnz = static_cast<idx_t>(config.domainDim.z),
-                .rhoBuf = state.rhoBuf.get(),
-                .vxBuf = state.vxBuf.get(),
-                .vyBuf = state.vyBuf.get(),
-                .vzBuf = state.vzBuf.get(),
-                .glbSrcDDFBuf = src.get(),
-                .glbDstDDFBuf = dst.get(),
-                .tileDDFBuf = tile.get()
+                .rhoBuf = state.rhoBuf.data(),
+                .vxBuf = state.vxBuf.data(),
+                .vyBuf = state.vyBuf.data(),
+                .vzBuf = state.vzBuf.data(),
+                .glbSrcDDFBuf = src.data(),
+                .glbDstDDFBuf = dst.data(),
+                .tileDDFBuf = tile.data()
             };
             if constexpr (Buffer == BlockingGlobalBuffer::Ring)
             {
-                param.glbDstDDFBuf = src.get();
+                param.glbDstDDFBuf = src.data();
                 param.glbDstDDFOffz = config.domainDim.z;
                 param.glbDDFRingNz = param.glbDstDDFOffz + ringOffsetStep;
             }
@@ -256,13 +266,13 @@ namespace culbm::simulator::single_dev::strategy
         ~Blocking()
         {
             cudaStreamAttrValue attr{};
-            cudaStreamSetAttribute(state.stream, cudaStreamAttributeAccessPolicyWindow, &attr);
+            cudaStreamSetAttribute(state.stream.get(), cudaStreamAttributeAccessPolicyWindow, &attr);
         }
 
         std::uint32_t advance()
         {
             const auto& config = state.config;
-            void* args[] = {&param};
+            const auto launch = ::cuda::make_config(::cuda::grid_dims(config.gridDim), ::cuda::block_dims(config.blockDim));
             std::uint32_t step = 0;
             for (; step < config.stepsPerBatch; step += config.innerLoop)
             {
@@ -293,7 +303,7 @@ namespace culbm::simulator::single_dev::strategy
                             if (loop % 2 == 0) kernel = kernels.lastEven;
                             else               kernel = kernels.lastOdd;
                         }
-                        error::check(cudaLaunchKernel(kernel, config.gridDim, config.blockDim, args, 0, state.stream));
+                        ::cuda::launch(state.stream, launch, kernel, param);
                     }
                 }
                 if constexpr (Buffer == BlockingGlobalBuffer::Ring)
@@ -311,11 +321,11 @@ namespace culbm::simulator::single_dev::strategy
         void dump()
         {
             const auto& config = state.config;
-            void* args[] = {&param};
+            const auto launch = ::cuda::make_config(::cuda::grid_dims(config.gridDim), ::cuda::block_dims(config.blockDim));
             for (std::uint32_t index = 0; index < tileCount; ++index)
             {
                 setTile(index, coordinates(index));
-                error::check(cudaLaunchKernel(kernels.dump, config.gridDim, config.blockDim, args, 0, state.stream));
+                ::cuda::launch(state.stream, launch, kernels.dump, param);
             }
         }
 
@@ -344,7 +354,7 @@ namespace culbm::simulator::single_dev::strategy
             param.offx = tileBounds<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x).loadBegin;
             param.offy = tileBounds<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y).loadBegin;
             param.offz = tileBounds<idx_t>(tile.z, tileDim.z, tileCounts.z, config.innerLoop, config.domainDim.z).loadBegin;
-            param.flagBuf = flags.get() + index * tileDim.x * tileDim.y * tileDim.z;
+            param.flagBuf = flags.data() + index * tileDim.x * tileDim.y * tileDim.z;
         }
 
     };
