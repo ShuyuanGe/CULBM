@@ -1,32 +1,15 @@
 #include <chrono>
 #include <format>
 #include <print>
+#include <syncstream>
 #include "logger.hpp"
 
 namespace culbm::basic
 {
     void Logger::log(Level lvl, std::string msg, const std::source_location& loc)
     {
-        auto getTimeRepr = []() -> std::string
-        {
-            using namespace std::chrono;
-
-            auto now    = system_clock::now();
-            auto t      = system_clock::to_time_t(now);
-            auto ms     = duration_cast<milliseconds>(now.time_since_epoch()) % 1000;
-
-            std::tm local_tm;
-            localtime_r(&t, &local_tm);
-
-            return
-                std::format(
-                    "{:02}:{:02}:{:02}.{:03}", 
-                    local_tm.tm_hour, 
-                    local_tm.tm_min, 
-                    local_tm.tm_sec, 
-                    ms.count()
-                );
-        };
+        const auto time = std::chrono::zoned_time{std::chrono::current_zone(),
+            std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now())};
 
         auto getLogLevelRepr = [lvl]() -> std::string_view
         {
@@ -40,9 +23,10 @@ namespace culbm::basic
             return "UNKNOWN";
         };
 
-        std::println(output,
-            "[{}] [{}] [{}] [{}:{}] message: {}",
-            getTimeRepr(),
+        std::osyncstream out(output);
+        std::println(out,
+            "[{:%H:%M:%S}] [{}] [{}] [{}:{}] message: {}",
+            time,
             name,
             getLogLevelRepr(),
             loc.file_name(), 
