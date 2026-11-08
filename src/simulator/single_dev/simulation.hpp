@@ -44,6 +44,4 @@ namespace culbm::simulator::single_dev
 
         explicit SimulationState(const SimulationConfig& config);
     };
-
-    void simulate(const SimulationConfig& config);
 }
