@@ -232,17 +232,14 @@ namespace culbm::simulator::multi_dev
             param.dstDDFBuf[dir * n + idx] = fin[dir];
         }
     }
-    template <int NDir, Kind Kind>
-    Kernels kernels()
-    {
-        return {
-            .init = &InitKernel<NDir, Kind>,
-            .step = &StepKernel<NDir, Kind>
-        };
-    }
 
     Kernels makeKernels(int q, std::string_view kind)
     {
-        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return kernels<NDir, Kind>(); });
+        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> {
+            return Kernels{
+                .init = &InitKernel<NDir, Kind>,
+                .step = &StepKernel<NDir, Kind>
+            };
+        });
     }
 }

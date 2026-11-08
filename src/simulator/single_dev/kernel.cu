@@ -91,31 +91,6 @@ namespace culbm::simulator::single_dev
         if (flag & DUMP_VZ_BIT)  param.vzBuf[pos.glbi] = vz;
     }
 
-    template <int NDir, Kind Kind>
-    PlainPullKernels plainPullKernels()
-    {
-        using Pull = Access<accessor::PullTwoFields, mapping::GlobalView>;
-        return {
-            .equilibrium = &Method<Kind, NDir>::equilibrium,
-            .step = &StreamCollideKernel<NDir, Kind, PlainParam, Pull, Pull, false, StoreScope::Flagged>,
-            .dump = &DumpKernel<NDir, PlainParam, Pull>
-        };
-    }
-
-    template <int NDir, Kind Kind>
-    PlainEsoKernels plainEsoKernels()
-    {
-        using Even = Access<accessor::EsoTwistEven, mapping::GlobalView>;
-        using Odd  = Access<accessor::EsoTwistOdd, mapping::GlobalView>;
-        return {
-            .equilibrium = &Method<Kind, NDir>::equilibrium,
-            .stepEven = &StreamCollideKernel<NDir, Kind, PlainParam, Even, Even, false, StoreScope::Flagged>,
-            .stepOdd  = &StreamCollideKernel<NDir, Kind, PlainParam, Odd,  Odd,  false, StoreScope::Flagged>,
-            .dumpEven = &DumpKernel<NDir, PlainParam, Even>,
-            .dumpOdd  = &DumpKernel<NDir, PlainParam, Odd>
-        };
-    }
-
     template <int NDir, Kind Kind, typename GlobalView, bool CacheHints>
     BlockingKernels makeBlockingKernels()
     {
@@ -141,29 +116,42 @@ namespace culbm::simulator::single_dev
         else       return makeBlockingKernels<NDir, Kind, GlobalView, false>();
     }
 
-    template <int NDir, Kind Kind>
-    BlockingKernels blockingKernels(bool hints, BlockingGlobalBuffer buffer)
-    {
-        switch (buffer)
-        {
-            case BlockingGlobalBuffer::Double: return selectBlockingKernels<NDir, Kind, mapping::GlobalView>(hints);
-            case BlockingGlobalBuffer::Ring:   return selectBlockingKernels<NDir, Kind, mapping::RingView>(hints);
-        }
-        std::unreachable();
-    }
-
     PlainPullKernels PlainPullKernels::make(int q, std::string_view kind)
     {
-        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainPullKernels<NDir, Kind>(); });
+        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> {
+            using Pull = Access<accessor::PullTwoFields, mapping::GlobalView>;
+            return PlainPullKernels{
+                .equilibrium = &Method<Kind, NDir>::equilibrium,
+                .step = &StreamCollideKernel<NDir, Kind, PlainParam, Pull, Pull, false, StoreScope::Flagged>,
+                .dump = &DumpKernel<NDir, PlainParam, Pull>
+            };
+        });
     }
 
     PlainEsoKernels PlainEsoKernels::make(int q, std::string_view kind)
     {
-        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> { return plainEsoKernels<NDir, Kind>(); });
+        return culbm::core::method::dispatch(q, kind, []<int NDir, Kind Kind> {
+            using Even = Access<accessor::EsoTwistEven, mapping::GlobalView>;
+            using Odd  = Access<accessor::EsoTwistOdd, mapping::GlobalView>;
+            return PlainEsoKernels{
+                .equilibrium = &Method<Kind, NDir>::equilibrium,
+                .stepEven = &StreamCollideKernel<NDir, Kind, PlainParam, Even, Even, false, StoreScope::Flagged>,
+                .stepOdd  = &StreamCollideKernel<NDir, Kind, PlainParam, Odd,  Odd,  false, StoreScope::Flagged>,
+                .dumpEven = &DumpKernel<NDir, PlainParam, Even>,
+                .dumpOdd  = &DumpKernel<NDir, PlainParam, Odd>
+            };
+        });
     }
 
     BlockingKernels BlockingKernels::make(int q, std::string_view kind, BlockingGlobalBuffer buffer, bool hints)
     {
-        return culbm::core::method::dispatch(q, kind, [&]<int NDir, Kind Kind> { return blockingKernels<NDir, Kind>(hints, buffer); });
+        return culbm::core::method::dispatch(q, kind, [&]<int NDir, Kind Kind> {
+            switch (buffer)
+            {
+                case BlockingGlobalBuffer::Double: return selectBlockingKernels<NDir, Kind, mapping::GlobalView>(hints);
+                case BlockingGlobalBuffer::Ring:   return selectBlockingKernels<NDir, Kind, mapping::RingView>(hints);
+            }
+            std::unreachable();
+        });
     }
 }
