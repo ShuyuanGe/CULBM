@@ -2,6 +2,7 @@ add_subdirectory(third_party)
 add_subdirectory(util)
 add_subdirectory(gpu)
 add_subdirectory(core)
+add_subdirectory(physical)
 add_subdirectory(sim)
 
 add_executable(multi_dev_main multi_dev_main.cpp)

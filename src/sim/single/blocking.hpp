@@ -7,6 +7,7 @@
 #include <cuda/std/span>
 #include "core/blocking.hpp"
 #include "gpu/error.hpp"
+#include "physical/resource.hpp"
 #include "init.hpp"
 
 namespace culbm::sim::single::strategy
@@ -26,7 +27,7 @@ namespace culbm::sim::single::strategy
         Blocking(State& state) :
             state(state), kernels(BlockingKernels::make(state.config.q, state.config.collision, Buffer, state.config.cacheHint == 1)),
             flags(state.stream, state.pool.as_ref()),
-            tile(state.stream, state.pool.as_ref(),
+            tile(state.stream, ::cuda::mr::synchronous_resource_adapter{physical::Resource{state.device}},
                  static_cast<std::size_t>(state.config.q) * state.config.tileSize(), ::cuda::no_init),
             src(state.stream, state.pool.as_ref()), dst(state.stream, state.pool.as_ref()),
             tileDim(state.config.launchExtent()), tileCounts(state.config.tileCounts()),
