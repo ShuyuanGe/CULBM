@@ -25,13 +25,10 @@ namespace culbm::simulator::multi_dev::detail
                       + (DY < 0 ? nbrndy : DY > 0 ? nbrpdy : 0)
                       + (DZ < 0 ? nbrndz : DZ > 0 ? nbrpdz : 0);
 
-            idx_t zOff = DZ < 0 ? ndz : DZ > 0 ? pdz : 0;
-            // Preserve the previous inner-device reverse read for direction 22.
-            if constexpr (not CrossDevice && Reverse && Dir == 4 && DX == 0 && DY == 0 && DZ == 1)
-                zOff = ndz;
             const idx_t cell = idx
                 + (DX < 0 ? ndx : DX > 0 ? pdx : 0)
-                + (DY < 0 ? ndy : DY > 0 ? pdy : 0) + zOff;
+                + (DY < 0 ? ndy : DY > 0 ? pdy : 0)
+                + (DZ < 0 ? ndz : DZ > 0 ? pdz : 0);
             return src[peer] + static_cast<ddf_offset_t>(Dir) * n + cell;
         }
 
