@@ -27,7 +27,7 @@ namespace culbm::sim::single::strategy
             const auto domainFlags = detail::loadFlags(config);
             if (mode == Mode::Twist and
                 std::ranges::any_of(domainFlags, [](flag_t f) { return not (f & STORE_DDF_BIT); }))
-                throw std::invalid_argument("--ddfBuffer esotwist requires STORE_DDF_BIT for every domain cell.");
+                throw std::invalid_argument("--ddf-buffer single requires STORE_DDF_BIT for every domain cell.");
             flags = ::cuda::device_buffer<flag_t>(state.stream, state.pool.as_ref(), domainFlags.size(), ::cuda::no_init);
             if (not config.initFolder.empty())
                 std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);

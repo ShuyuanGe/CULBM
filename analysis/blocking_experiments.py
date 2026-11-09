@@ -1,22 +1,26 @@
 import datetime as dt
+import itertools
 import pickle
 import re
 import subprocess
 from pathlib import Path
-import itertools
+
 from tqdm import tqdm
+
 
 def mul3(a: tuple[int, int, int], b: tuple[int, int, int]) -> tuple[int, int, int]:
     return (a[0] * b[0], a[1] * b[1], a[2] * b[2])
 
+
 work_dir = Path(__file__).parent.parent.resolve()
 print(f"Working directory: {work_dir}")
 
-BINARY = work_dir / "build/src/single_dev_main"
+BINARY = work_dir / "build/bin/culbm-single"
 BLOCK_DIM = (32, 16, 2)
 GRID_DIM = (8, 16, 114)
-STREAM_POLICY = 1
-OPT_POLICY = 3
+STREAM_POLICY = "esotwist"
+OPT_POLICY = "blocking"
+DDF_BUFFER = "double"
 INNER_LOOPS = range(1, 16)
 
 DSTEP = 100
@@ -32,7 +36,9 @@ BLOCK_COUNTS = [
 ]
 print(f"Total block count configurations: {len(BLOCK_COUNTS)}")
 
-OUTPUT = Path(__file__).with_name(f"blocking_experiment_results_s{STREAM_POLICY}o{OPT_POLICY}.pkl")
+OUTPUT = Path(__file__).with_name(
+    f"blocking_experiment_results_{STREAM_POLICY}_{OPT_POLICY}_{DDF_BUFFER}.pkl"
+)
 
 
 TB_BLOCK_SHAPE = mul3(BLOCK_DIM, GRID_DIM)
@@ -43,16 +49,28 @@ SPEED_RE = re.compile(r"speed = ([0-9]+(?:\.[0-9]+)?) \(MLUPS\)")
 def fmt_triplet(values: tuple[int, int, int]) -> str:
     return f"[{values[0]},{values[1]},{values[2]}]"
 
+
 BASE_ARGS = [
-    "--blockDim", fmt_triplet(BLOCK_DIM),
-    "--gridDim", fmt_triplet(GRID_DIM),
-    "--streamPolicy", str(STREAM_POLICY),
-    "--dstep", str(DSTEP),
-    "--nstep", str(NSTEP),
-    "--optPolicy", str(OPT_POLICY),
+    "--block",
+    fmt_triplet(BLOCK_DIM),
+    "--grid",
+    fmt_triplet(GRID_DIM),
+    "--stream-policy",
+    STREAM_POLICY,
+    "--batch-steps",
+    str(DSTEP),
+    "--steps",
+    str(NSTEP),
+    "--opt-policy",
+    OPT_POLICY,
+    "--ddf-buffer",
+    DDF_BUFFER,
 ]
 
-def get_domain_dim(M: tuple[int, int, int], B: tuple[int, int, int], I: int) -> tuple[int, int, int]:
+
+def get_domain_dim(
+    M: tuple[int, int, int], B: tuple[int, int, int], I: int
+) -> tuple[int, int, int]:
     shrink = I - 1
 
     def dimension(m: int, b: int) -> int:
@@ -96,23 +114,40 @@ completed_configs = tested_configs & all_configs
 remaining_configs = all_configs - tested_configs
 
 try:
-    with tqdm(total=len(all_configs), initial=len(completed_configs), desc="Running experiments", unit="config") as pbar:
+    with tqdm(
+        total=len(all_configs),
+        initial=len(completed_configs),
+        desc="Running experiments",
+        unit="config",
+    ) as pbar:
         for block_count in BLOCK_COUNTS:
             for inner_loop in INNER_LOOPS:
                 if (block_count, inner_loop) in tested_configs:
                     continue
 
-                domain_dim = get_domain_dim(M=block_count, B=TB_BLOCK_SHAPE, I=inner_loop)
+                domain_dim = get_domain_dim(
+                    M=block_count, B=TB_BLOCK_SHAPE, I=inner_loop
+                )
                 cmd = [
                     str(BINARY),
                     *BASE_ARGS,
-                    "--innerLoop", str(inner_loop),
-                    "--domainDim", fmt_triplet(domain_dim),
+                    "--inner-steps",
+                    str(inner_loop),
+                    "--domain",
+                    fmt_triplet(domain_dim),
                 ]
 
                 pbar.set_postfix({"block": str(block_count), "inner_loop": inner_loop})
-                completed = subprocess.run(cmd, text=True, capture_output=True, cwd=BINARY.parent.parent)
-                speeds = [float(v) for v in SPEED_RE.findall(completed.stdout)][1:] # skip the first step
+                completed = subprocess.run(
+                    cmd,
+                    check=False,
+                    text=True,
+                    capture_output=True,
+                    cwd=BINARY.parent.parent,
+                )
+                speeds = [float(v) for v in SPEED_RE.findall(completed.stdout)][
+                    1:
+                ]  # skip the first step
 
                 record = {
                     "inner_loop": inner_loop,
@@ -137,6 +172,7 @@ try:
                     "tb_block_shape": TB_BLOCK_SHAPE,
                     "stream_policy": STREAM_POLICY,
                     "opt_policy": OPT_POLICY,
+                    "ddf_buffer": DDF_BUFFER,
                     "dstep": DSTEP,
                     "nstep": NSTEP,
                 }
@@ -149,5 +185,3 @@ except KeyboardInterrupt:
 finally:
     save_results(payload)
     print(f"Stored {len(records)} records to {OUTPUT}")
-
-

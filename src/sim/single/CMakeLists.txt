@@ -12,3 +12,6 @@ target_compile_options(
 )
 
 set_target_properties(sim_single PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
+
+add_executable(culbm-single main.cpp)
+target_link_libraries(culbm-single PRIVATE culbm::sim_single)

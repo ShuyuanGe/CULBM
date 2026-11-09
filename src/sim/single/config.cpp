@@ -1,9 +1,7 @@
-#include <array>
-#include <cstdlib>
 #include <print>
 #include <stdexcept>
 #include <utility>
-#include "CLI11.hpp"
+#include "sim/cli.hpp"
 #include "core/blocking.hpp"
 #include "config.hpp"
 
@@ -13,14 +11,8 @@ namespace culbm::sim::single
     {
         struct Options
         {
-            enum class StreamPolicy { PullStream, InplaceStream };
-            enum class OptPolicy { Plain, OverlappedBlocking = 3 };
-            enum class BufferOption { Double, Ring, EsoTwist };
-
             Config config;
-            StreamPolicy stream = StreamPolicy::PullStream;
-            OptPolicy opt = OptPolicy::Plain;
-            BufferOption buffer = BufferOption::Double;
+            std::string stream, opt, buffer;
 
             Options(int argc, char** argv);
             void validate() const;
@@ -30,72 +22,58 @@ namespace culbm::sim::single
         Options::Options(int argc, char** argv)
         {
             CLI::App app {"Single Device Fluid Solver"};
-            using DimValues = std::array<decltype(dim3::x), 3>;
-            const auto addDimOption = [&](const char* name, dim3& dim, DimValues defaultValue, const char* description) {
-                return app.add_option_function<DimValues>(name, [&dim](const auto& values) {
-                    dim = {values[0], values[1], values[2]};
-                }, description)->run_callback_for_default()->default_val(defaultValue);
-            };
-            app.add_option("--devId", config.deviceId, "Device index of the GPU")
+            app.add_option("--device", config.deviceId, "Device index of the GPU")
                 ->default_val(0);
 
-            app.add_option("--dstep", config.stepsPerBatch, "Delta time steps of the simulation.")
+            app.add_option("--batch-steps", config.stepsPerBatch, "Delta time steps of the simulation.")
                 ->default_val(100);
 
-            app.add_option("--nstep", config.targetStep, "Total time steps of the simulation.")
+            app.add_option("--steps", config.targetStep, "Total time steps of the simulation.")
                 ->default_val(1000);
 
-            app.add_option("--invTau", config.invTau, "Reciprocal of Tau.")
+            app.add_option("--inv-tau", config.invTau, "Reciprocal of Tau.")
                 ->default_val(0.5);
 
-            addDimOption("--blockDim", config.blockDim, {32, 16, 2}, "Dimension of blocks per grid.");
+            cli::addDimOption(app, "--block", config.blockDim, {32, 16, 2}, "Dimension of blocks per grid.");
 
-            auto* gridOption = addDimOption("--gridDim", config.gridDim, {2, 3, 19}, "Dimension of grids per kernel.");
+            auto* gridOption = cli::addDimOption(app, "--grid", config.gridDim, {2, 3, 19}, "Dimension of grids per kernel.");
 
-            addDimOption("--domainDim", config.globalDim, {256, 256, 256}, "Dimension of the domain.");
+            cli::addDimOption(app, "--domain", config.globalDim, {256, 256, 256}, "Dimension of the global simulation domain.");
 
-            app.add_option("--streamPolicy", stream, "The stream policy of the solver. {[0]:PullStream, [1]:InplaceStream}.")
-                ->default_val(StreamPolicy::PullStream)->check(CLI::IsMember({0, 1}));
+            app.add_option("--stream-policy", stream, "Streaming strategy for the computation buffer: pull or esotwist.")
+                ->default_val("pull")->check(CLI::IsMember({"pull", "esotwist"}));
 
-            app.add_option("--optPolicy", opt, "Optimization: 0 = plain, 3 = overlapped blocking.")
-                ->default_val(OptPolicy::Plain)->check(CLI::IsMember({0, 3}));
+            app.add_option("--opt-policy", opt, "Computation organization: plain or blocking.")
+                ->default_val("plain")->check(CLI::IsMember({"plain", "blocking"}));
 
-            app.add_option("--cacheHint", config.cacheHint, "Cache hints for in-place L2 kernels: 0 = normal, 1 = hinted.")
+            app.add_option("--cache-hint", config.cacheHint, "Cache hints for in-place L2 kernels: 0 = normal, 1 = hinted.")
                 ->default_val(1)->check(CLI::Range(0, 1));
             app.add_flag("--no-persistent-l2", config.disablePersistentL2, "Do not configure the persisting L2 limit or access-policy window.");
 
-            app.add_option("--velSet", config.q, "Velocity set: 15, 19, or 27.")
+            app.add_option("--q", config.q, "Velocity set: 15, 19, or 27.")
                 ->default_val(27)->check(CLI::IsMember({15, 19, 27}));
             app.add_option("--collision", config.collision, "Collision operator: bgk, mrt, or cumulant.")
                 ->default_val("bgk")->check(CLI::IsMember({"bgk", "mrt", "cumulant"}));
 
-            app.add_option("--initStateFolder", config.initFolder, "The folder contains initial state of the simulation.");
+            app.add_option("--init", config.initFolder, "The folder contains initial state of the simulation.");
 
-            app.add_option("--dumpFolder", config.dumpFolder, "The folder contains final output.")
+            app.add_option("--output", config.dumpFolder, "The folder contains final output.")
                 ->default_val("data/left_inlet_right_outlet_256_256_256_output");
 
-            app.add_flag("--dumpRho", config.dumpRho, "Enable dump the density every `dstep` time steps in the simulation.");
-            app.add_flag("--dumpVx", config.dumpVx, "Enable dumping the x-axis velocity every `dstep` time steps in the simulation.");
-            app.add_flag("--dumpVy", config.dumpVy, "Enable dumping the y-axis velocity every `dstep` time steps in the simulation.");
-            app.add_flag("--dumpVz", config.dumpVz, "Enable dumping the z-axis velocity every `dstep` time steps in the simulation.");
-            app.add_option("--ddfBuffer", buffer, "DDF buffer mode: double, ring, or esotwist.")
-                ->transform(CLI::CheckedTransformer({{"double", "0"}, {"ring", "1"}, {"esotwist", "2"}}))
-                ->default_val(BufferOption::Double);
+            app.add_flag("--dump-rho", config.dumpRho, "Enable dump the density every `--batch-steps` time steps in the simulation.");
+            app.add_flag("--dump-vx", config.dumpVx, "Enable dumping the x-axis velocity every `--batch-steps` time steps in the simulation.");
+            app.add_flag("--dump-vy", config.dumpVy, "Enable dumping the y-axis velocity every `--batch-steps` time steps in the simulation.");
+            app.add_flag("--dump-vz", config.dumpVz, "Enable dumping the z-axis velocity every `--batch-steps` time steps in the simulation.");
+            app.add_option("--ddf-buffer", buffer, "Global DDF storage: single, double, or ring.")
+                ->default_val("double")->check(CLI::IsMember({"single", "double", "ring"}));
             app.add_flag("--interior-tiles-only", config.interiorTilesOnly, "Run only tiles that are non-boundary along all three axes.");
 
-            app.add_option("--innerLoop", config.innerLoop, "# of iterations in halo-blocking.")
+            app.add_option("--inner-steps", config.innerLoop, "# of iterations in halo-blocking.")
                 ->default_val(5);
 
-            try
-            {
-                app.parse(argc, argv);
-            }
-            catch (const CLI::ParseError& e)
-            {
-                std::exit(app.exit(e));
-            }
+            cli::parse(app, argc, argv);
 
-            if (opt == OptPolicy::Plain and gridOption->count() == 0 and
+            if (opt == "plain" and gridOption->count() == 0 and
                config.globalDim.x % config.blockDim.x == 0 and config.globalDim.y % config.blockDim.y == 0 and config.globalDim.z % config.blockDim.z == 0)
             {
                 config.gridDim = {config.globalDim.x / config.blockDim.x, config.globalDim.y / config.blockDim.y, config.globalDim.z / config.blockDim.z};
@@ -104,23 +82,9 @@ namespace culbm::sim::single
 
         void Options::validate() const
         {
-            if ((opt == OptPolicy::Plain and stream != StreamPolicy::PullStream) or
-               (opt == OptPolicy::OverlappedBlocking and stream != StreamPolicy::InplaceStream))
+            if (config.interiorTilesOnly and opt != "blocking")
             {
-                throw std::invalid_argument("Supported combinations are --streamPolicy 0 --optPolicy 0 and --streamPolicy 1 --optPolicy 3.");
-            }
-
-            if (buffer == BufferOption::Ring and (stream != StreamPolicy::InplaceStream or opt != OptPolicy::OverlappedBlocking))
-            {
-                throw std::runtime_error("--ddfBuffer ring requires --streamPolicy 1 --optPolicy 3.");
-            }
-
-            if (buffer == BufferOption::EsoTwist and opt != OptPolicy::Plain)
-                throw std::runtime_error("--ddfBuffer esotwist requires plain CUDA.");
-
-            if (config.interiorTilesOnly and (stream != StreamPolicy::InplaceStream or opt != OptPolicy::OverlappedBlocking))
-            {
-                throw std::runtime_error("--interior-tiles-only requires --streamPolicy 1 --optPolicy 3.");
+                throw std::runtime_error("--interior-tiles-only requires --opt-policy blocking.");
             }
 
             if (config.interiorTilesOnly)
@@ -140,18 +104,26 @@ namespace culbm::sim::single
 
         Mode Options::mode() const
         {
-            // validate() has already ruled out unsupported combinations.
-            if (opt == OptPolicy::Plain)
-                return buffer == BufferOption::Double ? Mode::Pull : Mode::Twist;
-            return buffer == BufferOption::Double ? Mode::BlockDouble : Mode::BlockRing;
+            if (stream == "pull" and opt == "plain" and buffer == "double")
+                return Mode::Pull;
+            if (stream == "esotwist" and opt == "plain" and buffer == "single")
+                return Mode::Twist;
+            if (stream == "esotwist" and opt == "blocking")
+            {
+                if (buffer == "double") return Mode::BlockDouble;
+                if (buffer == "ring") return Mode::BlockRing;
+            }
+            throw std::invalid_argument("Supported <stream-policy, opt-policy, ddf-buffer> combinations: "
+                                        "<pull, plain, double>, <esotwist, plain, single>, "
+                                        "<esotwist, blocking, double>, <esotwist, blocking, ring>.");
         }
     }
 
     Config Config::parse(int argc, char** argv)
     {
         Options options(argc, argv);
-        options.validate();
         options.config.mode = options.mode();
+        options.validate();
         return std::move(options.config);
     }
 
