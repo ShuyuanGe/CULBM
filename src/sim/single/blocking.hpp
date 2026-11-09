@@ -181,7 +181,10 @@ namespace culbm::sim::single::strategy
 
             ::cuda::copy_bytes(state.stream, ::cuda::std::span{tileFlags.data(), tileFlags.size()}, flags);
             state.stream.sync();
-            std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
+            if (not config.initFolder.empty())
+                std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
+            else
+                std::println("Init flag successfully, using default flags.");
         }
 
         void configureCache()

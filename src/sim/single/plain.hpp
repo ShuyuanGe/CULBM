@@ -31,6 +31,8 @@ namespace culbm::sim::single::strategy
             flags = ::cuda::device_buffer<flag_t>(state.stream, state.pool.as_ref(), domainFlags.size(), ::cuda::no_init);
             if (not config.initFolder.empty())
                 std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
+            else
+                std::println("Init flag successfully, using default flags.");
             ::cuda::copy_bytes(state.stream, ::cuda::std::span{domainFlags.data(), domainFlags.size()}, flags);
             state.stream.sync();
             detail::initDdf(state, kernels.equilibrium, config.globalSize(), mode == Mode::Pull, src, dst);
