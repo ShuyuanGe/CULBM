@@ -10,7 +10,7 @@ namespace culbm::sim::single
 {
     struct BlockingParam
     {
-        static constexpr bool dumpCorrectOnly = true;
+        static constexpr bool dumpOwnedOnly = true;
         real_t invTau = 0;
         idx_t originX = 0, originY = 0, originZ = 0;
         idx_t globalNx = 0, globalNy = 0, globalNz = 0;
@@ -29,7 +29,7 @@ namespace culbm::sim::single
 
     struct PlainParam
     {
-        static constexpr bool dumpCorrectOnly = false;
+        static constexpr bool dumpOwnedOnly = false;
         real_t invTau = 0;
         const flag_t* flagBuf = nullptr;
         real_t* rhoBuf = nullptr;

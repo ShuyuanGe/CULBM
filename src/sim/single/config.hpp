@@ -23,7 +23,7 @@ namespace culbm::sim::single
         bool interiorTilesOnly = false;
         int cacheHint = 1;
         bool disablePersistentL2 = false;
-        std::int32_t innerLoop = 0;
+        std::int32_t innerSteps = 0;
 
         static Config parse(int argc, char** argv);
 

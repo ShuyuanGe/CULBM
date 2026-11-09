@@ -22,7 +22,7 @@ namespace culbm::sim::single::strategy
         BlockingParam param;
         dim3 tileDim, tileCounts;
         std::uint32_t tileCount;
-        idx_t ringOffsetStep;
+        idx_t ringShiftZ;
 
     public:
         Blocking(State& state) :
@@ -33,15 +33,15 @@ namespace culbm::sim::single::strategy
             src(state.stream, state.pool.as_ref()), dst(state.stream, state.pool.as_ref()),
             tileDim(state.config.launchDim()), tileCounts(state.config.tileCounts()),
             tileCount(tileCounts.x * tileCounts.y * tileCounts.z),
-            ringOffsetStep(tileDim.z + 1)
+            ringShiftZ(tileDim.z + 1)
         {
             const auto& config = state.config;
             initFlags();
             auto globalSize = config.globalSize();
             if constexpr (Buffer == Mode::BlockRing)
             {
-                assert(tileDim.z >= config.innerLoop);
-                globalSize = static_cast<std::size_t>(config.globalDim.x) * config.globalDim.y * (config.globalDim.z + ringOffsetStep);
+                assert(tileDim.z >= config.innerSteps);
+                globalSize = static_cast<std::size_t>(config.globalDim.x) * config.globalDim.y * (config.globalDim.z + ringShiftZ);
             }
             detail::initDdf(state, kernels.equilibrium, globalSize, Buffer == Mode::BlockDouble, src, dst);
             configureCache();
@@ -62,7 +62,7 @@ namespace culbm::sim::single::strategy
             {
                 param.dstDdf = src.data();
                 param.dstZOffset = config.globalDim.z;
-                param.ringNz = param.dstZOffset + ringOffsetStep;
+                param.ringNz = param.dstZOffset + ringShiftZ;
             }
         }
 
@@ -77,7 +77,7 @@ namespace culbm::sim::single::strategy
             const auto& config = state.config;
             const auto launch = ::cuda::make_config(::cuda::grid_dims(config.gridDim), ::cuda::block_dims(config.blockDim));
             std::uint32_t step = 0;
-            for (; step < config.stepsPerBatch; step += config.innerLoop)
+            for (; step < config.stepsPerBatch; step += config.innerSteps)
             {
                 for (std::uint32_t index = 0; index < tileCount; ++index)
                 {
@@ -88,22 +88,22 @@ namespace culbm::sim::single::strategy
                          tile.z == 0 or tile.z == tileCounts.z - 1))
                         continue;
                     setTile(index, tile);
-                    for (std::int32_t loop = 0; loop < config.innerLoop; ++loop)
+                    for (std::int32_t innerStep = 0; innerStep < config.innerSteps; ++innerStep)
                     {
                         BlockingKernel kernel;
-                        if (loop == 0)
+                        if (innerStep == 0)
                         {
-                            if (config.innerLoop == 1) kernel = kernels.single;
+                            if (config.innerSteps == 1) kernel = kernels.single;
                             else                       kernel = kernels.first;
                         }
-                        else if (loop < config.innerLoop - 1)
+                        else if (innerStep < config.innerSteps - 1)
                         {
-                            if (loop % 2 == 0) kernel = kernels.middleEven;
+                            if (innerStep % 2 == 0) kernel = kernels.middleEven;
                             else               kernel = kernels.middleOdd;
                         }
                         else
                         {
-                            if (loop % 2 == 0) kernel = kernels.lastEven;
+                            if (innerStep % 2 == 0) kernel = kernels.lastEven;
                             else               kernel = kernels.lastOdd;
                         }
                         ::cuda::launch(state.stream, launch, kernel, param);
@@ -112,7 +112,7 @@ namespace culbm::sim::single::strategy
                 if constexpr (Buffer == Mode::BlockRing)
                 {
                     param.srcZOffset = param.dstZOffset;
-                    param.dstZOffset -= ringOffsetStep;
+                    param.dstZOffset -= ringShiftZ;
                     if (param.dstZOffset < 0) param.dstZOffset += param.ringNz;
                 }
                 else if constexpr (Buffer == Mode::BlockDouble)
@@ -137,9 +137,9 @@ namespace culbm::sim::single::strategy
             const auto& config = state.config;
             if (config.interiorTilesOnly)
                 return static_cast<std::size_t>(tileCounts.x - 2) * (tileCounts.y - 2) * (tileCounts.z - 2) *
-                    (tileDim.x - 2 * (config.innerLoop - 1)) *
-                    (tileDim.y - 2 * (config.innerLoop - 1)) *
-                    (tileDim.z - 2 * (config.innerLoop - 1));
+                    (tileDim.x - 2 * (config.innerSteps - 1)) *
+                    (tileDim.y - 2 * (config.innerSteps - 1)) *
+                    (tileDim.z - 2 * (config.innerSteps - 1));
             return config.globalSize();
         }
 
@@ -155,13 +155,13 @@ namespace culbm::sim::single::strategy
             idx_t tileBase = 0;
             for (idx_t tileZ = 0 ; tileZ < tileCounts.z ; ++tileZ)
             {
-                const auto boundsZ = culbm::core::blocking::tileBounds<idx_t>(tileZ, tileDim.z, tileCounts.z, config.innerLoop, config.globalDim.z);
+                const auto boundsZ = culbm::core::blocking::tileBounds<idx_t>(tileZ, tileDim.z, tileCounts.z, config.innerSteps, config.globalDim.z);
                 for (idx_t tileY = 0 ; tileY < tileCounts.y ; ++tileY)
                 {
-                    const auto boundsY = culbm::core::blocking::tileBounds<idx_t>(tileY, tileDim.y, tileCounts.y, config.innerLoop, config.globalDim.y);
+                    const auto boundsY = culbm::core::blocking::tileBounds<idx_t>(tileY, tileDim.y, tileCounts.y, config.innerSteps, config.globalDim.y);
                     for (idx_t tileX = 0 ; tileX < tileCounts.x ; ++tileX)
                     {
-                        const auto boundsX = culbm::core::blocking::tileBounds<idx_t>(tileX, tileDim.x, tileCounts.x, config.innerLoop, config.globalDim.x);
+                        const auto boundsX = culbm::core::blocking::tileBounds<idx_t>(tileX, tileDim.x, tileCounts.x, config.innerSteps, config.globalDim.x);
 
                         for (idx_t localZ = 0, globalZ = boundsZ.loadBegin ; globalZ < boundsZ.loadEnd ; ++localZ, ++globalZ)
                         {
@@ -175,7 +175,7 @@ namespace culbm::sim::single::strategy
                                         boundsZ.storeBegin <= globalZ and globalZ < boundsZ.storeEnd and
                                         boundsY.storeBegin <= globalY and globalY < boundsY.storeEnd and
                                         boundsX.storeBegin <= globalX and globalX < boundsX.storeEnd;
-                                    tileFlags[tileBase + tileIndex] = domainFlags[domainIndex] | (owned ? CORRECT_BIT : 0);
+                                    tileFlags[tileBase + tileIndex] = domainFlags[domainIndex] | (owned ? OWNED_BIT : 0);
                                 }
                             }
                         }
@@ -230,9 +230,9 @@ namespace culbm::sim::single::strategy
         {
             const auto& config = state.config;
             using culbm::core::blocking::tileBounds;
-            param.originX = tileBounds<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerLoop, config.globalDim.x).loadBegin;
-            param.originY = tileBounds<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerLoop, config.globalDim.y).loadBegin;
-            param.originZ = tileBounds<idx_t>(tile.z, tileDim.z, tileCounts.z, config.innerLoop, config.globalDim.z).loadBegin;
+            param.originX = tileBounds<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerSteps, config.globalDim.x).loadBegin;
+            param.originY = tileBounds<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerSteps, config.globalDim.y).loadBegin;
+            param.originZ = tileBounds<idx_t>(tile.z, tileDim.z, tileCounts.z, config.innerSteps, config.globalDim.z).loadBegin;
             param.flagBuf = flags.data() + index * tileDim.x * tileDim.y * tileDim.z;
         }
 

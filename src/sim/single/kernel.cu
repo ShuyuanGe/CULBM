@@ -33,7 +33,7 @@ namespace culbm::sim::single
         using View = ViewType;
     };
 
-    enum class StoreScope { Flagged, Correct };
+    enum class StoreScope { Flagged, Owned };
 
     template <int NDir, Kind Kind, typename Param, typename Read, typename Write, bool CacheHints, StoreScope Scope>
     __global__ void StreamCollideKernel(const Param param)
@@ -68,8 +68,8 @@ namespace culbm::sim::single
         {
             if constexpr (Scope == StoreScope::Flagged)
                 ddf::store<NDir, typename Write::Accessor, WriteIO>(f, Write::View::make(param, pos));
-            else if constexpr (Scope == StoreScope::Correct)
-                if (flag & CORRECT_BIT)
+            else if constexpr (Scope == StoreScope::Owned)
+                if (flag & OWNED_BIT)
                     ddf::store<NDir, typename Write::Accessor, WriteIO>(f, Write::View::make(param, pos));
         }
     }
@@ -79,8 +79,8 @@ namespace culbm::sim::single
     {
         const auto pos = mapping::makePosition(param);
         const auto flag = param.flagBuf[pos.localIndex];
-        if constexpr (Param::dumpCorrectOnly)
-            if (not (flag & CORRECT_BIT)) return;
+        if constexpr (Param::dumpOwnedOnly)
+            if (not (flag & OWNED_BIT)) return;
 
         ddf_t f[NDir];
         const auto view = Read::View::make(param, pos);
@@ -134,8 +134,8 @@ namespace culbm::sim::single
                     .first      = &StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, TileOdd,    CacheHints, StoreScope::Flagged>,
                     .middleEven = &StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    TileOdd,    CacheHints, StoreScope::Flagged>,
                     .middleOdd  = &StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   TileEven,   CacheHints, StoreScope::Flagged>,
-                    .lastEven   = &StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    GlobalPull, CacheHints, StoreScope::Correct>,
-                    .lastOdd    = &StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   GlobalPull, CacheHints, StoreScope::Correct>,
+                    .lastEven   = &StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    GlobalPull, CacheHints, StoreScope::Owned>,
+                    .lastOdd    = &StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   GlobalPull, CacheHints, StoreScope::Owned>,
                     .dump       = &DumpKernel<NDir, BlockingParam, GlobalPull>
                 };
             };

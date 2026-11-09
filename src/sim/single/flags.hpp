@@ -16,5 +16,5 @@ namespace culbm::sim::single
     constexpr flag_t DUMP_VX_BIT     = 1u << 28;
     constexpr flag_t DUMP_VY_BIT     = 1u << 29;
     constexpr flag_t DUMP_VZ_BIT     = 1u << 30;
-    constexpr flag_t CORRECT_BIT     = 1u << 31;
+    constexpr flag_t OWNED_BIT       = 1u << 31;
 }

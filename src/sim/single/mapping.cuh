@@ -82,7 +82,7 @@ namespace culbm::sim::single::mapping
     {
         static constexpr ViewSpace space = ViewSpace::Global;
         GlobalView global;
-        idx_t nz, srcZOffset, dstZOffset;
+        idx_t ringNz, srcZOffset, dstZOffset;
 
         static constexpr RingView make(const BlockingParam& param, const Position& pos)
         {
@@ -90,7 +90,7 @@ namespace culbm::sim::single::mapping
         }
 
         template <int Dir, int DX, int DY, int DZ>
-        constexpr ddf_offset_t offset(idx_t originZ) const
+        constexpr ddf_offset_t offset(idx_t zOffset) const
         {
             const auto nx = global.pos.globalNx;
             const idx_t nxy = nx * global.pos.globalNy;
@@ -98,9 +98,9 @@ namespace culbm::sim::single::mapping
                 + clampedOffset<DX>(global.pos.globalX, nx, 1)
                 + clampedOffset<DY>(global.pos.globalY, global.pos.globalNy, nx);
             const idx_t z = global.pos.globalZ + clampedOffset<DZ>(global.pos.globalZ, global.pos.globalNz, 1);
-            idx_t ringZ = z + originZ;
-            if (ringZ >= nz) ringZ -= nz;
-            return static_cast<ddf_offset_t>(Dir) * nxy * nz
+            idx_t ringZ = z + zOffset;
+            if (ringZ >= ringNz) ringZ -= ringNz;
+            return static_cast<ddf_offset_t>(Dir) * nxy * ringNz
                 + static_cast<ddf_offset_t>(ringZ) * nxy + xy;
         }
 

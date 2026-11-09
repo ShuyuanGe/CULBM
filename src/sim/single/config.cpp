@@ -68,7 +68,7 @@ namespace culbm::sim::single
                 ->default_val("double")->check(CLI::IsMember({"single", "double", "ring"}));
             app.add_flag("--interior-tiles-only", config.interiorTilesOnly, "Run only tiles that are non-boundary along all three axes.");
 
-            app.add_option("--inner-steps", config.innerLoop, "# of iterations in halo-blocking.")
+            app.add_option("--inner-steps", config.innerSteps, "# of iterations in halo-blocking.")
                 ->default_val(5);
 
             cli::parse(app, argc, argv);
@@ -148,17 +148,17 @@ namespace culbm::sim::single
         using namespace culbm::core::blocking;
         const auto dim = launchDim();
         const bool valid =
-            validAxis<std::uint32_t>(globalDim.x, dim.x, innerLoop) and
-            validAxis<std::uint32_t>(globalDim.y, dim.y, innerLoop) and
-            validAxis<std::uint32_t>(globalDim.z, dim.z, innerLoop);
+            validAxis<std::uint32_t>(globalDim.x, dim.x, innerSteps) and
+            validAxis<std::uint32_t>(globalDim.y, dim.y, innerSteps) and
+            validAxis<std::uint32_t>(globalDim.z, dim.z, innerSteps);
         if (not valid)
         {
             throw std::invalid_argument("<Domain Dimension, Blocking Dimension and InnerLoop> don't match!");
         }
         return {
-            tileCount<std::uint32_t>(globalDim.x, dim.x, innerLoop),
-            tileCount<std::uint32_t>(globalDim.y, dim.y, innerLoop),
-            tileCount<std::uint32_t>(globalDim.z, dim.z, innerLoop)
+            tileCount<std::uint32_t>(globalDim.x, dim.x, innerSteps),
+            tileCount<std::uint32_t>(globalDim.y, dim.y, innerSteps),
+            tileCount<std::uint32_t>(globalDim.z, dim.z, innerSteps)
         };
     }
 }
