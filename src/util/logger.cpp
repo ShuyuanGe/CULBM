@@ -6,7 +6,7 @@
 
 namespace culbm::util
 {
-    void Logger::log(Level lvl, std::string msg, const std::source_location& loc)
+    void Logger::log(Level lvl, std::string_view msg, const std::source_location& loc)
     {
         const auto time = std::chrono::zoned_time{std::chrono::current_zone(),
             std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now())};
