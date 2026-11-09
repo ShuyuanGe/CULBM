@@ -4,10 +4,12 @@
 
 namespace culbm::sim::single
 {
-    struct Simulator
+    class Simulator
     {
         Config config;
-        Simulator(int argc, char** argv);
+
+    public:
+        explicit Simulator(Config config);
         Simulator(const Simulator&) = delete;
         Simulator& operator=(const Simulator&) = delete;
         void run();

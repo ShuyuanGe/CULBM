@@ -1,18 +1,18 @@
 #pragma once
 
 #include <memory>
-#include "util/workers.hpp"
 
 namespace culbm::sim::multi
 {
+    struct Config;
+
     class Simulator
     {
-        struct State;
-        std::unique_ptr<State> state;
-        util::Workers workers;
+        struct Impl;
+        std::unique_ptr<Impl> impl;
 
     public:
-        Simulator(int argc, char** argv);
+        explicit Simulator(Config config);
         void run();
         ~Simulator();
     };

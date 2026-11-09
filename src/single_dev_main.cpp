@@ -7,7 +7,7 @@ int main(int argc, char** argv)
 {
     try
     {
-        culbm::sim::single::Simulator simulator(argc, argv);
+        culbm::sim::single::Simulator simulator(culbm::sim::single::Config::parse(argc, argv));
         simulator.run();
     }
     catch (const std::exception& e)

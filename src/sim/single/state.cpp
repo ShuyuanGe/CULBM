@@ -1,4 +1,6 @@
 #include <format>
+#include <memory>
+#include <tuple>
 #include <fstream>
 #include <cuda/algorithm>
 #include <cuda/devices>
@@ -9,6 +11,7 @@
 #include "gpu/error.hpp"
 #include "gpu/fill.hpp"
 #include "state.hpp"
+#include "sim/output.hpp"
 
 namespace culbm::sim::single
 {
@@ -16,13 +19,13 @@ namespace culbm::sim::single
     State::State(const Config& config) :
         config(config), device(::cuda::devices[config.deviceId]), stream(device), pool(device),
         startEvent(device), endEvent(device),
-        rhoBuf(stream, pool.as_ref(), config.domainSize(), ::cuda::no_init),
-        vxBuf(stream, pool.as_ref(), config.domainSize(), ::cuda::no_init),
-        vyBuf(stream, pool.as_ref(), config.domainSize(), ::cuda::no_init),
-        vzBuf(stream, pool.as_ref(), config.domainSize(), ::cuda::no_init)
+        rhoBuf(stream, pool.as_ref(), config.globalSize(), ::cuda::no_init),
+        vxBuf(stream, pool.as_ref(), config.globalSize(), ::cuda::no_init),
+        vyBuf(stream, pool.as_ref(), config.globalSize(), ::cuda::no_init),
+        vzBuf(stream, pool.as_ref(), config.globalSize(), ::cuda::no_init)
     {
         gpu::check(cudaSetDevice(config.deviceId));
-        const std::size_t size = config.domainSize();
+        const std::size_t size = config.globalSize();
 
         auto initField = [this, &config, size](std::string_view name, real_t defaultValue, real_t* deviceBuf)
         {
@@ -46,6 +49,27 @@ namespace culbm::sim::single
         initField("vx" , 0, vxBuf.data());
         initField("vy" , 0, vyBuf.data());
         initField("vz" , 0, vzBuf.data());
+    }
+
+    void State::write() const
+    {
+        const auto folder = std::filesystem::path{config.dumpFolder};
+        std::filesystem::create_directories(folder);
+
+        const auto size = config.globalSize();
+        std::unique_ptr<real_t[]> hostBuf;
+        for (const auto& [enabled, prefix, devicePtr] : {
+            std::tuple{config.dumpRho, "rho", rhoBuf.data()},
+            std::tuple{config.dumpVx,  "vx",  vxBuf.data()},
+            std::tuple{config.dumpVy,  "vy",  vyBuf.data()},
+            std::tuple{config.dumpVz,  "vz",  vzBuf.data()}
+        })
+        {
+            if (not enabled) continue;
+            if (not hostBuf) hostBuf = std::make_unique_for_overwrite<real_t[]>(size);
+            const auto path = folder / std::format("{}_{}.dat", prefix, step);
+            writeField(stream, devicePtr, {hostBuf.get(), size}, path);
+        }
     }
 
 }

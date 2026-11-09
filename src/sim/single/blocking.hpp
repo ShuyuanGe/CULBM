@@ -13,7 +13,7 @@
 namespace culbm::sim::single::strategy
 {
     template <Mode Buffer>
-    struct Blocking
+    class Blocking
     {
         State& state;
         BlockingKernels kernels;
@@ -24,31 +24,32 @@ namespace culbm::sim::single::strategy
         std::uint32_t tileCount;
         idx_t ringOffsetStep;
 
+    public:
         Blocking(State& state) :
             state(state), kernels(BlockingKernels::make(state.config.q, state.config.collision, Buffer, state.config.cacheHint == 1)),
             flags(state.stream, state.pool.as_ref()),
             tile(state.stream, ::cuda::mr::synchronous_resource_adapter{physical::Resource{state.device}},
                  static_cast<std::size_t>(state.config.q) * state.config.tileSize(), ::cuda::no_init),
             src(state.stream, state.pool.as_ref()), dst(state.stream, state.pool.as_ref()),
-            tileDim(state.config.launchExtent()), tileCounts(state.config.tileCounts()),
+            tileDim(state.config.launchDim()), tileCounts(state.config.tileCounts()),
             tileCount(tileCounts.x * tileCounts.y * tileCounts.z),
             ringOffsetStep(tileDim.z + 1)
         {
             const auto& config = state.config;
             initFlags();
-            auto globalSize = config.domainSize();
+            auto globalSize = config.globalSize();
             if constexpr (Buffer == Mode::BlockRing)
             {
                 assert(tileDim.z >= config.innerLoop);
-                globalSize = static_cast<std::size_t>(config.domainDim.x) * config.domainDim.y * (config.domainDim.z + ringOffsetStep);
+                globalSize = static_cast<std::size_t>(config.globalDim.x) * config.globalDim.y * (config.globalDim.z + ringOffsetStep);
             }
             detail::initDdf(state, kernels.equilibrium, globalSize, Buffer == Mode::BlockDouble, src, dst);
             configureCache();
             param = BlockingParam{
                 .invTau = config.invTau,
-                .globalNx = static_cast<idx_t>(config.domainDim.x),
-                .globalNy = static_cast<idx_t>(config.domainDim.y),
-                .globalNz = static_cast<idx_t>(config.domainDim.z),
+                .globalNx = static_cast<idx_t>(config.globalDim.x),
+                .globalNy = static_cast<idx_t>(config.globalDim.y),
+                .globalNz = static_cast<idx_t>(config.globalDim.z),
                 .rhoBuf = state.rhoBuf.data(),
                 .vxBuf = state.vxBuf.data(),
                 .vyBuf = state.vyBuf.data(),
@@ -60,7 +61,7 @@ namespace culbm::sim::single::strategy
             if constexpr (Buffer == Mode::BlockRing)
             {
                 param.dstDdf = src.data();
-                param.dstZOffset = config.domainDim.z;
+                param.dstZOffset = config.globalDim.z;
                 param.ringNz = param.dstZOffset + ringOffsetStep;
             }
         }
@@ -139,7 +140,7 @@ namespace culbm::sim::single::strategy
                     (tileDim.x - 2 * (config.innerLoop - 1)) *
                     (tileDim.y - 2 * (config.innerLoop - 1)) *
                     (tileDim.z - 2 * (config.innerLoop - 1));
-            return config.domainSize();
+            return config.globalSize();
         }
 
     private:
@@ -154,13 +155,13 @@ namespace culbm::sim::single::strategy
             idx_t tileBase = 0;
             for (idx_t tileZ = 0 ; tileZ < tileCounts.z ; ++tileZ)
             {
-                const auto boundsZ = culbm::core::blocking::tileBounds<idx_t>(tileZ, tileDim.z, tileCounts.z, config.innerLoop, config.domainDim.z);
+                const auto boundsZ = culbm::core::blocking::tileBounds<idx_t>(tileZ, tileDim.z, tileCounts.z, config.innerLoop, config.globalDim.z);
                 for (idx_t tileY = 0 ; tileY < tileCounts.y ; ++tileY)
                 {
-                    const auto boundsY = culbm::core::blocking::tileBounds<idx_t>(tileY, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y);
+                    const auto boundsY = culbm::core::blocking::tileBounds<idx_t>(tileY, tileDim.y, tileCounts.y, config.innerLoop, config.globalDim.y);
                     for (idx_t tileX = 0 ; tileX < tileCounts.x ; ++tileX)
                     {
-                        const auto boundsX = culbm::core::blocking::tileBounds<idx_t>(tileX, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x);
+                        const auto boundsX = culbm::core::blocking::tileBounds<idx_t>(tileX, tileDim.x, tileCounts.x, config.innerLoop, config.globalDim.x);
 
                         for (idx_t localZ = 0, globalZ = boundsZ.loadBegin ; globalZ < boundsZ.loadEnd ; ++localZ, ++globalZ)
                         {
@@ -168,7 +169,7 @@ namespace culbm::sim::single::strategy
                             {
                                 for (idx_t localX = 0, globalX = boundsX.loadBegin ; globalX < boundsX.loadEnd ; ++localX, ++globalX)
                                 {
-                                    const idx_t domainIndex = globalX + config.domainDim.x * (globalY + config.domainDim.y * globalZ);
+                                    const idx_t domainIndex = globalX + config.globalDim.x * (globalY + config.globalDim.y * globalZ);
                                     const idx_t tileIndex = localX + tileDim.x * (localY + tileDim.y * localZ);
                                     const bool owned =
                                         boundsZ.storeBegin <= globalZ and globalZ < boundsZ.storeEnd and
@@ -229,9 +230,9 @@ namespace culbm::sim::single::strategy
         {
             const auto& config = state.config;
             using culbm::core::blocking::tileBounds;
-            param.originX = tileBounds<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerLoop, config.domainDim.x).loadBegin;
-            param.originY = tileBounds<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerLoop, config.domainDim.y).loadBegin;
-            param.originZ = tileBounds<idx_t>(tile.z, tileDim.z, tileCounts.z, config.innerLoop, config.domainDim.z).loadBegin;
+            param.originX = tileBounds<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerLoop, config.globalDim.x).loadBegin;
+            param.originY = tileBounds<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerLoop, config.globalDim.y).loadBegin;
+            param.originZ = tileBounds<idx_t>(tile.z, tileDim.z, tileCounts.z, config.innerLoop, config.globalDim.z).loadBegin;
             param.flagBuf = flags.data() + index * tileDim.x * tileDim.y * tileDim.z;
         }
 

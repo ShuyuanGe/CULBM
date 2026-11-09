@@ -9,7 +9,7 @@
 namespace culbm::sim::single::strategy
 {
     template <typename Kernels>
-    struct Plain
+    class Plain
     {
         State& state;
         Kernels kernels;
@@ -17,6 +17,7 @@ namespace culbm::sim::single::strategy
         ::cuda::device_buffer<ddf_t> src, dst;
         PlainParam param;
 
+    public:
         Plain(State& state) :
             state(state), kernels(Kernels::make(state.config.q, state.config.collision)),
             flags(state.stream, state.pool.as_ref()), src(state.stream, state.pool.as_ref()), dst(state.stream, state.pool.as_ref())
@@ -32,7 +33,7 @@ namespace culbm::sim::single::strategy
                 std::println("Init flag successfully, from file: {}/flag.dat.", config.initFolder);
             ::cuda::copy_bytes(state.stream, ::cuda::std::span{domainFlags.data(), domainFlags.size()}, flags);
             state.stream.sync();
-            detail::initDdf(state, kernels.equilibrium, config.domainSize(), mode == Mode::Pull, src, dst);
+            detail::initDdf(state, kernels.equilibrium, config.globalSize(), mode == Mode::Pull, src, dst);
             param = PlainParam{
                 .invTau = config.invTau,
                 .flagBuf = flags.data(),
@@ -44,9 +45,9 @@ namespace culbm::sim::single::strategy
                 .dstDdf = dst.data()
             };
             if (mode == Mode::Twist) param.dstDdf = src.data();
-            const auto launchExtent = config.launchExtent();
-            const auto domainDim = config.domainDim;
-            if (launchExtent.x != domainDim.x or launchExtent.y != domainDim.y or launchExtent.z != domainDim.z)
+            const auto launchDim = config.launchDim();
+            const auto globalDim = config.globalDim;
+            if (launchDim.x != globalDim.x or launchDim.y != globalDim.y or launchDim.z != globalDim.z)
                 throw std::runtime_error("Dimension of domain doesn't match computation grid!");
         }
 
@@ -85,7 +86,7 @@ namespace culbm::sim::single::strategy
 
         std::size_t cellsPerStep() const
         {
-            return state.config.domainSize();
+            return state.config.globalSize();
         }
     };
 }

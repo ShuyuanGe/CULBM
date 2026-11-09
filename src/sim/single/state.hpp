@@ -19,5 +19,6 @@ namespace culbm::sim::single
         ::cuda::device_buffer<real_t> rhoBuf, vxBuf, vyBuf, vzBuf;
 
         explicit State(const Config& config);
+        void write() const;
     };
 }

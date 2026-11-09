@@ -55,7 +55,7 @@ namespace culbm::sim::multi
         return devDim.x * devDim.y * devDim.z;
     }
 
-    dim3 Config::domainDim() const noexcept
+    dim3 Config::localDim() const noexcept
     {
         return
         {
@@ -65,22 +65,10 @@ namespace culbm::sim::multi
         };
     }
 
-    std::size_t Config::domainSize() const noexcept
+    std::size_t Config::localSize() const noexcept
     {
-        const auto domainDim = this->domainDim();
+        const auto domainDim = this->localDim();
         return static_cast<std::size_t>(domainDim.x) * domainDim.y * domainDim.z;
-    }
-
-    void Config::log() const
-    {
-        auto domainDim = this->domainDim();
-        std::println(
-            "InvTau: {}\nTotal Time Step: {}\nDevice Dimension: [{},{},{}]\nSingle Device Domain Dimension: [{},{},{}]\nAll Device Domain Dimension: [{},{},{}]\n",
-            invTau, targetStep,
-            devDim.x, devDim.y, devDim.z,
-            domainDim.x, domainDim.y, domainDim.z,
-            devDim.x * domainDim.x, devDim.y * domainDim.y, devDim.z * domainDim.z
-        );
     }
 
     uint3 Config::coordinates(std::uint32_t index) const noexcept

@@ -52,7 +52,7 @@ namespace culbm::sim::single
 
             auto* gridOption = addDimOption("--gridDim", config.gridDim, {2, 3, 19}, "Dimension of grids per kernel.");
 
-            addDimOption("--domainDim", config.domainDim, {256, 256, 256}, "Dimension of the domain.");
+            addDimOption("--domainDim", config.globalDim, {256, 256, 256}, "Dimension of the domain.");
 
             app.add_option("--streamPolicy", stream, "The stream policy of the solver. {[0]:PullStream, [1]:InplaceStream}.")
                 ->default_val(StreamPolicy::PullStream)->check(CLI::IsMember({0, 1}));
@@ -96,9 +96,9 @@ namespace culbm::sim::single
             }
 
             if (opt == OptPolicy::Plain and gridOption->count() == 0 and
-               config.domainDim.x % config.blockDim.x == 0 and config.domainDim.y % config.blockDim.y == 0 and config.domainDim.z % config.blockDim.z == 0)
+               config.globalDim.x % config.blockDim.x == 0 and config.globalDim.y % config.blockDim.y == 0 and config.globalDim.z % config.blockDim.z == 0)
             {
-                config.gridDim = {config.domainDim.x / config.blockDim.x, config.domainDim.y / config.blockDim.y, config.domainDim.z / config.blockDim.z};
+                config.gridDim = {config.globalDim.x / config.blockDim.x, config.globalDim.y / config.blockDim.y, config.globalDim.z / config.blockDim.z};
             }
         }
 
@@ -155,38 +155,38 @@ namespace culbm::sim::single
         return std::move(options.config);
     }
 
-    std::size_t Config::domainSize() const noexcept
+    std::size_t Config::globalSize() const noexcept
     {
-        return static_cast<std::size_t>(domainDim.x) * domainDim.y * domainDim.z;
+        return static_cast<std::size_t>(globalDim.x) * globalDim.y * globalDim.z;
     }
 
-    dim3 Config::launchExtent() const noexcept
+    dim3 Config::launchDim() const noexcept
     {
         return {gridDim.x * blockDim.x, gridDim.y * blockDim.y, gridDim.z * blockDim.z};
     }
 
     std::uint32_t Config::tileSize() const noexcept
     {
-        const auto dim = launchExtent();
+        const auto dim = launchDim();
         return dim.x * dim.y * dim.z;
     }
 
     dim3 Config::tileCounts() const
     {
         using namespace culbm::core::blocking;
-        const auto dim = launchExtent();
+        const auto dim = launchDim();
         const bool valid =
-            validAxis<std::uint32_t>(domainDim.x, dim.x, innerLoop) and
-            validAxis<std::uint32_t>(domainDim.y, dim.y, innerLoop) and
-            validAxis<std::uint32_t>(domainDim.z, dim.z, innerLoop);
+            validAxis<std::uint32_t>(globalDim.x, dim.x, innerLoop) and
+            validAxis<std::uint32_t>(globalDim.y, dim.y, innerLoop) and
+            validAxis<std::uint32_t>(globalDim.z, dim.z, innerLoop);
         if (not valid)
         {
             throw std::invalid_argument("<Domain Dimension, Blocking Dimension and InnerLoop> don't match!");
         }
         return {
-            tileCount<std::uint32_t>(domainDim.x, dim.x, innerLoop),
-            tileCount<std::uint32_t>(domainDim.y, dim.y, innerLoop),
-            tileCount<std::uint32_t>(domainDim.z, dim.z, innerLoop)
+            tileCount<std::uint32_t>(globalDim.x, dim.x, innerLoop),
+            tileCount<std::uint32_t>(globalDim.y, dim.y, innerLoop),
+            tileCount<std::uint32_t>(globalDim.z, dim.z, innerLoop)
         };
     }
 }

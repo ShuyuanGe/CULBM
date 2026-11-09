@@ -16,7 +16,7 @@ namespace culbm::sim::single::strategy
     {
         inline std::vector<flag_t> loadFlags(const Config& config)
         {
-            std::vector<flag_t> flag(config.domainSize());
+            std::vector<flag_t> flag(config.globalSize());
             if (config.initFolder.empty())
             {
                 std::ranges::fill(flag, LOAD_DDF_BIT | COLLIDE_BIT | STORE_DDF_BIT | DUMP_RHO_BIT | DUMP_VX_BIT | DUMP_VY_BIT | DUMP_VZ_BIT);

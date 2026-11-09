@@ -23,7 +23,7 @@ namespace culbm::sim::multi
     struct InitKernelParam
     {
         dim3 devDim{};
-        uint3 devIdx{};
+        uint3 devPos{};
         flag_t *flagBuf = nullptr;
         real_t *rhoBuf  = nullptr;
         real_t *vxBuf   = nullptr;
@@ -33,7 +33,10 @@ namespace culbm::sim::multi
         ddf_t  *dstDdf = nullptr;
     };
 
-    struct Kernels { void (*init)(InitKernelParam); void (*step)(KernelParam); };
-
-    Kernels makeKernels(int q, std::string_view kind);
+    struct Kernels
+    {
+        static Kernels make(int q, std::string_view kind);
+        void (*init)(InitKernelParam);
+        void (*step)(KernelParam);
+    };
 }

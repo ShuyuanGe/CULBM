@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <cuda/std/utility>
 #include <type_traits>
-#include <utility>
 
 namespace culbm::sim::single
 {
@@ -27,7 +26,7 @@ namespace culbm::sim::single
         std::ranges::copy(f, dst);
     }
 
-    template <typename AccessorType, typename ViewType>
+    template <typename AccessorType, ddf::View ViewType>
     struct Access
     {
         using Accessor = AccessorType;
@@ -125,7 +124,7 @@ namespace culbm::sim::single
     BlockingKernels BlockingKernels::make(int q, std::string_view kind, Mode buffer, bool hints)
     {
         return culbm::core::collision::dispatch(q, kind, [&]<int NDir, Kind Kind> {
-            const auto make = [&]<typename View, bool CacheHints> {
+            const auto make = [&]<ddf::View View, bool CacheHints> {
                 using GlobalPull = Access<accessor::PullTwoFields, View>;
                 using TileEven = Access<accessor::EsoTwistEven, mapping::TileView>;
                 using TileOdd  = Access<accessor::EsoTwistOdd,  mapping::TileView>;
@@ -140,7 +139,7 @@ namespace culbm::sim::single
                     .dump       = &DumpKernel<NDir, BlockingParam, GlobalPull>
                 };
             };
-            const auto select = [hints, &make]<typename View> {
+            const auto select = [hints, &make]<ddf::View View> {
                 if (hints) return make.template operator()<View, true>();
                 else       return make.template operator()<View, false>();
             };

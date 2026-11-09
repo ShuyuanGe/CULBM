@@ -1,9 +1,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <format>
-#include <fstream>
 #include <memory>
-#include <stdexcept>
 #include <utility>
 #include <cuda/algorithm>
 #include <cuda/devices>
@@ -13,20 +11,33 @@
 #include "core/stencil.hpp"
 #include "gpu/error.hpp"
 #include "state.hpp"
+#include "sim/output.hpp"
+#include <tuple>
 
 namespace culbm::sim::multi
 {
-    Simulator::State::State(Config config) :
-        config(std::move(config)), kernels(makeKernels(this->config.q, this->config.collision)),
+    State::Device::Device(int id, std::size_t size, int q) :
+        stream(::cuda::device_ref{id}), pool(::cuda::device_ref{id}),
+        startEvent(::cuda::device_ref{id}), endEvent(::cuda::device_ref{id}),
+        flagBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+        rhoBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+        vxBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+        vyBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+        vzBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+        ddf0(stream, pool.as_ref(), q * size, ::cuda::no_init),
+        ddf1(stream, pool.as_ref(), q * size, ::cuda::no_init) {}
+
+    State::State(Config config) :
+        config(std::move(config)), kernels(Kernels::make(this->config.q, this->config.collision)),
         devices(this->config.deviceCount()) {}
 
-    void Simulator::State::init(std::uint32_t devId, util::Logger& logger, std::barrier<>& barrier)
+    void State::init(std::uint32_t devId, util::Logger& logger, std::barrier<>& barrier)
     {
         gpu::check(cudaSetDevice(devId));
         const auto devDim = config.devDim;
         const auto position = config.coordinates(devId);
         const idx_t devIdxX = position.x, devIdxY = position.y, devIdxZ = position.z;
-        auto& device = devices[devId].emplace(devId, config.domainSize(), config.q);
+        auto& device = devices[devId].emplace(devId, config.localSize(), config.q);
         using PeerDirections = culbm::core::Stencil<27>;
         for (dir_t dir = 0 ; dir < 27 ; ++dir)
         {
@@ -56,9 +67,9 @@ namespace culbm::sim::multi
 
         InitKernelParam param;
         param.devDim = config.devDim;
-        param.devIdx.x = devIdxX;
-        param.devIdx.y = devIdxY;
-        param.devIdx.z = devIdxZ;
+        param.devPos.x = devIdxX;
+        param.devPos.y = devIdxY;
+        param.devPos.z = devIdxZ;
         param.flagBuf = device.flagBuf.data();
         param.rhoBuf  = device.rhoBuf.data();
         param.vxBuf   = device.vxBuf.data();
@@ -74,45 +85,34 @@ namespace culbm::sim::multi
         logger.info("Set device data successfully!");
     }
 
-    void Simulator::State::write(std::uint32_t devIdx, std::uint32_t stepBnd, uint3 position) const
+    void State::write(std::uint32_t devId, std::uint32_t endStep, uint3 position) const
     {
         if (not (config.dumpRho || config.dumpVx || config.dumpVy || config.dumpVz)) return;
 
         const auto dumpFolder = std::filesystem::path{config.dumpFolder};
         std::filesystem::create_directories(dumpFolder);
 
-        const auto size = config.domainSize();
+        const auto size = config.localSize();
         auto hostBuf = std::make_unique_for_overwrite<real_t[]>(size);
-        const auto& device = *devices[devIdx];
+        const auto& device = *devices[devId];
 
-        auto dumpField = [&](bool enabled, std::string_view prefix, const real_t* devicePtr)
+        for (const auto& [enabled, prefix, devicePtr] : {
+            std::tuple{config.dumpRho, "rho", device.rhoBuf.data()},
+            std::tuple{config.dumpVx,  "vx",  device.vxBuf.data()},
+            std::tuple{config.dumpVy,  "vy",  device.vyBuf.data()},
+            std::tuple{config.dumpVz,  "vz",  device.vzBuf.data()}
+        })
         {
-            if (not enabled) return;
-
-            const auto filePath = dumpFolder / std::format("{}_{}_dev_{}_{}_{}.dat", prefix, stepBnd, position.x, position.y, position.z);
-
-            if (std::ofstream f(filePath, std::ios::binary); f)
-            {
-                ::cuda::copy_bytes(device.stream, ::cuda::std::span{devicePtr, size}, ::cuda::std::span{hostBuf.get(), size});
-                device.stream.sync();
-                f.write(reinterpret_cast<const char*>(hostBuf.get()), size * sizeof(real_t));
-            }
-            else
-            {
-                throw std::runtime_error(std::format("Could not open the file: {}.\n", filePath.string()));
-            }
-        };
-
-        dumpField(config.dumpRho, "rho", device.rhoBuf.data());
-        dumpField(config.dumpVx,  "vx",  device.vxBuf.data());
-        dumpField(config.dumpVy,  "vy",  device.vyBuf.data());
-        dumpField(config.dumpVz,  "vz",  device.vzBuf.data());
+            if (not enabled) continue;
+            const auto path = dumpFolder / std::format("{}_{}_dev_{}_{}_{}.dat", prefix, endStep, position.x, position.y, position.z);
+            writeField(device.stream, devicePtr, {hostBuf.get(), size}, path);
+        }
     }
 
-    void Simulator::State::advance(std::uint32_t devIdx, std::uint32_t stepBnd, util::Logger& logger, std::barrier<>& barrier)
+    void State::advance(std::uint32_t devId, std::uint32_t endStep, util::Logger& logger, std::barrier<>& barrier)
     {
         const auto devDim = config.devDim;
-        auto& device = *devices[devIdx];
+        auto& device = *devices[devId];
         KernelParam evenParam{
             .invTau = config.invTau,
             .flagBuf = device.flagBuf.data(),
@@ -126,7 +126,7 @@ namespace culbm::sim::multi
         oddParam.dstDdf = device.ddf0.data();
         const auto launch = ::cuda::make_config(::cuda::grid_dims(config.gridDim), ::cuda::block_dims(config.blockDim));
 
-        const auto position = config.coordinates(devIdx);
+        const auto position = config.coordinates(devId);
         const idx_t devIdxX = position.x, devIdxY = position.y, devIdxZ = position.z;
 
         for (dir_t dir = 0 ; dir < 27 ; ++dir)
@@ -142,9 +142,9 @@ namespace culbm::sim::multi
 
         barrier.arrive_and_wait();
 
-        device.start.record(device.stream);
+        device.startEvent.record(device.stream);
 
-        for (std::uint32_t current = step ; current < stepBnd ; ++current)
+        for (std::uint32_t current = step ; current < endStep ; ++current)
         {
             ::cuda::launch(device.stream, launch, kernels.step, (current % 2) == 0 ? evenParam : oddParam);
             device.stream.sync();
@@ -152,16 +152,16 @@ namespace culbm::sim::multi
             barrier.arrive_and_wait();
         }
 
-        device.end.record(device.stream);
-        device.end.sync();
-        const float ms = (device.end - device.start).count() * 1e-6f;
-        const float mlups = ((config.domainSize()) * 1e-6f) / (ms / 1000) * (stepBnd - step);
+        device.endEvent.record(device.stream);
+        device.endEvent.sync();
+        const float ms = (device.endEvent - device.startEvent).count() * 1e-6f;
+        const float mlups = ((config.localSize()) * 1e-6f) / (ms / 1000) * (endStep - step);
         logger.info(std::format("speed: {:.4f} (MLUPS)", mlups));
 
-        write(devIdx, stepBnd, position);
+        write(devId, endStep, position);
     }
 
-    void Simulator::State::clear(std::uint32_t devId, util::Logger& logger)
+    void State::clear(std::uint32_t devId, util::Logger& logger)
     {
         gpu::check(cudaSetDevice(devId));
         auto& device = *devices[devId];

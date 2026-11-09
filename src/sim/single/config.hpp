@@ -14,7 +14,7 @@ namespace culbm::sim::single
         int deviceId = 0;
         std::uint32_t stepsPerBatch = 0, targetStep = 0;
         real_t invTau = 0;
-        dim3 blockDim{}, gridDim{}, domainDim{};
+        dim3 blockDim{}, gridDim{}, globalDim{};
         Mode mode = Mode::Pull;
         int q = 27;
         std::string collision = "bgk";
@@ -27,8 +27,8 @@ namespace culbm::sim::single
 
         static Config parse(int argc, char** argv);
 
-        std::size_t domainSize() const noexcept;
-        dim3 launchExtent() const noexcept;
+        std::size_t globalSize() const noexcept;
+        dim3 launchDim() const noexcept;
         std::uint32_t tileSize() const noexcept;
         dim3 tileCounts() const;
     };

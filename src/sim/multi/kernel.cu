@@ -127,9 +127,9 @@ namespace culbm::sim::multi
             constexpr int cz = obstacle.cz;
             constexpr int r = obstacle.r;
             constexpr int r2 = r * r;
-            const idx_t gx = param.devIdx.x * nx + x;
-            const idx_t gy = param.devIdx.y * ny + y;
-            const idx_t gz = param.devIdx.z * nz + z;
+            const idx_t gx = param.devPos.x * nx + x;
+            const idx_t gy = param.devPos.y * ny + y;
+            const idx_t gz = param.devPos.z * nz + z;
 
             if ((gx - cx) * (gx - cx) + (gy - cy) * (gy - cy) + (gz - cz) * (gz - cz) < r2) {
                 flag = BOUNCE_BACK_FLAG;
@@ -140,20 +140,20 @@ namespace culbm::sim::multi
         }
 
         if (
-            (param.devIdx.y == 0 and y == 0) or                        // front face
-            (param.devIdx.y == param.devDim.y - 1 and y == ny - 1) or  // back face
-            (param.devIdx.z == 0 and z == 0) or                        // down face
-            (param.devIdx.z == param.devDim.z - 1 and z == nz - 1)     // up face
+            (param.devPos.y == 0 and y == 0) or                        // front face
+            (param.devPos.y == param.devDim.y - 1 and y == ny - 1) or  // back face
+            (param.devPos.z == 0 and z == 0) or                        // down face
+            (param.devPos.z == param.devDim.z - 1 and z == nz - 1)     // up face
         )
         {
             flag = REV_LOAD_DDF_BIT | STORE_DDF_BIT;
         }
-        else if (param.devIdx.x == 0 and x == 0)
+        else if (param.devPos.x == 0 and x == 0)
         {
             flag = EQU_DDF_BIT | STORE_DDF_BIT;                // left face
             vx = 0.05;
         }
-        else if (param.devIdx.x == param.devDim.x - 1 and x == nx - 1)
+        else if (param.devPos.x == param.devDim.x - 1 and x == nx - 1)
         {
             flag = EQU_DDF_BIT | STORE_DDF_BIT;                // right face
         }
@@ -179,7 +179,7 @@ namespace culbm::sim::multi
         }
     }
 
-    Kernels makeKernels(int q, std::string_view kind)
+    Kernels Kernels::make(int q, std::string_view kind)
     {
         return culbm::core::collision::dispatch(q, kind, [&]<int NDir, Kind Kind> {
             return Kernels{
