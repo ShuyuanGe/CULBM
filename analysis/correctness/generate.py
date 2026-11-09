@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 
-SHAPE = (384, 384, 768)  # z, y, x
+SHAPE = (384, 384, 384)  # z, y, x
 CUBE = np.s_[128:256, 128:256, 128:256]
 
 LOAD = 1 << 0
