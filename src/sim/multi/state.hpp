@@ -27,13 +27,10 @@ namespace culbm::sim::multi
         };
 
         Config config;
-        Kernels kernels;
-        std::uint32_t step = 0;
         std::deque<std::optional<Device>> devices;
 
         explicit State(Config config);
-        void init(std::uint32_t id, util::Logger& logger, std::barrier<>& barrier);
-        void advance(std::uint32_t id, std::uint32_t endStep, util::Logger& logger, std::barrier<>& barrier);
+        void init(std::uint32_t id, void (*initKernel)(InitKernelParam), util::Logger& logger, std::barrier<>& barrier);
         void write(std::uint32_t id, std::uint32_t step, uint3 position) const;
         void clear(std::uint32_t id, util::Logger& logger);
     };

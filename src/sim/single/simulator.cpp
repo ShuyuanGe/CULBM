@@ -1,4 +1,5 @@
 #include <concepts>
+#include <cuda/std/chrono>
 #include <print>
 #include <utility>
 #include "state.hpp"
@@ -29,8 +30,8 @@ namespace culbm::sim::single
                 const auto steps = strategy.advance();
                 state.endEvent.record(state.stream);
                 state.endEvent.sync();
-                const float ms = (state.endEvent - state.startEvent).count() * 1e-6f;
-                const float mlups = strategy.cellsPerStep() * 1e-6f / (ms / 1000) * steps;
+                const float seconds = ::cuda::std::chrono::duration<float>{state.endEvent - state.startEvent}.count();
+                const float mlups = strategy.cellsPerStep() * 1e-6f / seconds * steps;
                 std::println("speed = {:.4f} (MLUPS)", mlups);
                 state.step += steps;
                 strategy.dump();
