@@ -58,7 +58,10 @@ namespace culbm::basic
     ThreadPool::~ThreadPool() noexcept
     {
         waitAll();
-        for (auto& worker : workers) worker.request_stop();
+        {
+            std::lock_guard lock(mutex);
+            for (auto& worker : workers) worker.request_stop();
+        }
         taskReady.notify_all();
         for (auto& worker : workers) worker.join();
     }
