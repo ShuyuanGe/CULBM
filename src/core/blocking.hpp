@@ -7,46 +7,46 @@
 namespace culbm::core::blocking
 {
     template <std::integral T>
-    constexpr bool validAxis(T domLen, T tileLen, T innerSteps)
+    constexpr bool valid_axis(T dom_len, T tile_len, T inner_steps)
     {
-        if (domLen <= tileLen) return true;
-        if (tileLen + 1 <= innerSteps) return false;
-        if (2 * (tileLen + 1 - innerSteps) < domLen and tileLen + 2 <= 2 * innerSteps) return false;
+        if (dom_len <= tile_len) return true;
+        if (tile_len + 1 <= inner_steps) return false;
+        if (2 * (tile_len + 1 - inner_steps) < dom_len and tile_len + 2 <= 2 * inner_steps) return false;
         return true;
     }
 
     template <std::integral T>
-    constexpr T tileCount(T domLen, T tileLen, T innerSteps)
+    constexpr T tile_count(T dom_len, T tile_len, T inner_steps)
     {
-        if (domLen <= tileLen)
+        if (dom_len <= tile_len)
             return 1;
-        if (domLen <= 2 * (tileLen + 1 - innerSteps))
+        if (dom_len <= 2 * (tile_len + 1 - inner_steps))
             return 2;
-        return 2 + ::cuda::ceil_div(domLen - 2 * (tileLen + 1 - innerSteps), tileLen + 2 - 2 * innerSteps);
+        return 2 + ::cuda::ceil_div(dom_len - 2 * (tile_len + 1 - inner_steps), tile_len + 2 - 2 * inner_steps);
     }
 
     template <std::integral T>
-    constexpr T boundary(T tileIdx, T tileLen, T tileCount, T innerSteps, T domLen)
+    constexpr T boundary(T tile_idx, T tile_len, T tile_count, T inner_steps, T dom_len)
     {
-        if (tileIdx == tileCount)
-            return domLen;
-        if (tileIdx == 0)
+        if (tile_idx == tile_count)
+            return dom_len;
+        if (tile_idx == 0)
             return 0;
-        return (tileLen + 1 - innerSteps) + (tileIdx - 1) * (tileLen + 2 - 2 * innerSteps);
+        return (tile_len + 1 - inner_steps) + (tile_idx - 1) * (tile_len + 2 - 2 * inner_steps);
     }
     template <std::signed_integral T>
     struct TileBounds
     {
-        T storeBegin, storeEnd, loadBegin, loadEnd;
+        T store_begin, store_end, load_begin, load_end;
     };
 
     template <std::signed_integral T>
-    constexpr TileBounds<T> tileBounds(T tileIdx, T tileLen, T tileCount, T innerSteps, T domLen)
+    constexpr TileBounds<T> tile_bounds(T tile_idx, T tile_len, T tile_count, T inner_steps, T dom_len)
     {
-        const T storeBegin = boundary(tileIdx, tileLen, tileCount, innerSteps, domLen);
-        const T storeEnd = boundary<T>(tileIdx + 1, tileLen, tileCount, innerSteps, domLen);
-        return {storeBegin, storeEnd,
-                std::max<T>(storeBegin - (innerSteps - 1), 0),
-                std::min<T>(storeEnd + (innerSteps - 1), domLen)};
+        const T store_begin = boundary(tile_idx, tile_len, tile_count, inner_steps, dom_len);
+        const T store_end = boundary<T>(tile_idx + 1, tile_len, tile_count, inner_steps, dom_len);
+        return {store_begin, store_end,
+                std::max<T>(store_begin - (inner_steps - 1), 0),
+                std::min<T>(store_end + (inner_steps - 1), dom_len)};
     }
 }

@@ -9,8 +9,8 @@ namespace culbm::sim::cli
 {
     using DimValues = std::array<decltype(dim3::x), 3>;
 
-    inline CLI::Option* addDimOption(CLI::App& app, const char* name, dim3& dim,
-                                     const char* description)
+    inline CLI::Option* add_dim_option(CLI::App& app, const char* name, dim3& dim,
+                                       const char* description)
     {
         return app.add_option_function<DimValues>(name, [&dim](const auto& values) {
             dim = {values[0], values[1], values[2]};

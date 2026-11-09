@@ -17,7 +17,7 @@ namespace culbm::sim::multi::mapping
               z(blockDim.z * blockIdx.z + threadIdx.z), idx(x + nx * (y + ny * z)) {}
     };
 
-    template <bool CrossDevice>
+    template <bool cross_device>
     struct DeviceView
     {
         ddf_t* const* src;
@@ -28,7 +28,7 @@ namespace culbm::sim::multi::mapping
         static constexpr DeviceView make(const KernelParam& param, const Position& pos)
         {
             DeviceView view{
-                param.srcDdf.data(), param.dstDdf, pos.idx, pos.n,
+                param.src_ddf.data(), param.dst_ddf, pos.idx, pos.n,
                 (pos.x == 0) ? pos.nx - 1 : -1,
                 (pos.x == pos.nx - 1) ? 1 - pos.nx : 1,
                 (pos.y == 0) ? pos.nx * (pos.ny - 1) : -pos.nx,
@@ -36,7 +36,7 @@ namespace culbm::sim::multi::mapping
                 (pos.z == 0) ? pos.nx * pos.ny * (pos.nz - 1) : -pos.nx * pos.ny,
                 (pos.z == pos.nz - 1) ? pos.nx * pos.ny * (1 - pos.nz) : pos.nx * pos.ny
             };
-            if constexpr (CrossDevice)
+            if constexpr (cross_device)
             {
                 view.nbrndx = (pos.x == 0) ? -1 : 0;
                 view.nbrpdx = (pos.x == pos.nx - 1) ? 1 : 0;
@@ -48,11 +48,11 @@ namespace culbm::sim::multi::mapping
             return view;
         }
 
-        template <int Dir, int DX, int DY, int DZ>
-        constexpr const ddf_t* readAddress() const
+        template <int dir, int DX, int DY, int DZ>
+        constexpr const ddf_t* read_address() const
         {
             nbr_t peer = 13;
-            if constexpr (CrossDevice)
+            if constexpr (cross_device)
                 peer += (DX < 0 ? nbrndx : DX > 0 ? nbrpdx : 0)
                       + (DY < 0 ? nbrndy : DY > 0 ? nbrpdy : 0)
                       + (DZ < 0 ? nbrndz : DZ > 0 ? nbrpdz : 0);
@@ -61,13 +61,13 @@ namespace culbm::sim::multi::mapping
                 + (DX < 0 ? ndx : DX > 0 ? pdx : 0)
                 + (DY < 0 ? ndy : DY > 0 ? pdy : 0)
                 + (DZ < 0 ? ndz : DZ > 0 ? pdz : 0);
-            return src[peer] + static_cast<ddf_offset_t>(Dir) * n + cell;
+            return src[peer] + static_cast<ddf_offset_t>(dir) * n + cell;
         }
 
-        template <int Dir, int DX, int DY, int DZ>
-        constexpr ddf_t* writeAddress() const
+        template <int dir, int DX, int DY, int DZ>
+        constexpr ddf_t* write_address() const
         {
-            return dst + (static_cast<ddf_offset_t>(Dir) * n + idx);
+            return dst + (static_cast<ddf_offset_t>(dir) * n + idx);
         }
     };
 }

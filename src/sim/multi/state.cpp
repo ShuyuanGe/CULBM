@@ -17,41 +17,41 @@ namespace culbm::sim::multi
 {
     State::Device::Device(int id, std::size_t size, int q) :
         stream(::cuda::device_ref{id}), pool(::cuda::device_ref{id}),
-        startEvent(::cuda::device_ref{id}), endEvent(::cuda::device_ref{id}),
-        flagBuf(stream, pool.as_ref(), size, ::cuda::no_init),
-        rhoBuf(stream, pool.as_ref(), size, ::cuda::no_init),
-        vxBuf(stream, pool.as_ref(), size, ::cuda::no_init),
-        vyBuf(stream, pool.as_ref(), size, ::cuda::no_init),
-        vzBuf(stream, pool.as_ref(), size, ::cuda::no_init),
+        start_event(::cuda::device_ref{id}), end_event(::cuda::device_ref{id}),
+        flag_buf(stream, pool.as_ref(), size, ::cuda::no_init),
+        rho_buf(stream, pool.as_ref(), size, ::cuda::no_init),
+        vx_buf(stream, pool.as_ref(), size, ::cuda::no_init),
+        vy_buf(stream, pool.as_ref(), size, ::cuda::no_init),
+        vz_buf(stream, pool.as_ref(), size, ::cuda::no_init),
         ddf0(stream, pool.as_ref(), q * size, ::cuda::no_init),
         ddf1(stream, pool.as_ref(), q * size, ::cuda::no_init) {}
 
     State::State(Config config) :
-        config(std::move(config)), devices(this->config.deviceCount()) {}
+        config(std::move(config)), devices(this->config.device_count()) {}
 
-    void State::init(std::uint32_t devId, void (*initKernel)(InitKernelParam), util::Logger& logger, std::barrier<>& barrier)
+    void State::init(std::uint32_t dev_id, void (*init_kernel)(InitKernelParam), util::Logger& logger, std::barrier<>& barrier)
     {
-        gpu::check(cudaSetDevice(devId));
-        const auto devDim = config.devDim;
-        const auto position = config.coordinates(devId);
-        const idx_t devIdxX = position.x, devIdxY = position.y, devIdxZ = position.z;
-        auto& device = devices[devId].emplace(devId, config.localSize(), config.q);
+        gpu::check(cudaSetDevice(dev_id));
+        const auto dev_dim = config.dev_dim;
+        const auto position = config.coordinates(dev_id);
+        const idx_t dev_idx_x = position.x, dev_idx_y = position.y, dev_idx_z = position.z;
+        auto& device = devices[dev_id].emplace(dev_id, config.local_size(), config.q);
         using PeerDirections = culbm::core::Stencil<27>;
         for (dir_t dir = 0 ; dir < 27 ; ++dir)
         {
             const auto d = PeerDirections::directions[dir];
             if (d.x == 0 and d.y == 0 and d.z == 0) continue;
-            const std::int32_t nbrIdxX = devIdxX + d.x;
-            const std::int32_t nbrIdxY = devIdxY + d.y;
-            const std::int32_t nbrIdxZ = devIdxZ + d.z;
+            const std::int32_t nbr_idx_x = dev_idx_x + d.x;
+            const std::int32_t nbr_idx_y = dev_idx_y + d.y;
+            const std::int32_t nbr_idx_z = dev_idx_z + d.z;
             if (
-                0 <= nbrIdxX and nbrIdxX < devDim.x and
-                0 <= nbrIdxY and nbrIdxY < devDim.y and
-                0 <= nbrIdxZ and nbrIdxZ < devDim.z
+                0 <= nbr_idx_x and nbr_idx_x < dev_dim.x and
+                0 <= nbr_idx_y and nbr_idx_y < dev_dim.y and
+                0 <= nbr_idx_z and nbr_idx_z < dev_dim.z
             )
             {
-                const std::int32_t nbrIdx = nbrIdxX + devDim.x * (nbrIdxY + devDim.y * nbrIdxZ);
-                device.pool.enable_access_from(::cuda::device_ref{nbrIdx});
+                const std::int32_t nbr_idx = nbr_idx_x + dev_dim.x * (nbr_idx_y + dev_dim.y * nbr_idx_z);
+                device.pool.enable_access_from(::cuda::device_ref{nbr_idx});
             }
         }
 
@@ -64,62 +64,62 @@ namespace culbm::sim::multi
         barrier.arrive_and_wait();
 
         InitKernelParam param;
-        param.devDim = config.devDim;
-        param.devPos.x = devIdxX;
-        param.devPos.y = devIdxY;
-        param.devPos.z = devIdxZ;
-        param.flagBuf = device.flagBuf.data();
-        param.rhoBuf  = device.rhoBuf.data();
-        param.vxBuf   = device.vxBuf.data();
-        param.vyBuf   = device.vyBuf.data();
-        param.vzBuf   = device.vzBuf.data();
-        param.srcDdf = device.ddf0.data();
-        param.dstDdf = device.ddf1.data();
+        param.dev_dim   = config.dev_dim;
+        param.dev_pos.x = dev_idx_x;
+        param.dev_pos.y = dev_idx_y;
+        param.dev_pos.z = dev_idx_z;
+        param.flag_buf  = device.flag_buf.data();
+        param.rho_buf   = device.rho_buf.data();
+        param.vx_buf    = device.vx_buf.data();
+        param.vy_buf    = device.vy_buf.data();
+        param.vz_buf    = device.vz_buf.data();
+        param.src_ddf   = device.ddf0.data();
+        param.dst_ddf   = device.ddf1.data();
 
-        const auto launch = ::cuda::make_config(::cuda::grid_dims(config.gridDim), ::cuda::block_dims(config.blockDim));
-        ::cuda::launch(device.stream, launch, initKernel, param);
+        const auto launch = ::cuda::make_config(::cuda::grid_dims(config.grid_dim), ::cuda::block_dims(config.block_dim));
+        ::cuda::launch(device.stream, launch, init_kernel, param);
         device.stream.sync();
 
         logger.info("Set device data successfully!");
     }
 
-    void State::write(std::uint32_t devId, std::uint32_t endStep, uint3 position) const
+    void State::write(std::uint32_t dev_id, std::uint32_t end_step, uint3 position) const
     {
-        if (not (config.dumpRho || config.dumpVx || config.dumpVy || config.dumpVz)) return;
+        if (not (config.dump_rho || config.dump_vx || config.dump_vy || config.dump_vz)) return;
 
-        const auto dumpFolder = std::filesystem::path{config.dumpFolder};
-        std::filesystem::create_directories(dumpFolder);
+        const auto dump_folder = std::filesystem::path{config.dump_folder};
+        std::filesystem::create_directories(dump_folder);
 
-        const auto size = config.localSize();
-        auto hostBuf = std::make_unique_for_overwrite<real_t[]>(size);
-        const auto& device = *devices[devId];
+        const auto size = config.local_size();
+        auto host_buf = std::make_unique_for_overwrite<real_t[]>(size);
+        const auto& device = *devices[dev_id];
 
-        for (const auto& [enabled, prefix, devicePtr] : {
-            std::tuple{config.dumpRho, "rho", device.rhoBuf.data()},
-            std::tuple{config.dumpVx,  "vx",  device.vxBuf.data()},
-            std::tuple{config.dumpVy,  "vy",  device.vyBuf.data()},
-            std::tuple{config.dumpVz,  "vz",  device.vzBuf.data()}
+        for (const auto& [enabled, prefix, device_ptr] : {
+            std::tuple{config.dump_rho, "rho", device.rho_buf.data()},
+            std::tuple{config.dump_vx,  "vx",  device.vx_buf.data()},
+            std::tuple{config.dump_vy,  "vy",  device.vy_buf.data()},
+            std::tuple{config.dump_vz,  "vz",  device.vz_buf.data()}
         })
         {
             if (not enabled) continue;
-            const auto path = dumpFolder / std::format("{}_{}_dev_{}_{}_{}.dat", prefix, endStep, position.x, position.y, position.z);
-            writeField(device.stream, devicePtr, {hostBuf.get(), size}, path);
+            const auto path = dump_folder / std::format("{}_{}_dev_{}_{}_{}.dat", prefix, end_step, position.x, position.y, position.z);
+            write_field(device.stream, device_ptr, {host_buf.get(), size}, path);
         }
     }
 
-    void State::clear(std::uint32_t devId, util::Logger& logger)
+    void State::clear(std::uint32_t dev_id, util::Logger& logger)
     {
-        gpu::check(cudaSetDevice(devId));
-        auto& device = *devices[devId];
+        gpu::check(cudaSetDevice(dev_id));
+        auto& device = *devices[dev_id];
         device.ddf1.destroy();
         device.ddf0.destroy();
-        device.vzBuf.destroy();
-        device.vyBuf.destroy();
-        device.vxBuf.destroy();
-        device.rhoBuf.destroy();
-        device.flagBuf.destroy();
+        device.vz_buf.destroy();
+        device.vy_buf.destroy();
+        device.vx_buf.destroy();
+        device.rho_buf.destroy();
+        device.flag_buf.destroy();
         device.stream.sync();
-        devices[devId].reset();
+        devices[dev_id].reset();
         logger.info("Deallocate device memory successfully!");
     }
 }

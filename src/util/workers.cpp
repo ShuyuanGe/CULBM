@@ -4,7 +4,7 @@
 
 namespace culbm::util
 {
-    void Workers::workerLoop(std::stop_token stoken, std::uint32_t tid)
+    void Workers::worker_loop(std::stop_token stoken, std::uint32_t tid)
     {
         Logger logger(std::format("Worker-{}", tid));
 
@@ -15,7 +15,7 @@ namespace culbm::util
             {
                 std::unique_lock lock(mutex);
 
-                taskReady.wait(lock, [&, this]() {
+                task_ready.wait(lock, [&, this]() {
                     return stoken.stop_requested() or (not tasks.empty());
                 });
 
@@ -40,7 +40,7 @@ namespace culbm::util
             {
                 std::unique_lock lock (mutex);
                 tasks.pop();
-                if (tasks.empty()) tasksDone.notify_all();
+                if (tasks.empty()) tasks_done.notify_all();
             }
 
             barrier.arrive_and_wait();
@@ -48,12 +48,12 @@ namespace culbm::util
         logger.info("Exit successfully!");
     }
 
-    Workers::Workers(std::uint32_t numWorker) :
-        barrier(numWorker)
+    Workers::Workers(std::uint32_t num_worker) :
+        barrier(num_worker)
     {
-        for (std::uint32_t tid = 0 ; tid < numWorker ; ++tid)
+        for (std::uint32_t tid = 0 ; tid < num_worker ; ++tid)
         {
-            workers.emplace_back([this, tid](std::stop_token stoken) { workerLoop(stoken, tid); });
+            workers.emplace_back([this, tid](std::stop_token stoken) { worker_loop(stoken, tid); });
         }
     }
 
@@ -64,7 +64,7 @@ namespace culbm::util
             std::lock_guard lock(mutex);
             for (auto& worker : workers) worker.request_stop();
         }
-        taskReady.notify_all();
+        task_ready.notify_all();
         for (auto& worker : workers) worker.join();
     }
 
@@ -74,14 +74,14 @@ namespace culbm::util
             std::unique_lock lock (mutex);
             tasks.emplace(std::move(task));
         }
-        taskReady.notify_all();
+        task_ready.notify_all();
     }
 
     void Workers::wait()
     {
         std::unique_lock lock (mutex);
 
-        tasksDone.wait(lock, [this]() -> bool {
+        tasks_done.wait(lock, [this]() -> bool {
             return tasks.empty();
         });
     }

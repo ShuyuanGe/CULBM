@@ -8,10 +8,10 @@
 
 namespace culbm::core::ddf
 {
-    template <typename T, int NDir>
+    template <typename T, int n_dir>
     concept Accessor = requires {
-        { T::template read<NDir, 0>() } -> std::same_as<accessor::Access>;
-        { T::template write<NDir, 0>() } -> std::same_as<accessor::Access>;
+        { T::template read<n_dir, 0>() } -> std::same_as<accessor::Access>;
+        { T::template write<n_dir, 0>() } -> std::same_as<accessor::Access>;
     };
 
     template <typename T>
@@ -22,29 +22,29 @@ namespace culbm::core::ddf
 
     template <typename T>
     concept View = requires(const T& view) {
-        { view.template readAddress<0, 0, 0, 0>() } -> std::same_as<const ddf_t*>;
-        { view.template writeAddress<0, 0, 0, 0>() } -> std::same_as<ddf_t*>;
+        { view.template read_address<0, 0, 0, 0>() } -> std::same_as<const ddf_t*>;
+        { view.template write_address<0, 0, 0, 0>() } -> std::same_as<ddf_t*>;
     };
 
-    template <int NDir, Accessor<NDir> AccessorType, IO IOType, typename Value, View ViewType>
-    constexpr void load(Value (&f)[NDir], const ViewType& view)
+    template <int n_dir, Accessor<n_dir> AccessorType, IO IOType, typename Value, View ViewType>
+    constexpr void load(Value (&f)[n_dir], const ViewType& view)
     {
         [&]<std::size_t... Q>(std::index_sequence<Q...>) constexpr {
             ([&]() constexpr {
-                constexpr auto a = AccessorType::template read<NDir, Q>();
-                f[Q] = IOType::load(view.template readAddress<a.direction, a.x, a.y, a.z>());
+                constexpr auto a = AccessorType::template read<n_dir, Q>();
+                f[Q] = IOType::load(view.template read_address<a.direction, a.x, a.y, a.z>());
             }(), ...);
-        }(std::make_index_sequence<NDir>{});
+        }(std::make_index_sequence<n_dir>{});
     }
 
-    template <int NDir, Accessor<NDir> AccessorType, IO IOType, typename Value, View ViewType>
-    constexpr void store(const Value (&f)[NDir], const ViewType& view)
+    template <int n_dir, Accessor<n_dir> AccessorType, IO IOType, typename Value, View ViewType>
+    constexpr void store(const Value (&f)[n_dir], const ViewType& view)
     {
         [&]<std::size_t... Q>(std::index_sequence<Q...>) constexpr {
             ([&]() constexpr {
-                constexpr auto a = AccessorType::template write<NDir, Q>();
-                IOType::store(view.template writeAddress<a.direction, a.x, a.y, a.z>(), f[Q]);
+                constexpr auto a = AccessorType::template write<n_dir, Q>();
+                IOType::store(view.template write_address<a.direction, a.x, a.y, a.z>(), f[Q]);
             }(), ...);
-        }(std::make_index_sequence<NDir>{});
+        }(std::make_index_sequence<n_dir>{});
     }
 }

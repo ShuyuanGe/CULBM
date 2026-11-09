@@ -17,7 +17,7 @@ namespace culbm::physical::detail
         // Linux x86-64 private RM/UVM ABI; decoding depends on the command numbers,
         // field offsets, widths and meanings below.
         static_assert(sizeof(void*) == 8);
-        constexpr unsigned rmType = 'F';
+        constexpr unsigned rm_type = 'F';
 
         // nv_ioctl_xfer_t (16 bytes): cmd(u32)@0, size(u32)@4, ptr(u64)@8.
         // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/src/nvidia/arch/nvalloc/unix/include/nv-ioctl.h#L49-L54
@@ -31,9 +31,9 @@ namespace culbm::physical::detail
         // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/src/common/sdk/nvidia/inc/nvos.h#L464-L490
         namespace rm_alloc
         {
-            constexpr unsigned code = 0x2b, localMemoryClass = 0x40;
-            constexpr std::size_t client = 0, object = 8, classId = 12, params = 16;
-            struct Layout { unsigned packetBytes; std::size_t paramsSizeOffset, statusOffset; };
+            constexpr unsigned code = 0x2b, local_memory_class = 0x40;
+            constexpr std::size_t client = 0, object = 8, class_id = 12, params = 16;
+            struct Layout { unsigned packet_bytes; std::size_t params_size_offset, status_offset; };
             constexpr Layout nvos21{32, 24, 28}, nvos64{48, 32, 40};
         }
 
@@ -42,7 +42,7 @@ namespace culbm::physical::detail
         namespace rm_free
         {
             constexpr unsigned code = 0x29;
-            constexpr std::size_t prefixBytes = 12, client = 0, object = 8;
+            constexpr std::size_t prefix_bytes = 12, client = 0, object = 8;
         }
 
         // NV_MEMORY_ALLOCATION_PARAMS.offset returns the first PA; attr[28:27] == 2
@@ -51,8 +51,8 @@ namespace culbm::physical::detail
         namespace memory_alloc
         {
             constexpr std::size_t flags = 8, attr = 24, bytes = 64, physical = 80;
-            constexpr std::size_t requiredBytes = physical + sizeof(std::uint64_t);
-            constexpr std::uint32_t virtualFlag = 0x00080000, physicalityMask = 3u << 27, contiguous = 2u << 27;
+            constexpr std::size_t required_bytes = physical + sizeof(std::uint64_t);
+            constexpr std::uint32_t virtual_flag = 0x00080000, physicality_mask = 3u << 27, contiguous = 2u << 27;
         }
 
         // Skip the unused GPU attribute array to read the mapping's RM object fields.
@@ -99,38 +99,38 @@ namespace culbm::physical::detail
             bool failed = false;
         };
 
-        void observe_rm(Capture& capture, unsigned command, unsigned packetBytes, const void* params)
+        void observe_rm(Capture& capture, unsigned command, unsigned packet_bytes, const void* params)
         {
             if (command == rm_xfer::code)
             {
                 command = read<std::uint32_t>(params, rm_xfer::command);
-                packetBytes = read<std::uint32_t>(params, rm_xfer::bytes);
+                packet_bytes = read<std::uint32_t>(params, rm_xfer::bytes);
                 params = reinterpret_cast<const void*>(read<std::uint64_t>(params, rm_xfer::params));
             }
             if (command == rm_alloc::code)
             {
                 const rm_alloc::Layout* layout;
-                if (packetBytes == rm_alloc::nvos21.packetBytes)      layout = &rm_alloc::nvos21;
-                else if (packetBytes == rm_alloc::nvos64.packetBytes) layout = &rm_alloc::nvos64;
+                if (packet_bytes == rm_alloc::nvos21.packet_bytes)      layout = &rm_alloc::nvos21;
+                else if (packet_bytes == rm_alloc::nvos64.packet_bytes) layout = &rm_alloc::nvos64;
                 else return;
 
-                if (read<std::uint32_t>(params, layout->statusOffset) != 0 ||
-                    read<std::uint32_t>(params, rm_alloc::classId) != rm_alloc::localMemoryClass) return;
-                const auto paramsBytes = read<std::uint32_t>(params, layout->paramsSizeOffset);
-                const auto* memoryParams = reinterpret_cast<const void*>(read<std::uint64_t>(params, rm_alloc::params));
+                if (read<std::uint32_t>(params, layout->status_offset) != 0 ||
+                    read<std::uint32_t>(params, rm_alloc::class_id) != rm_alloc::local_memory_class) return;
+                const auto params_bytes = read<std::uint32_t>(params, layout->params_size_offset);
+                const auto* memory_params = reinterpret_cast<const void*>(read<std::uint64_t>(params, rm_alloc::params));
                 // Zero means unspecified; a supplied length must cover our last field.
-                if (memoryParams == nullptr || (paramsBytes != 0 && paramsBytes < memory_alloc::requiredBytes)) return;
-                if (read<std::uint32_t>(memoryParams, memory_alloc::flags) & memory_alloc::virtualFlag) return;
-                const auto attr = read<std::uint32_t>(memoryParams, memory_alloc::attr);
+                if (memory_params == nullptr || (params_bytes != 0 && params_bytes < memory_alloc::required_bytes)) return;
+                if (read<std::uint32_t>(memory_params, memory_alloc::flags) & memory_alloc::virtual_flag) return;
+                const auto attr = read<std::uint32_t>(memory_params, memory_alloc::attr);
                 capture.allocations.push_back({
                     .client = read<std::uint32_t>(params, rm_alloc::client),
                     .object = read<std::uint32_t>(params, rm_alloc::object),
-                    .physical = read<std::uint64_t>(memoryParams, memory_alloc::physical),
-                    .bytes = read<std::uint64_t>(memoryParams, memory_alloc::bytes),
-                    .contiguous = (attr & memory_alloc::physicalityMask) == memory_alloc::contiguous
+                    .physical = read<std::uint64_t>(memory_params, memory_alloc::physical),
+                    .bytes = read<std::uint64_t>(memory_params, memory_alloc::bytes),
+                    .contiguous = (attr & memory_alloc::physicality_mask) == memory_alloc::contiguous
                 });
             }
-            else if (command == rm_free::code && packetBytes >= rm_free::prefixBytes)
+            else if (command == rm_free::code && packet_bytes >= rm_free::prefix_bytes)
             {
                 const auto client = read<std::uint32_t>(params, rm_free::client);
                 const auto object = read<std::uint32_t>(params, rm_free::object);
@@ -165,7 +165,7 @@ namespace culbm::physical::detail
 
         void observe(Capture& capture, unsigned long request, const void* argument)
         {
-            if (_IOC_TYPE(request) == rmType)
+            if (_IOC_TYPE(request) == rm_type)
                 observe_rm(capture, _IOC_NR(request), _IOC_SIZE(request), argument);
             else
                 observe_uvm(capture, request, argument);
@@ -220,13 +220,13 @@ extern "C" int ioctl(int fd, unsigned long request, ...) noexcept
     void* argument = va_arg(args, void*);
     va_end(args);
     const int result = syscall(SYS_ioctl, fd, request, argument);
-    const int savedErrno = errno;
+    const int saved_errno = errno;
     using namespace culbm::physical::detail;
     if (result == 0 && active != nullptr)
     {
         try { observe(*active, request, argument); }
         catch (...) { active->failed = true; }
     }
-    errno = savedErrno;
+    errno = saved_errno;
     return result;
 }

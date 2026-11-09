@@ -11,8 +11,8 @@
 
 namespace culbm::sim
 {
-    inline void writeField(::cuda::stream_ref stream, const real_t* data,
-                           std::span<real_t> host, const std::filesystem::path& path)
+    inline void write_field(::cuda::stream_ref stream, const real_t* data,
+                            std::span<real_t> host, const std::filesystem::path& path)
     {
         std::ofstream file(path, std::ios::binary);
         if (not file)

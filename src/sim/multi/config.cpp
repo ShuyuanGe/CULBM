@@ -9,55 +9,55 @@ namespace culbm::sim::multi
     {
         Config config;
         CLI::App app {"Multiple Device Fluid Solver"};
-        app.add_option("--inv-tau", config.invTau, "Reciprocal of Tau.")
+        app.add_option("--inv-tau", config.inv_tau, "Reciprocal of Tau.")
             ->default_val(0.5);
         app.add_option("--q", config.q, "Velocity set: 15, 19, or 27.")
             ->default_val(27)->check(CLI::IsMember({15, 19, 27}));
         app.add_option("--collision", config.collision, "Collision operator: bgk, mrt, or cumulant.")
             ->default_val("bgk")->check(CLI::IsMember({"bgk", "mrt", "cumulant"}));
-        app.add_option("--steps", config.targetStep, "Total time steps of the simulation.")
+        app.add_option("--steps", config.target_step, "Total time steps of the simulation.")
             ->required();
-        app.add_option("--batch-steps", config.stepsPerBatch, "Steps per MLUPS report and field dump.")
+        app.add_option("--batch-steps", config.steps_per_batch, "Steps per MLUPS report and field dump.")
             ->required()->check(CLI::PositiveNumber);
-        cli::addDimOption(app, "--device-grid", config.devDim, "Dimension of GPUs involved in the simulation.")->required();
-        cli::addDimOption(app, "--block", config.blockDim, "Dimension of blocks per grid.")->required();
-        cli::addDimOption(app, "--grid", config.gridDim, "Dimension of grids per kernel.")->required();
-        app.add_option("--output", config.dumpFolder, "Output folder; required when dumping fields.");
-        app.add_flag("--dump-rho", config.dumpRho, "Dump density every `--batch-steps` steps.");
-        app.add_flag("--dump-vx", config.dumpVx, "Dump vx every `--batch-steps` steps.");
-        app.add_flag("--dump-vy", config.dumpVy, "Dump vy every `--batch-steps` steps.");
-        app.add_flag("--dump-vz", config.dumpVz, "Dump vz every `--batch-steps` steps.");
+        cli::add_dim_option(app, "--device-grid", config.dev_dim, "Dimension of GPUs involved in the simulation.")->required();
+        cli::add_dim_option(app, "--block", config.block_dim, "Dimension of blocks per grid.")->required();
+        cli::add_dim_option(app, "--grid", config.grid_dim, "Dimension of grids per kernel.")->required();
+        app.add_option("--output", config.dump_folder, "Output folder; required when dumping fields.");
+        app.add_flag("--dump-rho", config.dump_rho, "Dump density every `--batch-steps` steps.");
+        app.add_flag("--dump-vx", config.dump_vx, "Dump vx every `--batch-steps` steps.");
+        app.add_flag("--dump-vy", config.dump_vy, "Dump vy every `--batch-steps` steps.");
+        app.add_flag("--dump-vz", config.dump_vz, "Dump vz every `--batch-steps` steps.");
         cli::parse(app, argc, argv);
-        if ((config.dumpRho or config.dumpVx or config.dumpVy or config.dumpVz) and config.dumpFolder.empty())
+        if ((config.dump_rho or config.dump_vx or config.dump_vy or config.dump_vz) and config.dump_folder.empty())
             throw std::invalid_argument("--output is required when dumping fields.");
-        if (config.deviceCount() > ::cuda::devices.size())
+        if (config.device_count() > ::cuda::devices.size())
             throw std::invalid_argument("Requested more devices than are available.");
         return config;
     }
 
-    std::uint32_t Config::deviceCount() const noexcept
+    std::uint32_t Config::device_count() const noexcept
     {
-        return devDim.x * devDim.y * devDim.z;
+        return dev_dim.x * dev_dim.y * dev_dim.z;
     }
 
-    dim3 Config::localDim() const noexcept
+    dim3 Config::local_dim() const noexcept
     {
         return
         {
-            blockDim.x * gridDim.x,
-            blockDim.y * gridDim.y,
-            blockDim.z * gridDim.z
+            block_dim.x * grid_dim.x,
+            block_dim.y * grid_dim.y,
+            block_dim.z * grid_dim.z
         };
     }
 
-    std::size_t Config::localSize() const noexcept
+    std::size_t Config::local_size() const noexcept
     {
-        const auto localDim = this->localDim();
-        return static_cast<std::size_t>(localDim.x) * localDim.y * localDim.z;
+        const auto local_dim = this->local_dim();
+        return static_cast<std::size_t>(local_dim.x) * local_dim.y * local_dim.z;
     }
 
     uint3 Config::coordinates(std::uint32_t index) const noexcept
     {
-        return {index % devDim.x, (index / devDim.x) % devDim.y, index / (devDim.x * devDim.y)};
+        return {index % dev_dim.x, (index / dev_dim.x) % dev_dim.y, index / (dev_dim.x * dev_dim.y)};
     }
 }

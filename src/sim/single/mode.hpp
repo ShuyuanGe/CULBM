@@ -2,5 +2,5 @@
 
 namespace culbm::sim::single
 {
-    enum class Mode { Pull, Twist, BlockDouble, BlockRing };
+    enum class Mode { pull, twist, block_double, block_ring };
 }

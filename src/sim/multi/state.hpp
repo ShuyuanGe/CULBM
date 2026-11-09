@@ -18,9 +18,9 @@ namespace culbm::sim::multi
         {
             ::cuda::stream stream;
             ::cuda::device_memory_pool pool;
-            ::cuda::timed_event startEvent, endEvent;
-            ::cuda::device_buffer<flag_t> flagBuf;
-            ::cuda::device_buffer<real_t> rhoBuf, vxBuf, vyBuf, vzBuf;
+            ::cuda::timed_event start_event, end_event;
+            ::cuda::device_buffer<flag_t> flag_buf;
+            ::cuda::device_buffer<real_t> rho_buf, vx_buf, vy_buf, vz_buf;
             ::cuda::device_buffer<ddf_t> ddf0, ddf1;
 
             Device(int id, std::size_t size, int q);
@@ -30,7 +30,7 @@ namespace culbm::sim::multi
         std::deque<std::optional<Device>> devices;
 
         explicit State(Config config);
-        void init(std::uint32_t id, void (*initKernel)(InitKernelParam), util::Logger& logger, std::barrier<>& barrier);
+        void init(std::uint32_t id, void (*init_kernel)(InitKernelParam), util::Logger& logger, std::barrier<>& barrier);
         void write(std::uint32_t id, std::uint32_t step, uint3 position) const;
         void clear(std::uint32_t id, util::Logger& logger);
     };

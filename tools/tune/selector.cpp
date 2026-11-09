@@ -30,32 +30,32 @@ namespace
     }
 }
 
-culbm::tune::Selection culbm::tune::select(int q, double capacityBytes, double lambda, double gamma, int iMin, int iMax, int bMax)
+culbm::tune::Selection culbm::tune::select(int q, double capacity_bytes, double lambda, double gamma, int i_min, int i_max, int b_max)
 {
     Selection best{0, 0, 0, 0};
-    double bestScore = -std::numeric_limits<double>::infinity();
-    for (int i = iMin; i <= iMax; ++i)
+    double best_score = -std::numeric_limits<double>::infinity();
+    for (int i = i_min; i <= i_max; ++i)
     {
         const int halo = 2 * (i - 1);
-        for (int bx = 32; bx <= bMax; bx += 32)
+        for (int bx = 32; bx <= b_max; bx += 32)
         {
             if (bx <= halo) continue;
             const auto [sectors, edges] = beta(bx, i);
-            for (int by = halo + 1; by <= bMax; ++by)
+            for (int by = halo + 1; by <= b_max; ++by)
                 for (int bz = halo + 1; bz <= by; ++bz)
                 {
                     const double volume = static_cast<double>(q * 4) * bx * by * bz;
-                    if (volume > capacityBytes) continue;
+                    if (volume > capacity_bytes) continue;
                     const double h = (1.0 - static_cast<double>(halo) / bx) *
                                      (1.0 - static_cast<double>(halo) / by) *
                                      (1.0 - static_cast<double>(halo) / bz);
-                    const double p = volume == capacityBytes ? 1.0 : 1.0 - std::exp(-volume / (capacityBytes - volume));
+                    const double p = volume == capacity_bytes ? 1.0 : 1.0 - std::exp(-volume / (capacity_bytes - volume));
                     const double alpha = 1.0 + lambda * (sectors - 1.0) + p * (2.0 * gamma - (1.0 + lambda)) * edges;
                     const double score = h / ((1.0 + alpha * h) / (2.0 * i) + lambda * (1.0 - 1.0 / i));
-                    if (score > bestScore)
+                    if (score > best_score)
                     {
                         best = {bx, by, bz, i};
-                        bestScore = score;
+                        best_score = score;
                     }
                 }
         }

@@ -11,14 +11,14 @@ namespace culbm::util
         const auto time = std::chrono::zoned_time{std::chrono::current_zone(),
             std::chrono::floor<std::chrono::milliseconds>(std::chrono::system_clock::now())};
 
-        auto getLogLevelRepr = [lvl]() -> std::string_view
+        auto get_log_level_repr = [lvl]() -> std::string_view
         {
             switch (lvl)
             {
-                case Level::Info:       return "\033[32mINFO\033[0m";
-                case Level::Debug:      return "\033[34mDEBUG\033[0m";
-                case Level::Warning:    return "\033[33mWARNING\033[0m";
-                case Level::Error:      return "\033[31mERROR\033[0m";
+                case Level::info:       return "\033[32mINFO\033[0m";
+                case Level::debug:      return "\033[34mDEBUG\033[0m";
+                case Level::warning:    return "\033[33mWARNING\033[0m";
+                case Level::error:      return "\033[31mERROR\033[0m";
             }
             return "UNKNOWN";
         };
@@ -28,7 +28,7 @@ namespace culbm::util
             "[{:%H:%M:%S}] [{}] [{}] [{}:{}] message: {}",
             time,
             name,
-            getLogLevelRepr(),
+            get_log_level_repr(),
             loc.file_name(), 
             loc.line(), 
             msg

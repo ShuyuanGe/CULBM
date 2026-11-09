@@ -16,7 +16,7 @@ namespace culbm::physical
 
     public:
         // Physical alignment is separate from CCCL's native power-of-two alignment.
-        explicit Resource(::cuda::device_ref device, std::size_t physicalAlignment = 6 * 1024 * 1024);
+        explicit Resource(::cuda::device_ref device, std::size_t physical_alignment = 6 * 1024 * 1024);
         void* allocate_sync(std::size_t bytes, std::size_t alignment);
         void deallocate_sync(void* ptr, std::size_t bytes, std::size_t alignment) noexcept;
         bool operator==(const Resource& other) const noexcept { return state == other.state; }

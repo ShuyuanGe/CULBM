@@ -8,7 +8,7 @@ namespace culbm::physical::detail
     struct Allocation
     {
         void* base;
-        std::uint64_t physical, bytes, mappedBytes;
+        std::uint64_t physical, bytes, mapped_bytes;
         bool contiguous;
     };
 

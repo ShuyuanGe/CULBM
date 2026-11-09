@@ -2,5 +2,5 @@
 
 namespace culbm::core::collision
 {
-    enum class Kind { Bgk, Mrt, Cumulant };
+    enum class Kind { bgk, mrt, cumulant };
 }

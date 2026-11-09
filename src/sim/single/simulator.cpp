@@ -12,11 +12,11 @@ namespace culbm::sim::single
     namespace
     {
         template <typename T>
-        concept Strategy = requires(State& state, T& strategy, const T& constStrategy) {
+        concept Strategy = requires(State& state, T& strategy, const T& const_strategy) {
             T{state};
             { strategy.advance() } -> std::same_as<std::uint32_t>;
             { strategy.dump() } -> std::same_as<void>;
-            { constStrategy.cellsPerStep() } -> std::same_as<std::size_t>;
+            { const_strategy.cells_per_step() } -> std::same_as<std::size_t>;
         };
 
         template <Strategy T>
@@ -24,14 +24,14 @@ namespace culbm::sim::single
         {
             State state(config); // init rho, v_xyz
             T strategy(state); // init ddf, flags
-            while (state.step < config.targetStep)
+            while (state.step < config.target_step)
             {
-                state.startEvent.record(state.stream);
+                state.start_event.record(state.stream);
                 const auto steps = strategy.advance();
-                state.endEvent.record(state.stream);
-                state.endEvent.sync();
-                const float seconds = ::cuda::std::chrono::duration<float>{state.endEvent - state.startEvent}.count();
-                const float mlups = strategy.cellsPerStep() * 1e-6f / seconds * steps;
+                state.end_event.record(state.stream);
+                state.end_event.sync();
+                const float seconds = ::cuda::std::chrono::duration<float>{state.end_event - state.start_event}.count();
+                const float mlups = strategy.cells_per_step() * 1e-6f / seconds * steps;
                 std::println("speed = {:.4f} (MLUPS)", mlups);
                 state.step += steps;
                 strategy.dump();
@@ -47,10 +47,10 @@ namespace culbm::sim::single
     {
         switch (config.mode)
         {
-            case Mode::Pull:        execute<strategy::Plain<PullKernels>>(config);          break;
-            case Mode::Twist:       execute<strategy::Plain<TwistKernels>>(config);         break;
-            case Mode::BlockDouble: execute<strategy::Blocking<Mode::BlockDouble>>(config); break;
-            case Mode::BlockRing:   execute<strategy::Blocking<Mode::BlockRing>>(config);   break;
+            case Mode::pull:         execute<strategy::Plain<PullKernels>>(config);           break;
+            case Mode::twist:        execute<strategy::Plain<TwistKernels>>(config);          break;
+            case Mode::block_double: execute<strategy::Blocking<Mode::block_double>>(config); break;
+            case Mode::block_ring:   execute<strategy::Blocking<Mode::block_ring>>(config);   break;
         }
     }
 }

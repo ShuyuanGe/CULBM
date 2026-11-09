@@ -15,8 +15,8 @@ namespace culbm::sim::single
         ::cuda::device_ref device;
         ::cuda::stream stream;
         ::cuda::device_memory_pool pool;
-        ::cuda::timed_event startEvent, endEvent;
-        ::cuda::device_buffer<real_t> rhoBuf, vxBuf, vyBuf, vzBuf;
+        ::cuda::timed_event start_event, end_event;
+        ::cuda::device_buffer<real_t> rho_buf, vx_buf, vy_buf, vz_buf;
 
         explicit State(const Config& config);
         void write() const;

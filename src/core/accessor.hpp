@@ -11,33 +11,33 @@ namespace culbm::core::accessor
     // lbmpy.fieldaccess.StreamPullTwoFieldsAccessor
     struct PullTwoFields
     {
-        template <int NDir, std::size_t Q>
+        template <int n_dir, std::size_t Q>
         static consteval Access read()
         {
-            constexpr auto d = Stencil<NDir>::directions[Q];
+            constexpr auto d = Stencil<n_dir>::directions[Q];
             return {Q, -d.x, -d.y, -d.z};
         }
 
-        template <int NDir, std::size_t Q>
+        template <int n_dir, std::size_t Q>
         static consteval Access write() { return {Q, 0, 0, 0}; }
     };
 
-    template <bool Odd>
+    template <bool odd>
     struct EsoTwist
     {
-        template <int NDir, std::size_t Q>
+        template <int n_dir, std::size_t Q>
         static consteval Access read()
         {
-            constexpr auto d = Stencil<NDir>::directions[Q];
-            constexpr int direction = Odd ? Stencil<NDir>::opposite(Q) : Q;
+            constexpr auto d = Stencil<n_dir>::directions[Q];
+            constexpr int direction = odd ? Stencil<n_dir>::opposite(Q) : Q;
             return {direction, std::max(-d.x, 0), std::max(-d.y, 0), std::max(-d.z, 0)};
         }
 
-        template <int NDir, std::size_t Q>
+        template <int n_dir, std::size_t Q>
         static consteval Access write()
         {
-            constexpr auto d = Stencil<NDir>::directions[Q];
-            constexpr int direction = Odd ? Q : Stencil<NDir>::opposite(Q);
+            constexpr auto d = Stencil<n_dir>::directions[Q];
+            constexpr int direction = odd ? Q : Stencil<n_dir>::opposite(Q);
             return {direction, std::max(d.x, 0), std::max(d.y, 0), std::max(d.z, 0)};
         }
     };

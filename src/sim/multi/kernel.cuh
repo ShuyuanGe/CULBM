@@ -10,27 +10,27 @@ namespace culbm::sim::multi
 {
     struct KernelParam
     {
-        real_t invTau;
-        flag_t *flagBuf = nullptr;
-        real_t *rhoBuf  = nullptr;
-        real_t *vxBuf   = nullptr;
-        real_t *vyBuf   = nullptr;
-        real_t *vzBuf   = nullptr;
-        std::array<ddf_t*, 27> srcDdf {nullptr};
-        ddf_t  *dstDdf = nullptr;
+        real_t inv_tau;
+        flag_t *flag_buf = nullptr;
+        real_t *rho_buf  = nullptr;
+        real_t *vx_buf   = nullptr;
+        real_t *vy_buf   = nullptr;
+        real_t *vz_buf   = nullptr;
+        std::array<ddf_t*, 27> src_ddf {nullptr};
+        ddf_t  *dst_ddf = nullptr;
     };
 
     struct InitKernelParam
     {
-        dim3 devDim{};
-        uint3 devPos{};
-        flag_t *flagBuf = nullptr;
-        real_t *rhoBuf  = nullptr;
-        real_t *vxBuf   = nullptr;
-        real_t *vyBuf   = nullptr;
-        real_t *vzBuf   = nullptr;
-        ddf_t  *srcDdf = nullptr;
-        ddf_t  *dstDdf = nullptr;
+        dim3 dev_dim{};
+        uint3 dev_pos{};
+        flag_t *flag_buf = nullptr;
+        real_t *rho_buf  = nullptr;
+        real_t *vx_buf   = nullptr;
+        real_t *vy_buf   = nullptr;
+        real_t *vz_buf   = nullptr;
+        ddf_t  *src_ddf  = nullptr;
+        ddf_t  *dst_ddf  = nullptr;
     };
 
     struct Kernels

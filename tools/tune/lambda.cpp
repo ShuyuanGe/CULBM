@@ -2,5 +2,5 @@
 
 int main()
 {
-    culbm::tune::report(culbm::tune::measureLambda(cuda::device_ref{0}));
+    culbm::tune::report(culbm::tune::measure_lambda(cuda::device_ref{0}));
 }

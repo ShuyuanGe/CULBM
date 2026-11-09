@@ -18,11 +18,11 @@ namespace culbm::sim::single
     using culbm::core::collision::Model;
     using culbm::core::collision::Kind;
 
-    template <int NDir, Kind Op>
-    void hostEquilibrium(real_t rho, real_t vx, real_t vy, real_t vz, ddf_t* dst)
+    template <int n_dir, Kind op>
+    void host_equilibrium(real_t rho, real_t vx, real_t vy, real_t vz, ddf_t* dst)
     {
-        ddf_t f[NDir];
-        Model<Op, NDir>::equilibrium(rho, vx, vy, vz, f);
+        ddf_t f[n_dir];
+        Model<op, n_dir>::equilibrium(rho, vx, vy, vz, f);
         std::ranges::copy(f, dst);
     }
 
@@ -33,110 +33,110 @@ namespace culbm::sim::single
         using View = ViewType;
     };
 
-    enum class StoreScope { Flagged, Owned };
+    enum class StoreScope { flagged, owned };
 
-    template <int NDir, Kind Kind, typename Param, typename Read, typename Write, bool CacheHints, StoreScope Scope>
-    __global__ void StreamCollideKernel(const Param param)
+    template <int n_dir, Kind collision_kind, typename Param, typename Read, typename Write, bool cache_hints, StoreScope scope>
+    __global__ void stream_collide_kernel(const Param param)
     {
-        using GlobalIO = std::conditional_t<CacheHints, io::Streaming, io::Default>;
-        using TileIO   = std::conditional_t<CacheHints, io::Cached,    io::Default>;
-        using ReadIO   = std::conditional_t<Read::View::space  == mapping::ViewSpace::Tile, TileIO, GlobalIO>;
-        using WriteIO  = std::conditional_t<Write::View::space == mapping::ViewSpace::Tile, TileIO, GlobalIO>;
-        const auto pos = mapping::makePosition(param);
-        const auto flag = param.flagBuf[pos.localIndex];
+        using GlobalIO = std::conditional_t<cache_hints, io::Streaming, io::Default>;
+        using TileIO   = std::conditional_t<cache_hints, io::Cached,    io::Default>;
+        using ReadIO   = std::conditional_t<Read::View::space  == mapping::ViewSpace::tile, TileIO, GlobalIO>;
+        using WriteIO  = std::conditional_t<Write::View::space == mapping::ViewSpace::tile, TileIO, GlobalIO>;
+        const auto pos = mapping::make_position(param);
+        const auto flag = param.flag_buf[pos.local_index];
 
-        ddf_t f[NDir];
+        ddf_t f[n_dir];
         if (flag & LOAD_DDF_BIT)
-            ddf::load<NDir, typename Read::Accessor, ReadIO>(f, Read::View::make(param, pos));
+            ddf::load<n_dir, typename Read::Accessor, ReadIO>(f, Read::View::make(param, pos));
 
         if (flag & EQU_DDF_BIT)
         {
-            const auto rho = param.rhoBuf[pos.globalIndex];
-            const auto vx = param.vxBuf[pos.globalIndex];
-            const auto vy = param.vyBuf[pos.globalIndex];
-            const auto vz = param.vzBuf[pos.globalIndex];
-            Model<Kind, NDir>::equilibrium(rho, vx, vy, vz, f);
+            const auto rho = param.rho_buf[pos.global_index];
+            const auto vx = param.vx_buf[pos.global_index];
+            const auto vy = param.vy_buf[pos.global_index];
+            const auto vz = param.vz_buf[pos.global_index];
+            Model<collision_kind, n_dir>::equilibrium(rho, vx, vy, vz, f);
         }
 
         if (flag & BOUNCE_BACK_BIT)
-            Model<Kind, NDir>::bounceBack(f);
+            Model<collision_kind, n_dir>::bounce_back(f);
 
         if (flag & COLLIDE_BIT)
-            Model<Kind, NDir>::collide(param.invTau, f);
+            Model<collision_kind, n_dir>::collide(param.inv_tau, f);
 
         if (flag & STORE_DDF_BIT)
         {
-            if constexpr (Scope == StoreScope::Flagged)
-                ddf::store<NDir, typename Write::Accessor, WriteIO>(f, Write::View::make(param, pos));
-            else if constexpr (Scope == StoreScope::Owned)
+            if constexpr (scope == StoreScope::flagged)
+                ddf::store<n_dir, typename Write::Accessor, WriteIO>(f, Write::View::make(param, pos));
+            else if constexpr (scope == StoreScope::owned)
                 if (flag & OWNED_BIT)
-                    ddf::store<NDir, typename Write::Accessor, WriteIO>(f, Write::View::make(param, pos));
+                    ddf::store<n_dir, typename Write::Accessor, WriteIO>(f, Write::View::make(param, pos));
         }
     }
 
-    template <int NDir, typename Param, typename Read>
-    __global__ void DumpKernel(const Param param)
+    template <int n_dir, typename Param, typename Read>
+    __global__ void dump_kernel(const Param param)
     {
-        const auto pos = mapping::makePosition(param);
-        const auto flag = param.flagBuf[pos.localIndex];
-        if constexpr (Param::dumpOwnedOnly)
+        const auto pos = mapping::make_position(param);
+        const auto flag = param.flag_buf[pos.local_index];
+        if constexpr (Param::dump_owned_only)
             if (not (flag & OWNED_BIT)) return;
 
-        ddf_t f[NDir];
+        ddf_t f[n_dir];
         const auto view = Read::View::make(param, pos);
-        ddf::load<NDir, typename Read::Accessor, io::Default>(f, view);
+        ddf::load<n_dir, typename Read::Accessor, io::Default>(f, view);
         real_t rho, vx, vy, vz;
-        culbm::core::macroscopic::compute<NDir>(rho, vx, vy, vz, f);
+        culbm::core::macroscopic::compute<n_dir>(rho, vx, vy, vz, f);
 
-        if (flag & DUMP_RHO_BIT) param.rhoBuf[pos.globalIndex] = rho;
-        if (flag & DUMP_VX_BIT)  param.vxBuf[pos.globalIndex] = vx;
-        if (flag & DUMP_VY_BIT)  param.vyBuf[pos.globalIndex] = vy;
-        if (flag & DUMP_VZ_BIT)  param.vzBuf[pos.globalIndex] = vz;
+        if (flag & DUMP_RHO_BIT) param.rho_buf[pos.global_index] = rho;
+        if (flag & DUMP_VX_BIT)  param.vx_buf[pos.global_index] = vx;
+        if (flag & DUMP_VY_BIT)  param.vy_buf[pos.global_index] = vy;
+        if (flag & DUMP_VZ_BIT)  param.vz_buf[pos.global_index] = vz;
     }
 
     PullKernels PullKernels::make(int q, std::string_view kind)
     {
-        return culbm::core::collision::dispatch(q, kind, [&]<int NDir, Kind Kind> {
+        return culbm::core::collision::dispatch(q, kind, [&]<int n_dir, Kind collision_kind> {
             using Pull = Access<accessor::PullTwoFields, mapping::GlobalView>;
             return PullKernels{
-                .equilibrium = &hostEquilibrium<NDir, Kind>,
-                .step = &StreamCollideKernel<NDir, Kind, PlainParam, Pull, Pull, false, StoreScope::Flagged>,
-                .dump = &DumpKernel<NDir, PlainParam, Pull>
+                .equilibrium = &host_equilibrium<n_dir, collision_kind>,
+                .step        = &stream_collide_kernel<n_dir, collision_kind, PlainParam, Pull, Pull, false, StoreScope::flagged>,
+                .dump        = &dump_kernel<n_dir, PlainParam, Pull>
             };
         });
     }
 
     TwistKernels TwistKernels::make(int q, std::string_view kind)
     {
-        return culbm::core::collision::dispatch(q, kind, [&]<int NDir, Kind Kind> {
+        return culbm::core::collision::dispatch(q, kind, [&]<int n_dir, Kind collision_kind> {
             using Even = Access<accessor::EsoTwistEven, mapping::GlobalView>;
             using Odd  = Access<accessor::EsoTwistOdd, mapping::GlobalView>;
             return TwistKernels{
-                .equilibrium = &hostEquilibrium<NDir, Kind>,
-                .stepEven = &StreamCollideKernel<NDir, Kind, PlainParam, Even, Even, false, StoreScope::Flagged>,
-                .stepOdd  = &StreamCollideKernel<NDir, Kind, PlainParam, Odd,  Odd,  false, StoreScope::Flagged>,
-                .dumpEven = &DumpKernel<NDir, PlainParam, Even>,
-                .dumpOdd  = &DumpKernel<NDir, PlainParam, Odd>
+                .equilibrium = &host_equilibrium<n_dir, collision_kind>,
+                .step_even   = &stream_collide_kernel<n_dir, collision_kind, PlainParam, Even, Even, false, StoreScope::flagged>,
+                .step_odd    = &stream_collide_kernel<n_dir, collision_kind, PlainParam, Odd,  Odd,  false, StoreScope::flagged>,
+                .dump_even   = &dump_kernel<n_dir, PlainParam, Even>,
+                .dump_odd    = &dump_kernel<n_dir, PlainParam, Odd>
             };
         });
     }
 
     BlockingKernels BlockingKernels::make(int q, std::string_view kind, Mode buffer, bool hints)
     {
-        return culbm::core::collision::dispatch(q, kind, [&]<int NDir, Kind Kind> {
-            const auto make = [&]<ddf::View View, bool CacheHints> {
+        return culbm::core::collision::dispatch(q, kind, [&]<int n_dir, Kind collision_kind> {
+            const auto make = [&]<ddf::View View, bool cache_hints> {
                 using GlobalPull = Access<accessor::PullTwoFields, View>;
-                using TileEven = Access<accessor::EsoTwistEven, mapping::TileView>;
-                using TileOdd  = Access<accessor::EsoTwistOdd,  mapping::TileView>;
+                using TileEven   = Access<accessor::EsoTwistEven, mapping::TileView>;
+                using TileOdd    = Access<accessor::EsoTwistOdd,  mapping::TileView>;
                 return BlockingKernels{
-                    .equilibrium = &hostEquilibrium<NDir, Kind>,
-                    .single     = &StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, GlobalPull, CacheHints, StoreScope::Flagged>,
-                    .first      = &StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, TileOdd,    CacheHints, StoreScope::Flagged>,
-                    .middleEven = &StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    TileOdd,    CacheHints, StoreScope::Flagged>,
-                    .middleOdd  = &StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   TileEven,   CacheHints, StoreScope::Flagged>,
-                    .lastEven   = &StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    GlobalPull, CacheHints, StoreScope::Owned>,
-                    .lastOdd    = &StreamCollideKernel<NDir, Kind, BlockingParam, TileEven,   GlobalPull, CacheHints, StoreScope::Owned>,
-                    .dump       = &DumpKernel<NDir, BlockingParam, GlobalPull>
+                    .equilibrium = &host_equilibrium<n_dir, collision_kind>,
+                    .single      = &stream_collide_kernel<n_dir, collision_kind, BlockingParam, GlobalPull, GlobalPull, cache_hints, StoreScope::flagged>,
+                    .first       = &stream_collide_kernel<n_dir, collision_kind, BlockingParam, GlobalPull, TileOdd,    cache_hints, StoreScope::flagged>,
+                    .middle_even = &stream_collide_kernel<n_dir, collision_kind, BlockingParam, TileOdd,    TileOdd,    cache_hints, StoreScope::flagged>,
+                    .middle_odd  = &stream_collide_kernel<n_dir, collision_kind, BlockingParam, TileEven,   TileEven,   cache_hints, StoreScope::flagged>,
+                    .last_even   = &stream_collide_kernel<n_dir, collision_kind, BlockingParam, TileOdd,    GlobalPull, cache_hints, StoreScope::owned>,
+                    .last_odd    = &stream_collide_kernel<n_dir, collision_kind, BlockingParam, TileEven,   GlobalPull, cache_hints, StoreScope::owned>,
+                    .dump        = &dump_kernel<n_dir, BlockingParam, GlobalPull>
                 };
             };
             const auto select = [hints, &make]<ddf::View View> {
@@ -145,10 +145,10 @@ namespace culbm::sim::single
             };
             switch (buffer)
             {
-                case Mode::BlockDouble: return select.template operator()<mapping::GlobalView>();
-                case Mode::BlockRing:   return select.template operator()<mapping::RingView>();
-                case Mode::Pull:
-                case Mode::Twist: break;
+                case Mode::block_double: return select.template operator()<mapping::GlobalView>();
+                case Mode::block_ring:   return select.template operator()<mapping::RingView>();
+                case Mode::pull:
+                case Mode::twist: break;
             }
             ::cuda::std::unreachable();
         });
