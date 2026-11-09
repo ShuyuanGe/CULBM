@@ -16,47 +16,25 @@ namespace culbm::sim::multi
     using culbm::core::collision::Kind;
 
     template <int NDir, Kind Kind>
-    __global__ void
-    StepKernel(const KernelParam __grid_constant__ param)
+    __global__ void StepKernel(const KernelParam param)
     {
-        const idx_t nx = gridDim.x * blockDim.x;
-        const idx_t ny = gridDim.y * blockDim.y;
-        const idx_t nz = gridDim.z * blockDim.z;
-        const idx_t  n = nx * ny * nz;
-        const idx_t  x = blockDim.x * blockIdx.x + threadIdx.x;
-        const idx_t  y = blockDim.y * blockIdx.y + threadIdx.y;
-        const idx_t  z = blockDim.z * blockIdx.z + threadIdx.z;
-        const idx_t  idx = x + nx * (y + ny * z);
+        const mapping::Position pos;
 
-        const auto flag = param.flagBuf[idx];
+        const auto flag = param.flagBuf[pos.idx];
         real_t rho, vx, vy, vz;
         ddf_t f[NDir];
 
         const flag_t loadFlags = flag & (LOAD_DDF_BIT | REV_LOAD_DDF_BIT | DEV_BND_BIT);
         if (loadFlags & (LOAD_DDF_BIT | REV_LOAD_DDF_BIT))
         {
-            const idx_t pdx = (x == nx - 1) ? 1 - nx : 1;
-            const idx_t pdy = (y == ny - 1) ? nx * (1 - ny) : nx;
-            const idx_t pdz = (z == nz - 1) ? nx * ny * (1 - nz) : nx * ny;
-            const idx_t ndx = (x == 0) ? nx - 1 : -1;
-            const idx_t ndy = (y == 0) ? nx * (ny - 1) : -nx;
-            const idx_t ndz = (z == 0) ? nx * ny * (nz - 1) : -nx * ny;
-
             if (not (loadFlags & DEV_BND_BIT))
             {
-                const mapping::DeviceView<false> view{param.srcDdf.data(), param.dstDdf, idx, n, ndx, pdx, ndy, pdy, ndz, pdz};
+                const auto view = mapping::DeviceView<false>::make(param, pos);
                 ddf::load<NDir, accessor::PullTwoFields, Default>(f, view);
             }
             else
             {
-                const nbr_t nbrpdx = (x == nx - 1) ? 1 : 0;
-                const nbr_t nbrpdy = (y == ny - 1) ? 3 : 0;
-                const nbr_t nbrpdz = (z == nz - 1) ? 9 : 0;
-                const nbr_t nbrndx = (x == 0) ? -1 : 0;
-                const nbr_t nbrndy = (y == 0) ? -3 : 0;
-                const nbr_t nbrndz = (z == 0) ? -9 : 0;
-
-                const mapping::DeviceView<true> view{param.srcDdf.data(), param.dstDdf, idx, n, ndx, pdx, ndy, pdy, ndz, pdz, nbrndx, nbrpdx, nbrndy, nbrpdy, nbrndz, nbrpdz};
+                const auto view = mapping::DeviceView<true>::make(param, pos);
                 ddf::load<NDir, accessor::PullTwoFields, Default>(f, view);
             }
 
@@ -66,10 +44,10 @@ namespace culbm::sim::multi
 
         if (flag & EQU_DDF_BIT)
         {
-            rho = param.rhoBuf[idx];
-            vx  = param.vxBuf[idx];
-            vy  = param.vyBuf[idx];
-            vz  = param.vzBuf[idx];
+            rho = param.rhoBuf[pos.idx];
+            vx  = param.vxBuf[pos.idx];
+            vy  = param.vyBuf[pos.idx];
+            vz  = param.vzBuf[pos.idx];
             Model<Kind, NDir>::equilibrium(rho, vx, vy, vz, f);
         }
 
@@ -85,12 +63,12 @@ namespace culbm::sim::multi
 
         if (flag & STORE_DDF_BIT)
         {
-            const mapping::DeviceView<false> view{param.srcDdf.data(), param.dstDdf, idx, n};
+            const auto view = mapping::DeviceView<false>::make(param, pos);
             ddf::store<NDir, accessor::PullTwoFields, Default>(f, view);
-            param.rhoBuf[idx] = rho;
-            param.vxBuf[idx]  = vx;
-            param.vyBuf[idx]  = vy;
-            param.vzBuf[idx]  = vz;
+            param.rhoBuf[pos.idx] = rho;
+            param.vxBuf[pos.idx]  = vx;
+            param.vyBuf[pos.idx]  = vy;
+            param.vzBuf[pos.idx]  = vz;
         }
     }
 
@@ -101,17 +79,9 @@ namespace culbm::sim::multi
     } obstacle;
 
     template <int NDir, Kind Kind>
-    __global__ void
-    InitKernel(const InitKernelParam __grid_constant__ param)
+    __global__ void InitKernel(const InitKernelParam param)
     {
-        const idx_t nx = gridDim.x * blockDim.x;
-        const idx_t ny = gridDim.y * blockDim.y;
-        const idx_t nz = gridDim.z * blockDim.z;
-        const idx_t x = blockDim.x * blockIdx.x + threadIdx.x;
-        const idx_t y = blockDim.y * blockIdx.y + threadIdx.y;
-        const idx_t z = blockDim.z * blockIdx.z + threadIdx.z;
-        const idx_t n = nx * ny * nz;
-        const idx_t idx = x + nx * (y + ny * z);
+        const mapping::Position pos;
 
         flag_t flag = LOAD_DDF_BIT | COLLIDE_BIT | STORE_DDF_BIT;
         real_t rho = 1;
@@ -127,9 +97,9 @@ namespace culbm::sim::multi
             constexpr int cz = obstacle.cz;
             constexpr int r = obstacle.r;
             constexpr int r2 = r * r;
-            const idx_t gx = param.devPos.x * nx + x;
-            const idx_t gy = param.devPos.y * ny + y;
-            const idx_t gz = param.devPos.z * nz + z;
+            const idx_t gx = param.devPos.x * pos.nx + pos.x;
+            const idx_t gy = param.devPos.y * pos.ny + pos.y;
+            const idx_t gz = param.devPos.z * pos.nz + pos.z;
 
             if ((gx - cx) * (gx - cx) + (gy - cy) * (gy - cy) + (gz - cz) * (gz - cz) < r2) {
                 flag = BOUNCE_BACK_FLAG;
@@ -140,42 +110,42 @@ namespace culbm::sim::multi
         }
 
         if (
-            (param.devPos.y == 0 and y == 0) or                        // front face
-            (param.devPos.y == param.devDim.y - 1 and y == ny - 1) or  // back face
-            (param.devPos.z == 0 and z == 0) or                        // down face
-            (param.devPos.z == param.devDim.z - 1 and z == nz - 1)     // up face
+            (param.devPos.y == 0 and pos.y == 0) or                             // front face
+            (param.devPos.y == param.devDim.y - 1 and pos.y == pos.ny - 1) or   // back face
+            (param.devPos.z == 0 and pos.z == 0) or                             // down face
+            (param.devPos.z == param.devDim.z - 1 and pos.z == pos.nz - 1)       // up face
         )
         {
             flag = REV_LOAD_DDF_BIT | STORE_DDF_BIT;
         }
-        else if (param.devPos.x == 0 and x == 0)
+        else if (param.devPos.x == 0 and pos.x == 0)
         {
             flag = EQU_DDF_BIT | STORE_DDF_BIT;                // left face
             vx = 0.05;
         }
-        else if (param.devPos.x == param.devDim.x - 1 and x == nx - 1)
+        else if (param.devPos.x == param.devDim.x - 1 and pos.x == pos.nx - 1)
         {
             flag = EQU_DDF_BIT | STORE_DDF_BIT;                // right face
         }
 
-        if (x == 0 or x == nx - 1 or y == 0 or y == ny - 1 or z == 0 or z == nz - 1)
+        if (pos.x == 0 or pos.x == pos.nx - 1 or pos.y == 0 or pos.y == pos.ny - 1 or pos.z == 0 or pos.z == pos.nz - 1)
         {
             flag |= DEV_BND_BIT;                               // device boundary
         }
 
         Model<Kind, NDir>::equilibrium(rho, vx, vy, vz, f);
 
-        param.flagBuf[idx] = flag;
-        param.rhoBuf[idx] = rho;
-        param.vxBuf[idx] = vx;
-        param.vyBuf[idx] = vy;
-        param.vzBuf[idx] = vz;
+        param.flagBuf[pos.idx] = flag;
+        param.rhoBuf[pos.idx] = rho;
+        param.vxBuf[pos.idx] = vx;
+        param.vyBuf[pos.idx] = vy;
+        param.vzBuf[pos.idx] = vz;
 
         #pragma unroll
         for (dir_t dir = 0 ; dir < NDir ; ++dir)
         {
-            param.srcDdf[dir * n + idx] = f[dir];
-            param.dstDdf[dir * n + idx] = f[dir];
+            param.srcDdf[dir * pos.n + pos.idx] = f[dir];
+            param.dstDdf[dir * pos.n + pos.idx] = f[dir];
         }
     }
 
