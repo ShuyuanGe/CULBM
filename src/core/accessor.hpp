@@ -1,13 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include "core/stencil.hpp"
 
 namespace culbm::core::accessor
 {
     struct Access { int direction, x, y, z; };
-
-    consteval int positive(int value) { return value > 0 ? value : 0; }
 
     // lbmpy.fieldaccess.StreamPullTwoFieldsAccessor
     struct PullTwoFields
@@ -42,7 +41,7 @@ namespace culbm::core::accessor
         static consteval Access read()
         {
             constexpr auto d = Stencil<NDir>::directions[Q];
-            return {Q, positive(-d.x), positive(-d.y), positive(-d.z)};
+            return {Q, std::max(-d.x, 0), std::max(-d.y, 0), std::max(-d.z, 0)};
         }
 
         template <int NDir, std::size_t Q>
@@ -50,7 +49,7 @@ namespace culbm::core::accessor
         {
             constexpr auto d = Stencil<NDir>::directions[Q];
             constexpr int reverse = Stencil<NDir>::opposite(Q);
-            return {reverse, positive(d.x), positive(d.y), positive(d.z)};
+            return {reverse, std::max(d.x, 0), std::max(d.y, 0), std::max(d.z, 0)};
         }
     };
 
@@ -62,14 +61,14 @@ namespace culbm::core::accessor
         {
             constexpr auto d = Stencil<NDir>::directions[Q];
             constexpr int reverse = Stencil<NDir>::opposite(Q);
-            return {reverse, positive(-d.x), positive(-d.y), positive(-d.z)};
+            return {reverse, std::max(-d.x, 0), std::max(-d.y, 0), std::max(-d.z, 0)};
         }
 
         template <int NDir, std::size_t Q>
         static consteval Access write()
         {
             constexpr auto d = Stencil<NDir>::directions[Q];
-            return {Q, positive(d.x), positive(d.y), positive(d.z)};
+            return {Q, std::max(d.x, 0), std::max(d.y, 0), std::max(d.z, 0)};
         }
     };
 

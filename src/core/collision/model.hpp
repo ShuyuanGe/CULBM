@@ -2,9 +2,9 @@
 
 #include "core/types.hpp"
 #include "kind.hpp"
-#include "generated/d3q15.cuh"
-#include "generated/d3q19.cuh"
-#include "generated/d3q27.cuh"
+#include "core/generated/d3q15.cuh"
+#include "core/generated/d3q19.cuh"
+#include "core/generated/d3q27.cuh"
 
 namespace culbm::core::collision
 {
@@ -12,7 +12,7 @@ namespace culbm::core::collision
         requires (NDir != 15 || Kind != Kind::Cumulant)
     struct Model
     {
-        static constexpr void collide(real_t omega, ddf_t* f)
+        static constexpr void collide(real_t omega, ddf_t (&f)[NDir])
         {
             if constexpr (NDir == 15)
             {
@@ -33,7 +33,7 @@ namespace culbm::core::collision
             }
         }
 
-        static constexpr void equilibrium(real_t rho, real_t ux, real_t uy, real_t uz, ddf_t* f)
+        static constexpr void equilibrium(real_t rho, real_t ux, real_t uy, real_t uz, ddf_t (&f)[NDir])
         {
             if constexpr (NDir == 15)
             {

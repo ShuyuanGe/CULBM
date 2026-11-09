@@ -23,15 +23,16 @@ namespace culbm::core
             return result;
         }();
 
+        static constexpr int opposite(std::size_t q) { return NDir - 1 - q; }
+
         static_assert([] {
             for (int q = 0; q < NDir; ++q) {
                 const auto a = directions[q];
-                const auto b = directions[NDir - 1 - q];
+                const auto b = directions[opposite(q)];
                 if (a.x != -b.x || a.y != -b.y || a.z != -b.z) return false;
             }
             return true;
         }(), "Stencil directions must be ordered in opposite pairs");
 
-        static constexpr int opposite(std::size_t q) { return NDir - 1 - q; }
     };
 }

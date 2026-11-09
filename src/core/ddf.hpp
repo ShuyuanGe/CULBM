@@ -1,28 +1,48 @@
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <utility>
+#include "accessor.hpp"
+#include "types.hpp"
 
 namespace culbm::core::ddf
 {
-    template <int NDir, typename Accessor, typename IO, typename Value, typename View>
-    constexpr void load(Value* f, const View& view)
+    template <typename T, int NDir>
+    concept Accessor = requires {
+        { T::template read<NDir, 0>() } -> std::same_as<accessor::Access>;
+    };
+
+    template <typename T>
+    concept IO = requires(const ddf_t* src, ddf_t* dst, ddf_t value) {
+        { T::load(src) } -> std::same_as<ddf_t>;
+        { T::store(dst, value) } -> std::same_as<void>;
+    };
+
+    template <typename T>
+    concept View = requires(const T& view) {
+        { view.template readAddress<0, 0, 0, 0>() } -> std::same_as<const ddf_t*>;
+        { view.template writeAddress<0, 0, 0, 0>() } -> std::same_as<ddf_t*>;
+    };
+
+    template <int NDir, Accessor<NDir> AccessorType, IO IOType, typename Value, View ViewType>
+    constexpr void load(Value (&f)[NDir], const ViewType& view)
     {
-        [f, &view]<std::size_t... Q>(std::index_sequence<Q...>) constexpr {
-            ([f, &view]() constexpr {
-                constexpr auto a = Accessor::template read<NDir, Q>();
-                f[Q] = IO::load(view.template readAddress<a.direction, a.x, a.y, a.z>());
+        [&]<std::size_t... Q>(std::index_sequence<Q...>) constexpr {
+            ([&]() constexpr {
+                constexpr auto a = AccessorType::template read<NDir, Q>();
+                f[Q] = IOType::load(view.template readAddress<a.direction, a.x, a.y, a.z>());
             }(), ...);
         }(std::make_index_sequence<NDir>{});
     }
 
-    template <int NDir, typename Accessor, typename IO, typename Value, typename View>
-    constexpr void store(const Value* f, const View& view)
+    template <int NDir, Accessor<NDir> AccessorType, IO IOType, typename Value, View ViewType>
+    constexpr void store(const Value (&f)[NDir], const ViewType& view)
     {
-        [f, &view]<std::size_t... Q>(std::index_sequence<Q...>) constexpr {
-            ([f, &view]() constexpr {
-                constexpr auto a = Accessor::template write<NDir, Q>();
-                IO::store(view.template writeAddress<a.direction, a.x, a.y, a.z>(), f[Q]);
+        [&]<std::size_t... Q>(std::index_sequence<Q...>) constexpr {
+            ([&]() constexpr {
+                constexpr auto a = AccessorType::template write<NDir, Q>();
+                IOType::store(view.template writeAddress<a.direction, a.x, a.y, a.z>(), f[Q]);
             }(), ...);
         }(std::make_index_sequence<NDir>{});
     }

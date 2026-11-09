@@ -116,17 +116,17 @@ namespace culbm::sim::multi
             vxn  = param.vxBuf[idx];
             vyn  = param.vyBuf[idx];
             vzn  = param.vzBuf[idx];
-            Model<Kind, NDir>::equilibrium(rhon, vxn, vyn, vzn, std::begin(fin));
+            Model<Kind, NDir>::equilibrium(rhon, vxn, vyn, vzn, fin);
         }
 
         if (flagn & COLLIDE_BIT)
         {
-            culbm::core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, std::begin(fin));
-            Model<Kind, NDir>::collide(param.invTau, std::begin(fin));
+            culbm::core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, fin);
+            Model<Kind, NDir>::collide(param.invTau, fin);
         }
         else if ((flagn & STORE_DDF_BIT) and not (flagn & EQU_DDF_BIT))
         {
-            culbm::core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, std::begin(fin));
+            culbm::core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, fin);
         }
 
         if (flagn & STORE_DDF_BIT)
@@ -214,7 +214,7 @@ namespace culbm::sim::multi
             flagn |= DEV_BND_BIT;                               // device boundary
         }
 
-        Model<Kind, NDir>::equilibrium(rhon, vxn, vyn, vzn, std::begin(fin));
+        Model<Kind, NDir>::equilibrium(rhon, vxn, vyn, vzn, fin);
 
         param.flagBuf[idx] = flagn;
         param.rhoBuf[idx] = rhon;

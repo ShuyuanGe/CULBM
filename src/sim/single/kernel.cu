@@ -6,6 +6,7 @@
 #include "core/accessor.hpp"
 #include "core/ddf.hpp"
 #include "gpu/io.cuh"
+#include <algorithm>
 #include <cuda/std/utility>
 #include <type_traits>
 #include <utility>
@@ -18,6 +19,14 @@ namespace culbm::sim::single
     using culbm::core::collision::Model;
     using culbm::core::collision::Kind;
     using culbm::core::Stencil;
+
+    template <int NDir, Kind Op>
+    void hostEquilibrium(real_t rho, real_t vx, real_t vy, real_t vz, ddf_t* dst)
+    {
+        ddf_t f[NDir];
+        Model<Op, NDir>::equilibrium(rho, vx, vy, vz, f);
+        std::ranges::copy(f, dst);
+    }
 
     template <typename AccessorType, typename ViewType>
     struct Access
@@ -96,7 +105,7 @@ namespace culbm::sim::single
         return culbm::core::collision::dispatch(q, kind, [&]<int NDir, Kind Kind> {
             using Pull = Access<accessor::PullTwoFields, mapping::GlobalView>;
             return PullKernels{
-                .equilibrium = &Model<Kind, NDir>::equilibrium,
+                .equilibrium = &hostEquilibrium<NDir, Kind>,
                 .step = &StreamCollideKernel<NDir, Kind, PlainParam, Pull, Pull, false, StoreScope::Flagged>,
                 .dump = &DumpKernel<NDir, PlainParam, Pull>
             };
@@ -109,7 +118,7 @@ namespace culbm::sim::single
             using Even = Access<accessor::EsoTwistEven, mapping::GlobalView>;
             using Odd  = Access<accessor::EsoTwistOdd, mapping::GlobalView>;
             return TwistKernels{
-                .equilibrium = &Model<Kind, NDir>::equilibrium,
+                .equilibrium = &hostEquilibrium<NDir, Kind>,
                 .stepEven = &StreamCollideKernel<NDir, Kind, PlainParam, Even, Even, false, StoreScope::Flagged>,
                 .stepOdd  = &StreamCollideKernel<NDir, Kind, PlainParam, Odd,  Odd,  false, StoreScope::Flagged>,
                 .dumpEven = &DumpKernel<NDir, PlainParam, Even>,
@@ -126,7 +135,7 @@ namespace culbm::sim::single
                 using TileEven = Access<accessor::EsoTwistEven, mapping::TileView>;
                 using TileOdd  = Access<accessor::EsoTwistOdd,  mapping::TileView>;
                 return BlockingKernels{
-                    .equilibrium = &Model<Kind, NDir>::equilibrium,
+                    .equilibrium = &hostEquilibrium<NDir, Kind>,
                     .single     = &StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, GlobalPull, CacheHints, StoreScope::Flagged>,
                     .first      = &StreamCollideKernel<NDir, Kind, BlockingParam, GlobalPull, TileOdd,    CacheHints, StoreScope::Flagged>,
                     .middleEven = &StreamCollideKernel<NDir, Kind, BlockingParam, TileOdd,    TileOdd,    CacheHints, StoreScope::Flagged>,
