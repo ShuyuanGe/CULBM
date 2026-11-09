@@ -18,7 +18,6 @@ namespace culbm::sim::single
     namespace ddf      = culbm::core::ddf;
     using culbm::core::collision::Model;
     using culbm::core::collision::Kind;
-    using culbm::core::Stencil;
 
     template <int NDir, Kind Op>
     void hostEquilibrium(real_t rho, real_t vx, real_t vy, real_t vz, ddf_t* dst)
@@ -61,11 +60,7 @@ namespace culbm::sim::single
         }
 
         if (flag & BOUNCE_BACK_BIT)
-        {
-            #pragma unroll
-            for (int i = 0; i < NDir / 2; ++i)
-                std::swap(f[i], f[Stencil<NDir>::opposite(i)]);
-        }
+            Model<Kind, NDir>::bounceBack(f);
 
         if (flag & COLLIDE_BIT)
             Model<Kind, NDir>::collide(param.invTau, f);

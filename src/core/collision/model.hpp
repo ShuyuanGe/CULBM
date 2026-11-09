@@ -1,6 +1,8 @@
 #pragma once
 
 #include "core/types.hpp"
+#include "core/stencil.hpp"
+#include <utility>
 #include "kind.hpp"
 #include "core/generated/d3q15.cuh"
 #include "core/generated/d3q19.cuh"
@@ -12,6 +14,13 @@ namespace culbm::core::collision
         requires (NDir != 15 || Kind != Kind::Cumulant)
     struct Model
     {
+        static constexpr void bounceBack(ddf_t (&f)[NDir])
+        {
+            #pragma unroll
+            for (int q = 0; q < NDir / 2; ++q)
+                std::swap(f[q], f[Stencil<NDir>::opposite(q)]);
+        }
+
         static constexpr void collide(real_t omega, ddf_t (&f)[NDir])
         {
             if constexpr (NDir == 15)

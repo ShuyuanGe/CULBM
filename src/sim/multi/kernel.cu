@@ -1,44 +1,11 @@
 #include "kernel.cuh"
+#include "mapping.cuh"
 #include "core/collision/model.hpp"
 #include "core/collision/dispatch.hpp"
 #include "core/macroscopic.hpp"
 #include "core/accessor.hpp"
 #include "core/ddf.hpp"
 #include "gpu/io.cuh"
-
-namespace culbm::sim::multi::detail
-{
-    template <bool CrossDevice>
-    struct DeviceView
-    {
-        ddf_t* const* src;
-        ddf_t* dst;
-        idx_t idx, n, ndx, pdx, ndy, pdy, ndz, pdz;
-        nbr_t nbrndx, nbrpdx, nbrndy, nbrpdy, nbrndz, nbrpdz;
-
-        template <int Dir, int DX, int DY, int DZ>
-        constexpr const ddf_t* readAddress() const
-        {
-            nbr_t peer = 13;
-            if constexpr (CrossDevice)
-                peer += (DX < 0 ? nbrndx : DX > 0 ? nbrpdx : 0)
-                      + (DY < 0 ? nbrndy : DY > 0 ? nbrpdy : 0)
-                      + (DZ < 0 ? nbrndz : DZ > 0 ? nbrpdz : 0);
-
-            const idx_t cell = idx
-                + (DX < 0 ? ndx : DX > 0 ? pdx : 0)
-                + (DY < 0 ? ndy : DY > 0 ? pdy : 0)
-                + (DZ < 0 ? ndz : DZ > 0 ? pdz : 0);
-            return src[peer] + static_cast<ddf_offset_t>(Dir) * n + cell;
-        }
-
-        template <int Dir, int DX, int DY, int DZ>
-        constexpr ddf_t* writeAddress() const
-        {
-            return dst + (static_cast<ddf_offset_t>(Dir) * n + idx);
-        }
-    };
-}
 
 namespace culbm::sim::multi
 {
@@ -61,12 +28,12 @@ namespace culbm::sim::multi
         const idx_t  z = blockDim.z * blockIdx.z + threadIdx.z;
         const idx_t  idx = x + nx * (y + ny * z);
 
-        const auto flagn = param.flagBuf[idx];
-        real_t rhon, vxn, vyn, vzn;
-        ddf_t fin[NDir];
+        const auto flag = param.flagBuf[idx];
+        real_t rho, vx, vy, vz;
+        ddf_t f[NDir];
 
-        const flag_t iFlagn = flagn & (LOAD_DDF_BIT | REV_LOAD_DDF_BIT | DEV_BND_BIT);
-        if (iFlagn)
+        const flag_t loadFlags = flag & (LOAD_DDF_BIT | REV_LOAD_DDF_BIT | DEV_BND_BIT);
+        if (loadFlags & (LOAD_DDF_BIT | REV_LOAD_DDF_BIT))
         {
             const idx_t pdx = (x == nx - 1) ? 1 - nx : 1;
             const idx_t pdy = (y == ny - 1) ? nx * (1 - ny) : nx;
@@ -75,19 +42,12 @@ namespace culbm::sim::multi
             const idx_t ndy = (y == 0) ? nx * (ny - 1) : -nx;
             const idx_t ndz = (z == 0) ? nx * ny * (nz - 1) : -nx * ny;
 
-            if (iFlagn == LOAD_DDF_BIT)
+            if (not (loadFlags & DEV_BND_BIT))
             {
-                const detail::DeviceView<false> view{param.srcDdf.data(), param.dstDdf, idx, n, ndx, pdx, ndy, pdy, ndz, pdz};
-                ddf::load<NDir, accessor::PullTwoFields, Default>(fin, view);
+                const mapping::DeviceView<false> view{param.srcDdf.data(), param.dstDdf, idx, n, ndx, pdx, ndy, pdy, ndz, pdz};
+                ddf::load<NDir, accessor::PullTwoFields, Default>(f, view);
             }
-
-            if (iFlagn == REV_LOAD_DDF_BIT)
-            {
-                const detail::DeviceView<false> view{param.srcDdf.data(), param.dstDdf, idx, n, ndx, pdx, ndy, pdy, ndz, pdz};
-                ddf::load<NDir, accessor::ReversePull, Default>(fin, view);
-            }
-
-            if (iFlagn & DEV_BND_BIT)
+            else
             {
                 const nbr_t nbrpdx = (x == nx - 1) ? 1 : 0;
                 const nbr_t nbrpdy = (y == ny - 1) ? 3 : 0;
@@ -96,60 +56,49 @@ namespace culbm::sim::multi
                 const nbr_t nbrndy = (y == 0) ? -3 : 0;
                 const nbr_t nbrndz = (z == 0) ? -9 : 0;
 
-                if (iFlagn == (LOAD_DDF_BIT | DEV_BND_BIT))
-                {
-                    const detail::DeviceView<true> view{param.srcDdf.data(), param.dstDdf, idx, n, ndx, pdx, ndy, pdy, ndz, pdz, nbrndx, nbrpdx, nbrndy, nbrpdy, nbrndz, nbrpdz};
-                    ddf::load<NDir, accessor::PullTwoFields, Default>(fin, view);
-                }
-
-                if (iFlagn == (REV_LOAD_DDF_BIT | DEV_BND_BIT))
-                {
-                    const detail::DeviceView<true> view{param.srcDdf.data(), param.dstDdf, idx, n, ndx, pdx, ndy, pdy, ndz, pdz, nbrndx, nbrpdx, nbrndy, nbrpdy, nbrndz, nbrpdz};
-                    ddf::load<NDir, accessor::ReversePull, Default>(fin, view);
-                }
+                const mapping::DeviceView<true> view{param.srcDdf.data(), param.dstDdf, idx, n, ndx, pdx, ndy, pdy, ndz, pdz, nbrndx, nbrpdx, nbrndy, nbrpdy, nbrndz, nbrpdz};
+                ddf::load<NDir, accessor::PullTwoFields, Default>(f, view);
             }
+
+            if (flag & REV_LOAD_DDF_BIT)
+                Model<Kind, NDir>::bounceBack(f);
         }
 
-        if (flagn & EQU_DDF_BIT)
+        if (flag & EQU_DDF_BIT)
         {
-            rhon = param.rhoBuf[idx];
-            vxn  = param.vxBuf[idx];
-            vyn  = param.vyBuf[idx];
-            vzn  = param.vzBuf[idx];
-            Model<Kind, NDir>::equilibrium(rhon, vxn, vyn, vzn, fin);
+            rho = param.rhoBuf[idx];
+            vx  = param.vxBuf[idx];
+            vy  = param.vyBuf[idx];
+            vz  = param.vzBuf[idx];
+            Model<Kind, NDir>::equilibrium(rho, vx, vy, vz, f);
         }
 
-        if (flagn & COLLIDE_BIT)
+        if (flag & COLLIDE_BIT)
         {
-            culbm::core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, fin);
-            Model<Kind, NDir>::collide(param.invTau, fin);
+            culbm::core::macroscopic::compute<NDir>(rho, vx, vy, vz, f);
+            Model<Kind, NDir>::collide(param.invTau, f);
         }
-        else if ((flagn & STORE_DDF_BIT) and not (flagn & EQU_DDF_BIT))
+        else if ((flag & STORE_DDF_BIT) and not (flag & EQU_DDF_BIT))
         {
-            culbm::core::macroscopic::compute<NDir>(rhon, vxn, vyn, vzn, fin);
+            culbm::core::macroscopic::compute<NDir>(rho, vx, vy, vz, f);
         }
 
-        if (flagn & STORE_DDF_BIT)
+        if (flag & STORE_DDF_BIT)
         {
-            const detail::DeviceView<false> view{param.srcDdf.data(), param.dstDdf, idx, n};
-            ddf::store<NDir, accessor::PullTwoFields, Default>(fin, view);
-            param.rhoBuf[idx] = rhon;
-            param.vxBuf[idx]  = vxn;
-            param.vyBuf[idx]  = vyn;
-            param.vzBuf[idx]  = vzn;
+            const mapping::DeviceView<false> view{param.srcDdf.data(), param.dstDdf, idx, n};
+            ddf::store<NDir, accessor::PullTwoFields, Default>(f, view);
+            param.rhoBuf[idx] = rho;
+            param.vxBuf[idx]  = vx;
+            param.vyBuf[idx]  = vy;
+            param.vzBuf[idx]  = vz;
         }
     }
 
-    constexpr auto spherical_obstacle_params = [] {
-        struct SphericalObstacleParams {
-            bool enabled = true;
-            int cx = 256;
-            int cy = 256;
-            int cz = 128;
-            int r = 80;
-        } params;
-        return params;
-    }();
+    constexpr struct
+    {
+        bool enabled = true;
+        int cx = 256, cy = 256, cz = 128, r = 80;
+    } obstacle;
 
     template <int NDir, Kind Kind>
     __global__ void
@@ -164,29 +113,29 @@ namespace culbm::sim::multi
         const idx_t n = nx * ny * nz;
         const idx_t idx = x + nx * (y + ny * z);
 
-        flag_t flagn = LOAD_DDF_BIT | COLLIDE_BIT | STORE_DDF_BIT;
-        real_t rhon = 1;
-        real_t vxn = 0;
-        real_t vyn = 0;
-        real_t vzn = 0;
-        ddf_t fin[NDir];
+        flag_t flag = LOAD_DDF_BIT | COLLIDE_BIT | STORE_DDF_BIT;
+        real_t rho = 1;
+        real_t vx = 0;
+        real_t vy = 0;
+        real_t vz = 0;
+        ddf_t f[NDir];
 
         // spherical obstacle
-        if constexpr (spherical_obstacle_params.enabled) {
-            constexpr int cx = spherical_obstacle_params.cx;
-            constexpr int cy = spherical_obstacle_params.cy;
-            constexpr int cz = spherical_obstacle_params.cz;
-            constexpr int r = spherical_obstacle_params.r;
+        if constexpr (obstacle.enabled) {
+            constexpr int cx = obstacle.cx;
+            constexpr int cy = obstacle.cy;
+            constexpr int cz = obstacle.cz;
+            constexpr int r = obstacle.r;
             constexpr int r2 = r * r;
             const idx_t gx = param.devIdx.x * nx + x;
             const idx_t gy = param.devIdx.y * ny + y;
             const idx_t gz = param.devIdx.z * nz + z;
 
             if ((gx - cx) * (gx - cx) + (gy - cy) * (gy - cy) + (gz - cz) * (gz - cz) < r2) {
-                flagn = BOUNCE_BACK_FLAG;
-                vxn = 0;
-                vyn = 0;
-                vzn = 0;
+                flag = BOUNCE_BACK_FLAG;
+                vx = 0;
+                vy = 0;
+                vz = 0;
             }
         }
 
@@ -197,36 +146,36 @@ namespace culbm::sim::multi
             (param.devIdx.z == param.devDim.z - 1 and z == nz - 1)     // up face
         )
         {
-            flagn = REV_LOAD_DDF_BIT | STORE_DDF_BIT;
+            flag = REV_LOAD_DDF_BIT | STORE_DDF_BIT;
         }
         else if (param.devIdx.x == 0 and x == 0)
         {
-            flagn = EQU_DDF_BIT | STORE_DDF_BIT;                // left face
-            vxn = 0.05;
+            flag = EQU_DDF_BIT | STORE_DDF_BIT;                // left face
+            vx = 0.05;
         }
         else if (param.devIdx.x == param.devDim.x - 1 and x == nx - 1)
         {
-            flagn = EQU_DDF_BIT | STORE_DDF_BIT;                // right face
+            flag = EQU_DDF_BIT | STORE_DDF_BIT;                // right face
         }
 
         if (x == 0 or x == nx - 1 or y == 0 or y == ny - 1 or z == 0 or z == nz - 1)
         {
-            flagn |= DEV_BND_BIT;                               // device boundary
+            flag |= DEV_BND_BIT;                               // device boundary
         }
 
-        Model<Kind, NDir>::equilibrium(rhon, vxn, vyn, vzn, fin);
+        Model<Kind, NDir>::equilibrium(rho, vx, vy, vz, f);
 
-        param.flagBuf[idx] = flagn;
-        param.rhoBuf[idx] = rhon;
-        param.vxBuf[idx] = vxn;
-        param.vyBuf[idx] = vyn;
-        param.vzBuf[idx] = vzn;
+        param.flagBuf[idx] = flag;
+        param.rhoBuf[idx] = rho;
+        param.vxBuf[idx] = vx;
+        param.vyBuf[idx] = vy;
+        param.vzBuf[idx] = vz;
 
         #pragma unroll
         for (dir_t dir = 0 ; dir < NDir ; ++dir)
         {
-            param.srcDdf[dir * n + idx] = fin[dir];
-            param.dstDdf[dir * n + idx] = fin[dir];
+            param.srcDdf[dir * n + idx] = f[dir];
+            param.dstDdf[dir * n + idx] = f[dir];
         }
     }
 

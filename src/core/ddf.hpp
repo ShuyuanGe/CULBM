@@ -11,6 +11,7 @@ namespace culbm::core::ddf
     template <typename T, int NDir>
     concept Accessor = requires {
         { T::template read<NDir, 0>() } -> std::same_as<accessor::Access>;
+        { T::template write<NDir, 0>() } -> std::same_as<accessor::Access>;
     };
 
     template <typename T>
