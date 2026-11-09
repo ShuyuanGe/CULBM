@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 4.0.1)
 
 project(cuLBM LANGUAGES CXX CUDA)
 
-find_package(CUDAToolkit 13.2 REQUIRED)
+find_package(CUDAToolkit REQUIRED)
+find_package(CCCL 3.2 REQUIRED CONFIG)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

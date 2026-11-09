@@ -4,15 +4,15 @@
 #include <print>
 #include <string_view>
 #include <cuda/devices>
-#include "exception.cuh"
+#include "gpu/error.hpp"
 
 int main()
 {
     try
     {
         int driver, runtime;
-        culbm::basic::error::check(cudaDriverGetVersion(&driver));
-        culbm::basic::error::check(cudaRuntimeGetVersion(&runtime));
+        culbm::gpu::check(cudaDriverGetVersion(&driver));
+        culbm::gpu::check(cudaRuntimeGetVersion(&runtime));
         std::println("CUDA driver: {}.{}, runtime: {}.{}, devices: {}", driver / 1000, driver % 1000 / 10, runtime / 1000, runtime % 1000 / 10, cuda::devices.size());
 
         for (const auto device : cuda::devices)
@@ -21,7 +21,7 @@ int main()
             const auto attr = [device](auto attribute) { return device.attribute(attribute); };
             const auto name = device.name();
             cudaDeviceProp prop{};
-            culbm::basic::error::check(cudaGetDeviceProperties(&prop, device.get()));
+            culbm::gpu::check(cudaGetDeviceProperties(&prop, device.get()));
             std::println("\nDevice {}: {} (compute {}.{})", device.get(), std::string_view{name.data(), name.size()}, attr(compute_capability_major), attr(compute_capability_minor));
             std::println("  SMs: {}, warp size: {}", attr(multiprocessor_count), attr(warp_size));
             std::println("  Global memory: {:.1f} MiB, memory bus: {} bits", prop.totalGlobalMem / 1048576.0, attr(global_memory_bus_width));

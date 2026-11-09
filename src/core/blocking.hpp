@@ -1,7 +1,8 @@
 #pragma once
 
 #include <algorithm>
-#include "math.hpp"
+#include <concepts>
+#include <cuda/cmath>
 
 namespace culbm::core::blocking
 {
@@ -20,7 +21,7 @@ namespace culbm::core::blocking
             return 1;
         if (domLen <= 2 * (tileLen + 1 - tileIter))
             return 2;
-        return 2 + culbm::basic::divCeil<T>(domLen - 2 * (tileLen + 1 - tileIter), tileLen + 2 - 2 * tileIter);
+        return 2 + ::cuda::ceil_div(domLen - 2 * (tileLen + 1 - tileIter), tileLen + 2 - 2 * tileIter);
     }
 
     template <std::integral T>

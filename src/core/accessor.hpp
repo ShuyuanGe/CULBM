@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstddef>
-#include "stencil.hpp"
+#include "core/stencil.hpp"
 
 namespace culbm::core::accessor
 {

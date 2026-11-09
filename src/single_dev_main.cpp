@@ -1,13 +1,13 @@
 #include <exception>
 #include <iostream>
 #include <print>
-#include "simulator.hpp"
+#include "sim/single/simulator.hpp"
 
 int main(int argc, char** argv)
 {
     try
     {
-        culbm::simulator::single_dev::Simulator simulator(argc, argv);
+        culbm::sim::single::Simulator simulator(argc, argv);
         simulator.run();
     }
     catch (const std::exception& e)
