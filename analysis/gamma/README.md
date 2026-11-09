@@ -1,18 +1,17 @@
 # Gamma
 
-Requires CUDA 13.3 or newer.
+In `env-cu12` or `env-cu13`:
 
 ```bash
-nvcc -std=c++23 measure.cu -o measure
+nvcc -std=c++20 -I"$CONDA_PREFIX/include/cccl" measure.cu -o measure
 ./measure
 ```
 
-The program measures the 101-sample median times of two 1 GiB streaming-store controls at 32 active warps per SM. 4F writes four full sectors per 128-byte warp unit, while 3F+1P replaces one with a partial sector.
+Measures 101-sample median times for 1 GiB streaming stores at 32 warps per SM.
+`4F` writes four full sectors per 128-byte warp unit; `3F+1P` replaces one with a partial sector.
 
 $$
 \gamma = 4\frac{T_{\mathrm{3F+1P}}}{T_{\mathrm{4F}}} - 3.
 $$
 
-With one full-sector service demand normalized to one, $\gamma$ is the effective demand of the partial sector, so a larger $\gamma$ means a stronger final-store misalignment penalty.
-
-The program prints both times with five decimal places and $\gamma$ with four decimal places.
+With full-sector demand normalized to one, $\gamma$ is the effective partial-sector demand.

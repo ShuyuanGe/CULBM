@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <print>
+#include <cstdio>
 
 constexpr std::size_t kWarpUnits = 1ULL << 23;
 constexpr int kThreads = 128;
@@ -63,7 +63,7 @@ int main() {
     const float partial_median = partial_times[kSamples / 2];
     const float gamma = 4.0F * partial_median / full_median - 3.0F;
 
-    std::println("4F median: {:.5f} ms", full_median);
-    std::println("3F+1P median: {:.5f} ms", partial_median);
-    std::println("gamma: {:.4f}", gamma);
+    std::printf("4F median: %.5f ms\n", full_median);
+    std::printf("3F+1P median: %.5f ms\n", partial_median);
+    std::printf("gamma: %.4f\n", gamma);
 }

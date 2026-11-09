@@ -1,13 +1,12 @@
 # Lambda
 
-Requires CUDA 13.3 or newer.
+In `env-cu12` or `env-cu13`:
 
 ```bash
-nvcc -std=c++23 measure.cu -o measure
+nvcc -std=c++20 -I"$CONDA_PREFIX/include/cccl" measure.cu -o measure
 ./measure
 ```
 
-The program uses the same `cg` SM-copy kernel at two footprints, where $C_{\mathrm{L2}}$ is the CUDA-reported L2 capacity. \
-For L2 bandwidth, each array is $C_{\mathrm{L2}}/4$. \
-For DRAM bandwidth, each array is $3C_{\mathrm{L2}}$. \
-It prints both bandwidths with four significant digits and $\lambda = B_{\mathrm{DRAM}} / B_{\mathrm{L2}}$ with five decimal places.
+Measures median `cg` copy bandwidth with arrays of $C_{\mathrm{L2}}/4$ (L2) and
+$3C_{\mathrm{L2}}$ (DRAM), where $C_{\mathrm{L2}}$ is the CUDA-reported L2 capacity.
+Reports $\lambda = B_{\mathrm{DRAM}} / B_{\mathrm{L2}}$.
