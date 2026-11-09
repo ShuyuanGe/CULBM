@@ -1,3 +1,4 @@
+#include "measure.hpp"
 #include <cuda/buffer>
 #include <cuda/devices>
 #include <cuda/launch>
@@ -7,8 +8,9 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdio>
 
+namespace
+{
 constexpr std::size_t kWarpUnits = 1ULL << 23;
 constexpr int kThreads = 128;
 constexpr int kBlocksPerSm = 8;
@@ -40,8 +42,9 @@ float time_store(float* destination, int blocks, cuda::stream_ref stream, cuda::
     return (stop - start).count() * 1e-6f;
 }
 
-int main() {
-    const cuda::device_ref device{0};
+}
+
+culbm::tune::Gamma culbm::tune::measureGamma(cuda::device_ref device) {
     const auto multiprocessors = device.attribute(cuda::device_attributes::multiprocessor_count);
     const int blocks = multiprocessors * kBlocksPerSm;
 
@@ -61,9 +64,5 @@ int main() {
     std::sort(partial_times.begin(), partial_times.end());
     const float full_median = full_times[kSamples / 2];
     const float partial_median = partial_times[kSamples / 2];
-    const float gamma = 4.0F * partial_median / full_median - 3.0F;
-
-    std::printf("4F median: %.5f ms\n", full_median);
-    std::printf("3F+1P median: %.5f ms\n", partial_median);
-    std::printf("gamma: %.4f\n", gamma);
+    return {full_median, partial_median, 4.0F * partial_median / full_median - 3.0F};
 }

@@ -1,3 +1,4 @@
+#include "measure.hpp"
 #include <cuda/buffer>
 #include <cuda/cmath>
 #include <cuda/devices>
@@ -7,8 +8,9 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdio>
 
+namespace
+{
 constexpr std::size_t kTimedUsefulBytes = 1ULL << 34;
 constexpr int kThreads = 128;
 constexpr int kBlocksPerSm = 8;
@@ -39,8 +41,9 @@ float measure(float* source, float* destination, std::size_t bytes, int blocks, 
     return bandwidths[kSamples / 2];
 }
 
-int main() {
-    const cuda::device_ref device{0};
+}
+
+culbm::tune::Lambda culbm::tune::measureLambda(cuda::device_ref device) {
     const auto l2_capacity_value = device.attribute(cuda::device_attributes::l2_cache_size);
     const std::size_t l2_capacity = l2_capacity_value;
     const std::size_t l2_bytes = cuda::round_down(l2_capacity / 4, std::size_t{256});
@@ -56,9 +59,5 @@ int main() {
     const int blocks = multiprocessors * kBlocksPerSm;
     const float dram = measure(source.data(), destination.data(), dram_bytes, blocks, stream, start, stop);
     const float l2 = measure(source.data(), destination.data(), l2_bytes, blocks, stream, start, stop);
-    const float lambda = dram / l2;
-
-    std::printf("L2 median: %.4g GB/s\n", l2);
-    std::printf("DRAM median: %.4g GB/s\n", dram);
-    std::printf("lambda: %.5f\n", lambda);
+    return {l2, dram, dram / l2};
 }
