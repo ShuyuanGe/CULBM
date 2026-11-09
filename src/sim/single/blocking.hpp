@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <ranges>
 #include <cuda/algorithm>
 #include <cuda/devices>
 #include <cuda/launch>
@@ -152,36 +153,29 @@ namespace culbm::sim::single::strategy
             const auto domainFlags = detail::loadFlags(config);
 
             std::vector<flag_t> tileFlags(tileCount * tileSize);
-            idx_t tileBase = 0;
-            for (idx_t tileZ = 0 ; tileZ < tileCounts.z ; ++tileZ)
+            for (std::uint32_t index = 0; index < tileCount; ++index)
             {
-                const auto boundsZ = culbm::core::blocking::tileBounds<idx_t>(tileZ, tileDim.z, tileCounts.z, config.innerSteps, config.globalDim.z);
-                for (idx_t tileY = 0 ; tileY < tileCounts.y ; ++tileY)
+                const auto tile = coordinates(index);
+                const auto boundsX = culbm::core::blocking::tileBounds<idx_t>(tile.x, tileDim.x, tileCounts.x, config.innerSteps, config.globalDim.x);
+                const auto boundsY = culbm::core::blocking::tileBounds<idx_t>(tile.y, tileDim.y, tileCounts.y, config.innerSteps, config.globalDim.y);
+                const auto boundsZ = culbm::core::blocking::tileBounds<idx_t>(tile.z, tileDim.z, tileCounts.z, config.innerSteps, config.globalDim.z);
+                const auto tileBase = index * tileSize;
+
+                for (auto [globalZ, globalY, globalX] : std::views::cartesian_product(
+                         std::views::iota(boundsZ.loadBegin, boundsZ.loadEnd),
+                         std::views::iota(boundsY.loadBegin, boundsY.loadEnd),
+                         std::views::iota(boundsX.loadBegin, boundsX.loadEnd)))
                 {
-                    const auto boundsY = culbm::core::blocking::tileBounds<idx_t>(tileY, tileDim.y, tileCounts.y, config.innerSteps, config.globalDim.y);
-                    for (idx_t tileX = 0 ; tileX < tileCounts.x ; ++tileX)
-                    {
-                        const auto boundsX = culbm::core::blocking::tileBounds<idx_t>(tileX, tileDim.x, tileCounts.x, config.innerSteps, config.globalDim.x);
-
-                        for (idx_t localZ = 0, globalZ = boundsZ.loadBegin ; globalZ < boundsZ.loadEnd ; ++localZ, ++globalZ)
-                        {
-                            for (idx_t localY = 0, globalY = boundsY.loadBegin ; globalY < boundsY.loadEnd ; ++localY, ++globalY)
-                            {
-                                for (idx_t localX = 0, globalX = boundsX.loadBegin ; globalX < boundsX.loadEnd ; ++localX, ++globalX)
-                                {
-                                    const idx_t domainIndex = globalX + config.globalDim.x * (globalY + config.globalDim.y * globalZ);
-                                    const idx_t tileIndex = localX + tileDim.x * (localY + tileDim.y * localZ);
-                                    const bool owned =
-                                        boundsZ.storeBegin <= globalZ and globalZ < boundsZ.storeEnd and
-                                        boundsY.storeBegin <= globalY and globalY < boundsY.storeEnd and
-                                        boundsX.storeBegin <= globalX and globalX < boundsX.storeEnd;
-                                    tileFlags[tileBase + tileIndex] = domainFlags[domainIndex] | (owned ? OWNED_BIT : 0);
-                                }
-                            }
-                        }
-
-                        tileBase += tileSize;
-                    }
+                    const idx_t localX = globalX - boundsX.loadBegin;
+                    const idx_t localY = globalY - boundsY.loadBegin;
+                    const idx_t localZ = globalZ - boundsZ.loadBegin;
+                    const idx_t domainIndex = globalX + config.globalDim.x * (globalY + config.globalDim.y * globalZ);
+                    const idx_t tileIndex = localX + tileDim.x * (localY + tileDim.y * localZ);
+                    const bool owned =
+                        boundsZ.storeBegin <= globalZ and globalZ < boundsZ.storeEnd and
+                        boundsY.storeBegin <= globalY and globalY < boundsY.storeEnd and
+                        boundsX.storeBegin <= globalX and globalX < boundsX.storeEnd;
+                    tileFlags[tileBase + tileIndex] = domainFlags[domainIndex] | (owned ? OWNED_BIT : 0);
                 }
             }
 
