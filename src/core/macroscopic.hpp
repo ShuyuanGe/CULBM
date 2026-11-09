@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/stencil.hpp"
 #include "core/generated/d3q15.cuh"
 #include "core/generated/d3q19.cuh"
 #include "core/generated/d3q27.cuh"
@@ -7,6 +8,7 @@
 namespace culbm::core::macroscopic
 {
     template <int NDir>
+        requires requires { typename Stencil<NDir>; }
     constexpr void compute(real_t& rho, real_t& ux, real_t& uy, real_t& uz, const ddf_t (&f)[NDir])
     {
         if      constexpr (NDir == 15) generated::d3q15::calc_rho_u(rho, ux, uy, uz, f);

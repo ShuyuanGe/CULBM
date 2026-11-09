@@ -11,7 +11,7 @@
 namespace culbm::core::collision
 {
     template <Kind Kind, int NDir>
-        requires (NDir != 15 || Kind != Kind::Cumulant)
+        requires requires { typename Stencil<NDir>; } && (NDir != 15 || Kind != Kind::Cumulant)
     struct Model
     {
         static constexpr void bounceBack(ddf_t (&f)[NDir])
