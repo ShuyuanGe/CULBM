@@ -18,7 +18,7 @@ namespace culbm::sim::multi
         app.add_option("--steps", config.targetStep, "Total time steps of the simulation.")
             ->default_val(1000);
         app.add_option("--batch-steps", config.stepsPerBatch, "Delta time steps of the simulation.")
-            ->default_val(100);
+            ->default_val(100)->check(CLI::PositiveNumber);
         cli::addDimOption(app, "--device-grid", config.devDim, {1, 1, 1}, "Dimension of GPUs involved in the simulation.");
         cli::addDimOption(app, "--block", config.blockDim, {32, 8, 4}, "Dimension of blocks per grid.");
         cli::addDimOption(app, "--grid", config.gridDim, {16, 32, 64}, "Dimension of grids per kernel.");

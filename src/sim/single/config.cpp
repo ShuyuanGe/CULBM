@@ -26,7 +26,7 @@ namespace culbm::sim::single
                 ->default_val(0);
 
             app.add_option("--batch-steps", config.stepsPerBatch, "Delta time steps of the simulation.")
-                ->default_val(100);
+                ->default_val(100)->check(CLI::PositiveNumber);
 
             app.add_option("--steps", config.targetStep, "Total time steps of the simulation.")
                 ->default_val(1000);
@@ -69,7 +69,7 @@ namespace culbm::sim::single
             app.add_flag("--interior-tiles-only", config.interiorTilesOnly, "Run only tiles that are non-boundary along all three axes.");
 
             app.add_option("--inner-steps", config.innerSteps, "# of iterations in halo-blocking.")
-                ->default_val(5);
+                ->default_val(5)->check(CLI::PositiveNumber);
 
             cli::parse(app, argc, argv);
 
@@ -87,10 +87,10 @@ namespace culbm::sim::single
                 throw std::runtime_error("--interior-tiles-only requires --opt-policy blocking.");
             }
 
-            if (config.interiorTilesOnly)
+            if (opt == "blocking")
             {
                 const auto tileCounts = config.tileCounts();
-                if (tileCounts.x < 3 or tileCounts.y < 3 or tileCounts.z < 3)
+                if (config.interiorTilesOnly and (tileCounts.x < 3 or tileCounts.y < 3 or tileCounts.z < 3))
                 {
                     throw std::runtime_error("--interior-tiles-only requires at least three tiles along each axis.");
                 }
@@ -153,7 +153,7 @@ namespace culbm::sim::single
             validAxis<std::uint32_t>(globalDim.z, dim.z, innerSteps);
         if (not valid)
         {
-            throw std::invalid_argument("<Domain Dimension, Blocking Dimension and InnerLoop> don't match!");
+            throw std::invalid_argument("Domain, tile dimensions and --inner-steps do not match.");
         }
         return {
             tileCount<std::uint32_t>(globalDim.x, dim.x, innerSteps),

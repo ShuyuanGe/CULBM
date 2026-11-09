@@ -14,7 +14,7 @@ namespace culbm::sim::cli
     {
         return app.add_option_function<DimValues>(name, [&dim](const auto& values) {
             dim = {values[0], values[1], values[2]};
-        }, description)->run_callback_for_default()->default_val(defaultValue);
+        }, description)->check(CLI::PositiveNumber)->run_callback_for_default()->default_val(defaultValue);
     }
 
     inline void parse(CLI::App& app, int argc, char** argv) try

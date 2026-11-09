@@ -9,8 +9,9 @@ namespace culbm::core::blocking
     template <std::integral T>
     constexpr bool validAxis(T domLen, T tileLen, T innerSteps)
     {
-        if (tileLen < domLen and tileLen + 1 <= innerSteps) return false;
-        if (2 * (tileLen + 1 - innerSteps) < domLen and tileLen + 2 <= innerSteps) return false;
+        if (domLen <= tileLen) return true;
+        if (tileLen + 1 <= innerSteps) return false;
+        if (2 * (tileLen + 1 - innerSteps) < domLen and tileLen + 2 <= 2 * innerSteps) return false;
         return true;
     }
 
