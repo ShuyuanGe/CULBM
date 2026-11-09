@@ -1,3 +1,4 @@
+#include <exception>
 #include <format>
 #include "workers.hpp"
 
@@ -30,6 +31,7 @@ namespace culbm::util
             catch (const std::exception& e)
             {
                 logger.error(e.what());
+                std::terminate();
             }
 
             barrier.arrive_and_wait();
