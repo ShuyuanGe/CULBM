@@ -53,6 +53,8 @@ namespace culbm::sim::single
 
     void State::write() const
     {
+        if (not (config.dumpRho or config.dumpVx or config.dumpVy or config.dumpVz)) return;
+
         const auto folder = std::filesystem::path{config.dumpFolder};
         std::filesystem::create_directories(folder);
 

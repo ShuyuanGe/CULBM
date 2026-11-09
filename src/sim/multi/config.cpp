@@ -16,19 +16,20 @@ namespace culbm::sim::multi
         app.add_option("--collision", config.collision, "Collision operator: bgk, mrt, or cumulant.")
             ->default_val("bgk")->check(CLI::IsMember({"bgk", "mrt", "cumulant"}));
         app.add_option("--steps", config.targetStep, "Total time steps of the simulation.")
-            ->default_val(1000);
-        app.add_option("--batch-steps", config.stepsPerBatch, "Delta time steps of the simulation.")
-            ->default_val(100)->check(CLI::PositiveNumber);
-        cli::addDimOption(app, "--device-grid", config.devDim, {1, 1, 1}, "Dimension of GPUs involved in the simulation.");
-        cli::addDimOption(app, "--block", config.blockDim, {32, 8, 4}, "Dimension of blocks per grid.");
-        cli::addDimOption(app, "--grid", config.gridDim, {16, 32, 64}, "Dimension of grids per kernel.");
-        app.add_option("--output", config.dumpFolder, "Folder to store dumped fields.")
-            ->default_val("data/multi_dev_output");
+            ->required();
+        app.add_option("--batch-steps", config.stepsPerBatch, "Steps per MLUPS report and field dump.")
+            ->required()->check(CLI::PositiveNumber);
+        cli::addDimOption(app, "--device-grid", config.devDim, "Dimension of GPUs involved in the simulation.")->required();
+        cli::addDimOption(app, "--block", config.blockDim, "Dimension of blocks per grid.")->required();
+        cli::addDimOption(app, "--grid", config.gridDim, "Dimension of grids per kernel.")->required();
+        app.add_option("--output", config.dumpFolder, "Output folder; required when dumping fields.");
         app.add_flag("--dump-rho", config.dumpRho, "Dump density every `--batch-steps` steps.");
         app.add_flag("--dump-vx", config.dumpVx, "Dump vx every `--batch-steps` steps.");
         app.add_flag("--dump-vy", config.dumpVy, "Dump vy every `--batch-steps` steps.");
         app.add_flag("--dump-vz", config.dumpVz, "Dump vz every `--batch-steps` steps.");
         cli::parse(app, argc, argv);
+        if ((config.dumpRho or config.dumpVx or config.dumpVy or config.dumpVz) and config.dumpFolder.empty())
+            throw std::invalid_argument("--output is required when dumping fields.");
         if (config.deviceCount() > ::cuda::devices.size())
             throw std::invalid_argument("Requested more devices than are available.");
         return config;

@@ -10,11 +10,11 @@ namespace culbm::sim::cli
     using DimValues = std::array<decltype(dim3::x), 3>;
 
     inline CLI::Option* addDimOption(CLI::App& app, const char* name, dim3& dim,
-                                     DimValues defaultValue, const char* description)
+                                     const char* description)
     {
         return app.add_option_function<DimValues>(name, [&dim](const auto& values) {
             dim = {values[0], values[1], values[2]};
-        }, description)->check(CLI::PositiveNumber)->run_callback_for_default()->default_val(defaultValue);
+        }, description)->check(CLI::PositiveNumber);
     }
 
     inline void parse(CLI::App& app, int argc, char** argv) try

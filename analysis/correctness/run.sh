@@ -25,7 +25,8 @@ common=(
     --block '[32,4,2]' \
     --grid '[24,96,192]' \
     --stream-policy pull \
-    --opt-policy plain
+    --opt-policy plain \
+    --ddf-buffer double
 
 "$solver" "${common[@]}" \
     --output "$dump_dir/temporal" \

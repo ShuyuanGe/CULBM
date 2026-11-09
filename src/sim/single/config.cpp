@@ -25,26 +25,26 @@ namespace culbm::sim::single
             app.add_option("--device", config.deviceId, "Device index of the GPU")
                 ->default_val(0);
 
-            app.add_option("--batch-steps", config.stepsPerBatch, "Delta time steps of the simulation.")
-                ->default_val(100)->check(CLI::PositiveNumber);
+            app.add_option("--batch-steps", config.stepsPerBatch, "Steps per MLUPS report and field dump.")
+                ->required()->check(CLI::PositiveNumber);
 
             app.add_option("--steps", config.targetStep, "Total time steps of the simulation.")
-                ->default_val(1000);
+                ->required();
 
             app.add_option("--inv-tau", config.invTau, "Reciprocal of Tau.")
                 ->default_val(0.5);
 
-            cli::addDimOption(app, "--block", config.blockDim, {32, 16, 2}, "Dimension of blocks per grid.");
+            cli::addDimOption(app, "--block", config.blockDim, "Dimension of blocks per grid.")->required();
 
-            auto* gridOption = cli::addDimOption(app, "--grid", config.gridDim, {2, 3, 19}, "Dimension of grids per kernel.");
+            auto* gridOption = cli::addDimOption(app, "--grid", config.gridDim, "Grid dimensions; required for blocking and when the plain grid cannot be derived.");
 
-            cli::addDimOption(app, "--domain", config.globalDim, {256, 256, 256}, "Dimension of the global simulation domain.");
+            cli::addDimOption(app, "--domain", config.globalDim, "Dimension of the global simulation domain.")->required();
 
             app.add_option("--stream-policy", stream, "Streaming strategy for the computation buffer: pull or esotwist.")
-                ->default_val("pull")->check(CLI::IsMember({"pull", "esotwist"}));
+                ->required()->check(CLI::IsMember({"pull", "esotwist"}));
 
             app.add_option("--opt-policy", opt, "Computation organization: plain or blocking.")
-                ->default_val("plain")->check(CLI::IsMember({"plain", "blocking"}));
+                ->required()->check(CLI::IsMember({"plain", "blocking"}));
 
             app.add_option("--cache-hint", config.cacheHint, "Cache hints for in-place L2 kernels: 0 = normal, 1 = hinted.")
                 ->default_val(1)->check(CLI::Range(0, 1));
@@ -57,21 +57,28 @@ namespace culbm::sim::single
 
             app.add_option("--init", config.initFolder, "The folder contains initial state of the simulation.");
 
-            app.add_option("--output", config.dumpFolder, "The folder contains final output.")
-                ->default_val("data/left_inlet_right_outlet_256_256_256_output");
+            app.add_option("--output", config.dumpFolder, "Output folder; required when dumping fields.");
 
             app.add_flag("--dump-rho", config.dumpRho, "Enable dump the density every `--batch-steps` time steps in the simulation.");
             app.add_flag("--dump-vx", config.dumpVx, "Enable dumping the x-axis velocity every `--batch-steps` time steps in the simulation.");
             app.add_flag("--dump-vy", config.dumpVy, "Enable dumping the y-axis velocity every `--batch-steps` time steps in the simulation.");
             app.add_flag("--dump-vz", config.dumpVz, "Enable dumping the z-axis velocity every `--batch-steps` time steps in the simulation.");
             app.add_option("--ddf-buffer", buffer, "Global DDF storage: single, double, or ring.")
-                ->default_val("double")->check(CLI::IsMember({"single", "double", "ring"}));
+                ->required()->check(CLI::IsMember({"single", "double", "ring"}));
             app.add_flag("--interior-tiles-only", config.interiorTilesOnly, "Run only tiles that are non-boundary along all three axes.");
 
-            app.add_option("--inner-steps", config.innerSteps, "# of iterations in halo-blocking.")
-                ->default_val(5)->check(CLI::PositiveNumber);
+            auto* innerOption = app.add_option("--inner-steps", config.innerSteps, "Iterations in halo-blocking; required for blocking.")
+                ->check(CLI::PositiveNumber);
 
             cli::parse(app, argc, argv);
+
+            if ((config.dumpRho or config.dumpVx or config.dumpVy or config.dumpVz) and config.dumpFolder.empty())
+                throw std::invalid_argument("--output is required when dumping fields.");
+            if (opt == "blocking" and (gridOption->count() == 0 or innerOption->count() == 0))
+                throw std::invalid_argument("--grid and --inner-steps are required for blocking.");
+            if (opt == "plain" and gridOption->count() == 0 and
+                (config.globalDim.x % config.blockDim.x != 0 or config.globalDim.y % config.blockDim.y != 0 or config.globalDim.z % config.blockDim.z != 0))
+                throw std::invalid_argument("--grid is required when --domain is not divisible by --block.");
 
             if (opt == "plain" and gridOption->count() == 0 and
                config.globalDim.x % config.blockDim.x == 0 and config.globalDim.y % config.blockDim.y == 0 and config.globalDim.z % config.blockDim.z == 0)
