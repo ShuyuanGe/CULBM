@@ -1,26 +1,17 @@
+import argparse
+
 import numpy as np
 
 
-LAMBDA = 0.19103
-GAMMA = 10.1228
-L2 = 128 * 2**20
-PERSISTING_L2 = 80 * 2**20
-
-I_MIN = 2
-I_MAX = 20
-B_MAX = 160
-CELL_BYTES = 27 * 4
-
-
-def h(Bx, By, Bz, I):
+def interior_fraction(Bx, By, Bz, I):
     r = I - 1
     return (1 - 2 * r / Bx) * (1 - 2 * r / By) * (1 - 2 * r / Bz)
 
 
-def beta(Bx, I):
+def beta(Bx, I, b_max):
     r = I - 1
     L = Bx - 2 * r
-    warp = np.arange(0, B_MAX, 32)
+    warp = np.arange(0, b_max, 32)
     x_lo = np.maximum(r[..., None], warp)
     x_hi = np.minimum(Bx[..., None] - r[..., None], warp + 32)
     phase = np.arange(8)
@@ -40,30 +31,47 @@ def beta(Bx, I):
     )
 
 
-def alpha(Bx, By, Bz, I):
-    V = CELL_BYTES * Bx * By * Bz
-    beta_sec, beta_edge = beta(Bx, I)
-    q = np.zeros(V.shape)
-    np.divide(-V, L2 - V, out=q, where=V < L2)
-    p = 1 - np.exp(q)
-    return 1 + LAMBDA * (beta_sec - 1) + p * (2 * GAMMA - (1 + LAMBDA)) * beta_edge
+def store_penalty(Bx, By, Bz, I, capacity, cell_bytes, lambda_, gamma, b_max):
+    volume = cell_bytes * Bx * By * Bz
+    beta_sec, beta_edge = beta(Bx, I, b_max)
+    exponent = np.zeros(volume.shape)
+    np.divide(-volume, capacity - volume, out=exponent, where=volume < capacity)
+    probability = np.where(volume == capacity, 1, 1 - np.exp(exponent))
+    return 1 + lambda_ * (beta_sec - 1) + probability * (2 * gamma - (1 + lambda_)) * beta_edge
 
 
-def S0(Bx, By, Bz, I):
-    H = h(Bx, By, Bz, I)
-    return H / ((1 + H) / (2 * I) + LAMBDA * (1 - 1 / I))
+def score(Bx, By, Bz, I, capacity, cell_bytes, lambda_, gamma, b_max):
+    halo = interior_fraction(Bx, By, Bz, I)
+    penalty = store_penalty(Bx, By, Bz, I, capacity, cell_bytes, lambda_, gamma, b_max)
+    return halo / ((1 + penalty * halo) / (2 * I) + lambda_ * (1 - 1 / I))
 
 
-def S(Bx, By, Bz, I):
-    H = h(Bx, By, Bz, I)
-    return H / ((1 + alpha(Bx, By, Bz, I) * H) / (2 * I) + LAMBDA * (1 - 1 / I))
+def main():
+    parser = argparse.ArgumentParser(description="Select a tile and temporal depth for a GPU.")
+    parser.add_argument("--lambda", dest="lambda_", type=float, required=True, help="Measured bandwidth ratio")
+    parser.add_argument("--gamma", type=float, required=True, help="Measured partial-sector penalty")
+    parser.add_argument("--capacity", type=float, required=True, metavar="MiB", help="Available capacity in MiB")
+    parser.add_argument("--q", type=int, choices=(15, 19, 27), required=True, help="Velocity count (FP32)")
+    parser.add_argument("--i-min", type=int, default=2)
+    parser.add_argument("--i-max", type=int, default=20)
+    parser.add_argument("--b-max", type=int, default=160)
+    args = parser.parse_args()
+    assert np.isfinite(args.lambda_) and args.lambda_ >= 0
+    assert np.isfinite(args.gamma) and args.gamma >= 0
+    assert np.isfinite(args.capacity) and args.capacity > 0
+    assert 2 <= args.i_min <= args.i_max and args.b_max >= 32
+    capacity = args.capacity * 2**20
+    cell_bytes = args.q * 4
+    I, Bx, By, Bz = np.ogrid[args.i_min : args.i_max + 1, 32 : args.b_max + 1 : 32, 1 : args.b_max + 1, 1 : args.b_max + 1]
+    valid = (Bx * By * Bz * cell_bytes <= capacity) & (Bx > 2 * (I - 1)) & (By >= Bz) & (Bz > 2 * (I - 1))
+    assert np.any(valid), "no valid tile fits the specified capacity and search bounds"
+    scores = np.where(valid, score(Bx, By, Bz, I, capacity, cell_bytes, args.lambda_, args.gamma, args.b_max), -np.inf)
+    i, bx, by, bz = np.unravel_index(np.argmax(scores), scores.shape)
+    bx, by, bz = 32 * (bx + 1), by + 1, bz + 1
+    print(f"B*: [{bx},{by},{bz}]")
+    print(f"I*: {i + args.i_min}")
+    print(f"--block '[{bx},1,1]' --grid '[1,{by},{bz}]' --inner-steps {i + args.i_min}")
 
 
-I, Bx, By, Bz = np.ogrid[I_MIN : I_MAX + 1, 32 : B_MAX + 1 : 32, 1 : B_MAX + 1, 1 : B_MAX + 1]
-valid = (Bx * By * Bz <= PERSISTING_L2 / CELL_BYTES) & (Bx > 2 * (I - 1)) & (By >= Bz) & (Bz > 2 * (I - 1))
-
-score = np.where(valid, S(Bx, By, Bz, I), -np.inf)
-i, bx, by, bz = np.unravel_index(np.argmax(score), score.shape)
-bx, by, bz = 32 * (bx + 1), by + 1, bz + 1
-print(f"B*: {bx}x{by}x{bz}")
-print(f"I*: {i + I_MIN}")
+if __name__ == "__main__":
+    main()

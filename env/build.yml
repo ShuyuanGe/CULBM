@@ -1,0 +1,17 @@
+name: culbm-build
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - cuda-version=12 # CUDA 12 toolkit
+  - cuda-nvcc
+  - cuda-cudart-dev
+  - cuda-driver-dev
+  - libcurand-dev # headers required by the clangd CUDA wrapper
+  - cccl>=3.2 # cuda::device_memory_pool
+  - cuda-cuobjdump
+  - cuda-nvdisasm
+  - gxx>=14 # C++23 host compiler
+  - sysroot_linux-64=2.17 # glibc 2.17 compatibility baseline
+  - cmake>=4
+  - ninja

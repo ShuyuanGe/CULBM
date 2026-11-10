@@ -1,172 +1,125 @@
 # cuLBM
 
-cuLBM is a CUDA-native lattice Boltzmann toolkit with two complementary GPU drivers: the cache-aware, single-device experimentation path (`single_dev_expt_main`) and the domain-decomposed multi-device path (`multi_dev_main`). The repository bundles the core solver sources, configuration helpers, binary dump visualizers, and performance-analysis notebooks required to define initial states, run experiments, and interpret MLUPS trends end to end.
+cuLBM is a CUDA lattice Boltzmann toolkit. Use `culbm-tune` to select a GPU configuration and `culbm-single` to run a single-GPU simulation.
 
 ## Usage
 
 ### Build
+
+Requires CMake >=4.0.1, CCCL >=3.2, a C++23 host compiler, and a C++20 CUDA compiler.
 
 ```bash
 cmake -S . -B build
 cmake --build build
 ```
 
-### Runtimes
+Without a build environment, create one with Conda and [env/build.yml](env/build.yml):
 
-#### `single_dev_expt_main`
+```bash
+conda env create -f env/build.yml
+conda activate culbm-build
+```
 
-##### CLI reference
+To include specific GPU architectures, configure with `-DCMAKE_CUDA_ARCHITECTURES`, for example:
 
-`single_dev_expt_main` is parameterized entirely through CLI flags. Vectors must be passed in bracket form (e.g., `[32,16,2]`).
+```bash
+cmake -S . -B build -DCMAKE_CUDA_ARCHITECTURES="89-real;120-real"
+```
+
+### Single-GPU workflow
+
+Select D3Q27 blocking parameters on an idle GPU:
+
+```bash
+./build/bin/culbm-tune --device 0 --q 27
+```
+
+Example output for RTX 5090:
+
+```text
+[Launch options]
+--block '[96,1,1]' --grid '[1,82,74]' --inner-steps 9
+```
+
+Use your GPU’s output in the blocking run:
+
+```bash
+./build/bin/culbm-single \
+    --device 0 --domain '[384,384,384]' \
+    --block '[96,1,1]' --grid '[1,82,74]' --inner-steps 9 \
+    --stream-policy esotwist --opt-policy blocking --ddf-buffer ring \
+    --q 27 --collision bgk \
+    --steps 900 --batch-steps 90
+```
+
+For exact step counts, use `--batch-steps` divisible by `--inner-steps`, and `--steps` divisible by `--batch-steps`.
+
+For comparison, run plain CUDA on the same domain:
+
+```bash
+./build/bin/culbm-single \
+    --device 0 --domain '[384,384,384]' \
+    --block '[32,4,2]' \
+    --stream-policy pull --opt-policy plain --ddf-buffer double \
+    --q 27 --collision bgk \
+    --steps 900 --batch-steps 90
+```
+
+### `culbm-tune`
 
 | Flag | Purpose | Default |
 | --- | --- | --- |
-| `--devId` | CUDA device index. | `0` |
-| `--blockDim [bx,by,bz]` | CUDA block configuration for kernel launch. | `[32,16,2]` |
-| `--gridDim [gx,gy,gz]` | CUDA grid configuration for kernel launch. | `[2,3,19]` |
-| `--domainDim [Nx,Ny,Nz]` | Logical simulation domain; can exceed `blockDim * gridDim` when halo blocking is active. | `[256,256,256]` |
-| `--innerLoop` | Iterations executed while a tile remains resident (halo blocking depth). | `5` |
-| `--streamPolicy {0,1}` | `0`: pull-stream double buffering, `1`: in-place streaming. | `0` |
-| `--optPolicy {0…3}` | `0`: none, `1`: static L2 blocking, `2`: L1/L2 mixed, `3`: dynamic L2 blocking. | `0` |
-| `--invTau` | Reciprocal relaxation time. | `0.5` |
-| `--nstep`, `--dstep` | Total steps and dump cadence. | `1000`, `100` |
-| `--initStateFolder <path>` | Optional folder with `flag.dat`, `rho.dat`, `vx.dat`, `vy.dat`, `vz.dat`. Omitting this flag triggers uniform default initialization. | empty |
-| `--dumpFolder <path>` | Output directory for binary dumps. | `data/left_inlet_right_outlet_256_256_256_output` |
-| `--dumpRho`, `--dumpVx`, `--dumpVy`, `--dumpVz` | When present, dump per-field snapshots every `dstep` steps as `rho_<step>.dat`, `vx_<step>.dat`, … | disabled |
+| `--device` | CUDA-visible GPU index used for measurements. | `0` |
+| `--q {15,19,27}` | Number of lattice velocities, using FP32. | |
+| `--lambda` | Previously measured bandwidth ratio. | measured |
+| `--gamma` | Previously measured partial-sector penalty. | measured |
+| `--capacity` | Available capacity in MiB. | queried |
+| `--i-min`, `--i-max` | Minimum and maximum temporal depth. | `2`, `20` |
+| `--b-max` | Maximum tile edge. | `160` |
 
-Additional expert knobs include `--streamPolicy`, `--optPolicy`, and `--innerLoop`. Their interactions mirror the implementation in [src/simulator/single_dev_expt/simulator_expt_platform.cu](src/simulator/single_dev_expt/simulator_expt_platform.cu).
+Supply known values to skip their measurements. With all three provided, no GPU is required. Queried capacity is the smaller of the persisting L2 and access-policy window limits.
 
-##### Typical launches
+### `culbm-single`
 
-The first command shows the `[32,16,2]` block and `[2,6,38]` grid combination that was hand-tuned only for an RTX 4090; expect to retune those vectors for other GPUs before chasing the same MLUPS. 
-The second command is a reference pull-stream run with no optimizations and same domain size `[288,272,280]` for comparison.
-The reference pull-stream run reaches **3805 MLUPS** and the tuned setup hits **6810 MLUPS** (a 1.8x speedup).
-
-```bash
-./build/src/single_dev_expt_main \
-	--blockDim [32,16,2] \
-	--gridDim [2,6,38] \
-	--domainDim [288,272,280] \
-	--innerLoop 5 \
-	--streamPolicy 1 \
-	--optPolicy 3
-```
-
-```bash
-./build/src/single_dev_expt_main \
-    --blockDim [32,16,2] \
-    --gridDim [9,17,140] \
-    --domainDim [288,272,280] \
-    --streamPolicy 0 \
-    --optPolicy 0
-```
-
-#### `multi_dev_main`
-
-##### CLI reference
-
-`multi_dev_main` launches a synchronous decomposition across `devDim.x * devDim.y * devDim.z` GPUs, assigns a tile of size `blkDim * gridDim` to each device, and optionally dumps per-field sub-volumes every `dstep` steps. Unlike `single_dev_expt_main`, it does **not** expose a `--domainDim` override; the global domain is fixed by `blkDim * gridDim * devDim`. It also does **not** accept `--initStateFolder` inputs yet, so the multi-GPU path currently seeds domain data internally rather than consuming obstacle/boundary masks authored via [scripts/state_initialization.ipynb](scripts/state_initialization.ipynb).
+Pass vectors in brackets, for example `[96,1,1]`.
 
 | Flag | Purpose | Default |
 | --- | --- | --- |
-| `--devDim [dx,dy,dz]` | Logical device grid describing how many GPUs participate along each axis. | `[1,1,1]` |
-| `--blkDim [bx,by,bz]` | CUDA block geometry for kernel launch on each GPU. | `[32,8,4]` |
-| `--gridDim [gx,gy,gz]` | CUDA grid dimensions for kernel launch on each GPU; the per-device domain is `blkDim * gridDim`. | `[16,32,64]` |
-| `--invTau` | Reciprocal relaxation time. | `0.5` |
-| `--nstep`, `--dstep` | Total steps and dump cadence. | `1000`, `100` |
-| `--dumpFolder <path>` | Root folder for tiled dumps; each GPU writes `<field>_<step>_dev_{x}_{y}_{z}.dat` (e.g., `vx_200_dev_0_1_0.dat`). | `data/multi_dev_output` |
-| `--dumpRho`, `--dumpVx`, `--dumpVy`, `--dumpVz` | Enable field dumps every `dstep` steps. | disabled |
+| `--device` | CUDA device index. | `0` |
+| `--block [bx,by,bz]` | CUDA block configuration for kernel launch. | |
+| `--grid [gx,gy,gz]` | CUDA grid configuration; required for blocking and when the plain grid cannot be derived. | derived for plain |
+| `--domain [Nx,Ny,Nz]` | Logical simulation domain; can exceed `blockDim * gridDim` when halo blocking is active. | |
+| `--inner-steps` | Iterations per tile; required for blocking. | |
+| `--stream-policy {pull,esotwist}` | Streaming strategy for the computation buffer. | |
+| `--opt-policy {plain,blocking}` | Computation organization. | |
+| `--ddf-buffer {single,double,ring}` | Global DDF storage; `single` requires `STORE` on every domain cell. | |
+| `--q {15,19,27}` | Number of lattice velocities. | `27` |
+| `--collision {bgk,mrt,cumulant}` | Collision operator; cumulant requires D3Q19 or D3Q27. | `bgk` |
+| `--inv-tau` | Reciprocal relaxation time. | `0.5` |
+| `--steps` | Total steps. | |
+| `--batch-steps` | Steps per MLUPS report and field dump. | |
+| `--init <path>` | Optional folder with `flag.dat`, `rho.dat`, `vx.dat`, `vy.dat`, `vz.dat`. Omitting this flag triggers uniform default initialization. | empty |
+| `--output <path>` | Output directory for binary dumps; required when dumping. | |
+| `--dump-rho`, `--dump-vx`, `--dump-vy`, `--dump-vz` | When present, dump per-field snapshots every `--batch-steps` steps as `rho_<step>.dat`, `vx_<step>.dat`, … | disabled |
 
-##### Typical launch (2×2×1 GPUs)
+Supported combinations:
 
-```bash
-./build/src/multi_dev_main \
-    --devDim [2,2,1] \
-    --blkDim [32,8,4] \
-    --gridDim [16,32,64] \
-    --nstep 800 \
-    --dstep 200
-```
+| Stream policy | Optimization | Global DDF storage |
+| --- | --- | --- |
+| `pull` | `plain` | `double` |
+| `esotwist` | `plain` | `single` |
+| `esotwist` | `blocking` | `double` |
+| `esotwist` | `blocking` | `ring` |
 
-`multi_dev_main` derives its spatial coverage directly from `blkDim * gridDim` on each device, 
-e.g. under the above configuration:
+`single` uses one full-domain buffer, `double` uses two, and `ring` uses a rolling buffer.
 
-- Per-device span: $(32,8,4) \times (16,32,64) = (256,256,256)$, matching the log entry `Single Device Domain Dimension: [256,256,256]`.
-- Global span: $(256,256,256) \times (2,2,1) = (512,512,256)$, so the log reports `All Device Domain Dimension: [512,512,256]`.
+Blocking requires a compatible GPU and driver on Linux x86-64. Multi-step blocking does not support general periodic fluid-domain halos.
 
-Because of this multiplicative relationship, there is no `--domainDim` argument on the multi-GPU binary, so domain customization must happen via the block/grid/device triplets for now.
+### `culbm-multi`
 
-The executable prints the per-device and global domain sizes, enables peer-to-peer links for adjacent ranks, and emits tiles that can be reassembled with the helper cells in [visualization/dump_visualization.ipynb](visualization/dump_visualization.ipynb).
+The multi-GPU solver is under development.
 
 ### Visualizations
 
-Interactive visualization tools are provided to explore domain decomposition and halo exchange patterns.
-
-- **Single Device**: [visualization/single_dev_blocking.html](https://raw.githack.com/ShuyuanGe/cuLBM/master/visualization/single_dev_blocking.html) visualizes the block-level decomposition, including valid regions and halo zones for a single GPU.
-- **Multi-Device**: [visualization/multi_dev_blocking.html](https://raw.githack.com/ShuyuanGe/cuLBM/master/visualization/multi_dev_blocking.html) visualizes the global domain decomposition across multiple GPUs, showing how the problem is partitioned.
-
-### Workflows
-
-Scenarios 1–4 cover complementary workflows: Scenario 1 stays on a single GPU for custom domains and visualization, Scenario 2 extends runs across multiple GPUs with tiled dumps, Scenario 3 sweeps single-GPU parameter spaces for tuning, and Scenario 4 benchmarks weak scaling efficiency across multiple devices.
-
-#### Scenario 1 (Single-GPU): Custom domains → snapshots → visualization
-
-1. **Generate boundary/obstacle masks.** Use [scripts/state_initialization.ipynb](scripts/state_initialization.ipynb) to run helpers such as `leftInletRightOutletCubeObs`. Each run writes `flag.dat`, `vx.dat`, and related seeds into a folder like `data/left_inlet_right_outlet_cube_obs_288_272_280_init_state`.
-2. **Launch `single_dev_expt_main`.** Point `single_dev_expt_main` at the generated folder via `--initStateFolder`, choose a dump target via `--dumpFolder`, and enable any subset of `--dumpRho/--dumpVx/--dumpVy/--dumpVz`. Snapshot frequency follows `--dstep`, so the example command above emits frames at steps 200, 400, …
-
-```bash
-./build/src/single_dev_expt_main \
-    --devId 0 \
-    --blockDim [32,16,2] \
-    --gridDim [2,6,38] \
-    --domainDim [288,272,280] \
-    --innerLoop 5 \
-    --streamPolicy 1 \
-    --optPolicy 3 \
-    --invTau 0.5 \
-    --nstep 1200 \
-    --dstep 200 \
-    --initStateFolder data/left_inlet_right_outlet_cube_obs_288_272_280_init_state \
-    --dumpFolder data/left_inlet_right_outlet_cube_obs_288_272_280_output \
-    --dumpRho --dumpVx --dumpVy --dumpVz
-```
-
-3. **Visualize results.** Open [visualization/dump_visualization.ipynb](visualization/dump_visualization.ipynb) and run **Single-GPU Dump**. Set `Nx`, `Ny`, `Nz`, and `outputFolder` so they match the single-device dump folder, then execute the cell to load `vx_<step>.dat`, `vy_<step>.dat`, and `vz_<step>.dat` and render the mid-plane magnitude heatmaps.
-
-This pipeline keeps everything binary-compatible with the CUDA kernels (no intermediate conversions) and lets you iterate quickly on inlet speeds, obstacle geometries, or dumping cadence.
-
-#### Scenario 2 (Multi-GPU): decomposition → tiled dumps → visualization
-
-1. **Choose the device grid.** Decide how many GPUs participate along each axis via `--devDim [dx,dy,dz]`, then size `--blkDim`/`--gridDim` so that each rank owns a reasonable tile. The aggregate domain equals `(blkDim * gridDim) ⊙ devDim`, so validate it matches your target problem size. (Custom initial states from `scripts/state_initialization.ipynb` are not wired up here yet, so geometry tweaks must wait for future multi-GPU support.)
-2. **Launch `multi_dev_main`.** Each device writes binary tiles named `<field>_<step>_dev_{ix}_{iy}_{iz}.dat` (one file per enabled field) into `--dumpFolder`. Use a command such as:
-
-```bash
-./build/src/multi_dev_main \
-    --invTau 0.5 \
-    --dstep 200 \
-    --nstep 2000 \
-    --devDim [2,2,1] \
-    --blkDim [32,8,4] \
-    --gridDim [8,32,64] \
-    --dumpFolder data/multi_dev_output \
-    --dumpVx --dumpVy --dumpVz
-```
-    
-
-3. **Visualize results.** Open [visualization/dump_visualization.ipynb](visualization/dump_visualization.ipynb) and run **Multi-GPU Dump**. Set the domain shape (`Nx`, `Ny`, `Nz`), the device grid tuple (`nx`, `ny`, `nz`), and `outputFolder` to mirror your run, then execute the stitching cell to reconstruct a full field. Then plot the slices or magnitude trends.
-
-#### Scenario 3 (Single-GPU): Blocking experiments → curve fitting
-
-1. **Enumerate configurations.** [analysis/blocking_experiments.py](analysis/blocking_experiments.py) scans combinations of block-count triplets and inner-loop depths. Each configuration spawns `single_dev_expt_main` with arguments assembled from the constants near the top of the script (e.g., `BLOCK_DIM`, `GRID_DIM`, `STREAM_POLICY`, `OPT_POLICY`). Update those tuples to match the hardware you are targeting.
-2. **Collect MLUPS logs.** Running the script produces a pickle (`blocking_experiment_results_s{stream}o{opt}.pkl`) that stores the raw speeds reported by the executable alongside the exact CLI used.
-3. **Fit performance surfaces.** Load the pickle in [analysis/blocking_analysis.ipynb](analysis/blocking_analysis.ipynb). The notebook already demonstrates how to compute averages, filter high-throughput cases, regress the amortization factor $\,1/\psi(I,\lambda)$, and visualize acceleration contours $\kappa(I,B)$.
-
-Use this workflow when you need principled tuning guidance for `--innerLoop`, `--domainDim`, or different blocking layouts before committing to a single scenario.
-
-#### Scenario 4 (Multi-GPU): Weak scaling benchmarks → efficiency analysis
-
-1. **Execute scaling sweeps.** [analysis/scaling_experiments.py](analysis/scaling_experiments.py) orchestrates weak scaling tests across 1 to 4 GPUs. It launches `multi_dev_main` with a constant per-device workload (fixed `blkDim` and `gridDim`) while scaling the device count. The script captures standard output and error streams into log files (`1gpu.log`, `2gpu.log`, etc.).
-2. **Assess scaling performance.** Open [analysis/scaling_analysis.ipynb](analysis/scaling_analysis.ipynb) to process the generated logs. The notebook extracts MLUPS throughput, calculates effective memory bandwidth, and renders a scaling plot (`weak_scaling_performance.png`) to benchmark performance against reference solvers like FluidX3D.
-
----
-
+- [Single-GPU decomposition](https://raw.githack.com/ShuyuanGe/cuLBM/master/visualization/single_dev_blocking.html)
+- [Multi-GPU decomposition](https://raw.githack.com/ShuyuanGe/cuLBM/master/visualization/multi_dev_blocking.html)

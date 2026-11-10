@@ -11,27 +11,28 @@ test -f "$case_dir/vx.dat"
 mkdir -p "$dump_dir"
 
 common=(
-    --devId 0
-    --domainDim '[768,384,384]'
-    --invTau 0.2857142857142857
-    --dstep 1539
-    --nstep 1539
-    --initStateFolder "$case_dir"
-    --dumpRho --dumpVx --dumpVy --dumpVz
+    --device 0
+    --domain '[384,384,384]'
+    --inv-tau 0.2857142857142857
+    --batch-steps 1539
+    --steps 1539
+    --init "$case_dir"
+    --dump-rho --dump-vx --dump-vy --dump-vz
 )
 
 "$solver" "${common[@]}" \
-    --dumpFolder "$dump_dir/plain" \
-    --blockDim '[32,4,2]' \
-    --gridDim '[24,96,192]' \
-    --streamPolicy 0 \
-    --optPolicy 0
+    --output "$dump_dir/plain" \
+    --block '[32,4,2]' \
+    --grid '[12,96,192]' \
+    --stream-policy pull \
+    --opt-policy plain \
+    --ddf-buffer double
 
 "$solver" "${common[@]}" \
-    --dumpFolder "$dump_dir/temporal" \
-    --blockDim '[96,1,1]' \
-    --gridDim '[1,94,86]' \
-    --innerLoop 9 \
-    --streamPolicy 1 \
-    --optPolicy 3 \
-    --useRingDDFBuf
+    --output "$dump_dir/temporal" \
+    --block '[96,1,1]' \
+    --grid '[1,82,74]' \
+    --inner-steps 9 \
+    --stream-policy esotwist \
+    --opt-policy blocking \
+    --ddf-buffer ring
