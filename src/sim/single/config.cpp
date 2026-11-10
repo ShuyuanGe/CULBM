@@ -63,6 +63,7 @@ namespace culbm::sim::single
             app.add_flag("--dump-vx", config.dump_vx, "Enable dumping the x-axis velocity every `--batch-steps` time steps in the simulation.");
             app.add_flag("--dump-vy", config.dump_vy, "Enable dumping the y-axis velocity every `--batch-steps` time steps in the simulation.");
             app.add_flag("--dump-vz", config.dump_vz, "Enable dumping the z-axis velocity every `--batch-steps` time steps in the simulation.");
+            app.add_flag("--dump-ddf", config.dump_ddf, "Dump raw full-domain DDF every `--batch-steps` time steps.");
             app.add_option("--ddf-buffer", buffer, "Global DDF storage: single, double, or ring.")
                 ->required()->check(CLI::IsMember({"single", "double", "ring"}));
             app.add_flag("--interior-tiles-only", config.interior_tiles_only, "Run only tiles that are non-boundary along all three axes.");
@@ -72,7 +73,7 @@ namespace culbm::sim::single
 
             cli::parse(app, argc, argv);
 
-            if ((config.dump_rho or config.dump_vx or config.dump_vy or config.dump_vz) and config.dump_folder.empty())
+            if ((config.dump_rho or config.dump_vx or config.dump_vy or config.dump_vz or config.dump_ddf) and config.dump_folder.empty())
                 throw std::invalid_argument("--output is required when dumping fields.");
             if (opt == "blocking" and (grid_option->count() == 0 or inner_option->count() == 0))
                 throw std::invalid_argument("--grid and --inner-steps are required for blocking.");
@@ -103,7 +104,7 @@ namespace culbm::sim::single
                 }
             }
 
-            if (config.interior_tiles_only and (config.dump_rho or config.dump_vx or config.dump_vy or config.dump_vz))
+            if (config.interior_tiles_only and (config.dump_rho or config.dump_vx or config.dump_vy or config.dump_vz or config.dump_ddf))
             {
                 std::println("Warning: --interior-tiles-only is intended for profiling; dumped results are incorrect.");
             }

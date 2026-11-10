@@ -19,7 +19,7 @@ namespace culbm::sim::single
         int q = 27;
         std::string collision = "bgk";
         std::string init_folder, dump_folder;
-        bool dump_rho = false, dump_vx = false, dump_vy = false, dump_vz = false;
+        bool dump_rho = false, dump_vx = false, dump_vy = false, dump_vz = false, dump_ddf = false;
         bool interior_tiles_only = false;
         int cache_hint = 1;
         bool disable_persistent_l2 = false;

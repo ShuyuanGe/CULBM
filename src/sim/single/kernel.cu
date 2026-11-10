@@ -75,7 +75,7 @@ namespace culbm::sim::single
     }
 
     template <int n_dir, typename Param, typename Read>
-    __global__ void dump_kernel(const Param param)
+    __global__ void dump_macro_kernel(const Param param)
     {
         const auto pos = mapping::make_position(param);
         const auto flag = param.flag_buf[pos.local_index];
@@ -94,6 +94,23 @@ namespace culbm::sim::single
         if (flag & DUMP_VZ_BIT)  param.vz_buf[pos.global_index] = vz;
     }
 
+    template <int n_dir, typename Param, typename Write>
+    __global__ void dump_ddf_kernel(const Param param, ddf_t* output)
+    {
+        const auto pos = mapping::make_position(param);
+        if constexpr (Param::dump_owned_only)
+            if (not (param.flag_buf[pos.local_index] & OWNED_BIT)) return;
+
+        const auto view = Write::View::make(param, pos);
+        [&]<std::size_t... Q>(std::index_sequence<Q...>) {
+            ([&] {
+                constexpr auto a = Write::Accessor::template write<n_dir, Q>();
+                output[static_cast<ddf_offset_t>(Q) * pos.global_size + pos.global_index] =
+                    *view.template read_address<a.direction, a.x, a.y, a.z>();
+            }(), ...);
+        }(std::make_index_sequence<n_dir>{});
+    }
+
     PullKernels PullKernels::make(int q, std::string_view kind)
     {
         return culbm::core::collision::dispatch(q, kind, [&]<int n_dir, Kind collision_kind> {
@@ -101,7 +118,8 @@ namespace culbm::sim::single
             return PullKernels{
                 .equilibrium = &host_equilibrium<n_dir, collision_kind>,
                 .step        = &stream_collide_kernel<n_dir, collision_kind, PlainParam, Pull, Pull, false, StoreScope::flagged>,
-                .dump        = &dump_kernel<n_dir, PlainParam, Pull>
+                .dump_macro  = &dump_macro_kernel<n_dir, PlainParam, Pull>,
+                .dump_ddf    = &dump_ddf_kernel<n_dir, PlainParam, Pull>
             };
         });
     }
@@ -112,11 +130,13 @@ namespace culbm::sim::single
             using Even = Access<accessor::EsoTwistEven, mapping::GlobalView>;
             using Odd  = Access<accessor::EsoTwistOdd, mapping::GlobalView>;
             return TwistKernels{
-                .equilibrium = &host_equilibrium<n_dir, collision_kind>,
-                .step_even   = &stream_collide_kernel<n_dir, collision_kind, PlainParam, Even, Even, false, StoreScope::flagged>,
-                .step_odd    = &stream_collide_kernel<n_dir, collision_kind, PlainParam, Odd,  Odd,  false, StoreScope::flagged>,
-                .dump_even   = &dump_kernel<n_dir, PlainParam, Even>,
-                .dump_odd    = &dump_kernel<n_dir, PlainParam, Odd>
+                .equilibrium     = &host_equilibrium<n_dir, collision_kind>,
+                .step_even       = &stream_collide_kernel<n_dir, collision_kind, PlainParam, Even, Even, false, StoreScope::flagged>,
+                .step_odd        = &stream_collide_kernel<n_dir, collision_kind, PlainParam, Odd,  Odd,  false, StoreScope::flagged>,
+                .dump_macro_even = &dump_macro_kernel<n_dir, PlainParam, Even>,
+                .dump_macro_odd  = &dump_macro_kernel<n_dir, PlainParam, Odd>,
+                .dump_ddf_even   = &dump_ddf_kernel<n_dir, PlainParam, Even>,
+                .dump_ddf_odd    = &dump_ddf_kernel<n_dir, PlainParam, Odd>
             };
         });
     }
@@ -136,7 +156,8 @@ namespace culbm::sim::single
                     .middle_odd  = &stream_collide_kernel<n_dir, collision_kind, BlockingParam, TileEven,   TileEven,   cache_hints, StoreScope::flagged>,
                     .last_even   = &stream_collide_kernel<n_dir, collision_kind, BlockingParam, TileOdd,    GlobalPull, cache_hints, StoreScope::owned>,
                     .last_odd    = &stream_collide_kernel<n_dir, collision_kind, BlockingParam, TileEven,   GlobalPull, cache_hints, StoreScope::owned>,
-                    .dump        = &dump_kernel<n_dir, BlockingParam, GlobalPull>
+                    .dump_macro  = &dump_macro_kernel<n_dir, BlockingParam, GlobalPull>,
+                    .dump_ddf    = &dump_ddf_kernel<n_dir, BlockingParam, GlobalPull>
                 };
             };
             const auto select = [hints, &make]<ddf::View View> {

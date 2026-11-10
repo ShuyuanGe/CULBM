@@ -129,7 +129,9 @@ namespace culbm::sim::single::strategy
             for (std::uint32_t index = 0; index < tile_count; ++index)
             {
                 set_tile(index, coordinates(index));
-                ::cuda::launch(state.stream, launch, kernels.dump, param);
+                ::cuda::launch(state.stream, launch, kernels.dump_macro, param);
+                if (config.dump_ddf)
+                    ::cuda::launch(state.stream, launch, kernels.dump_ddf, param, state.ddf_buf.data());
             }
         }
 

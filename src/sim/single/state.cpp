@@ -22,7 +22,8 @@ namespace culbm::sim::single
         rho_buf(stream, pool.as_ref(), config.global_size(), ::cuda::no_init),
         vx_buf(stream, pool.as_ref(), config.global_size(), ::cuda::no_init),
         vy_buf(stream, pool.as_ref(), config.global_size(), ::cuda::no_init),
-        vz_buf(stream, pool.as_ref(), config.global_size(), ::cuda::no_init)
+        vz_buf(stream, pool.as_ref(), config.global_size(), ::cuda::no_init),
+        ddf_buf(stream, pool.as_ref(), config.dump_ddf ? config.q * config.global_size() : 0, ::cuda::no_init)
     {
         gpu::check(cudaSetDevice(config.device_id));
         const std::size_t size = config.global_size();
@@ -53,7 +54,7 @@ namespace culbm::sim::single
 
     void State::write() const
     {
-        if (not (config.dump_rho or config.dump_vx or config.dump_vy or config.dump_vz)) return;
+        if (not (config.dump_rho or config.dump_vx or config.dump_vy or config.dump_vz or config.dump_ddf)) return;
 
         const auto folder = std::filesystem::path{config.dump_folder};
         std::filesystem::create_directories(folder);
@@ -71,6 +72,12 @@ namespace culbm::sim::single
             if (not host_buf) host_buf = std::make_unique_for_overwrite<real_t[]>(size);
             const auto path = folder / std::format("{}_{}.dat", prefix, step);
             write_field(stream, device_ptr, {host_buf.get(), size}, path);
+        }
+        if (config.dump_ddf)
+        {
+            const auto ddf_size = config.q * size;
+            auto ddf_host = std::make_unique_for_overwrite<ddf_t[]>(ddf_size);
+            write_field(stream, ddf_buf.data(), {ddf_host.get(), ddf_size}, folder / std::format("ddf_{}.dat", step));
         }
     }
 

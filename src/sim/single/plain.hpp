@@ -77,13 +77,22 @@ namespace culbm::sim::single::strategy
         {
             const auto& config = state.config;
             const auto launch = ::cuda::make_config(::cuda::grid_dims(config.grid_dim), ::cuda::block_dims(config.block_dim));
+            const bool even = (state.step % 2) == 0;
             if constexpr (Kernels::mode == Mode::twist)
             {
-                const bool even = (state.step % 2) == 0;
-                ::cuda::launch(state.stream, launch, even ? kernels.dump_even : kernels.dump_odd, param);
+                ::cuda::launch(state.stream, launch, even ? kernels.dump_macro_even : kernels.dump_macro_odd, param);
             }
             else if constexpr (Kernels::mode == Mode::pull)
-                ::cuda::launch(state.stream, launch, kernels.dump, param);
+                ::cuda::launch(state.stream, launch, kernels.dump_macro, param);
+
+            if (config.dump_ddf)
+            {
+                if constexpr (Kernels::mode == Mode::twist)
+                    // The stored DDF was written by the previous step.
+                    ::cuda::launch(state.stream, launch, even ? kernels.dump_ddf_odd : kernels.dump_ddf_even, param, state.ddf_buf.data());
+                else
+                    ::cuda::launch(state.stream, launch, kernels.dump_ddf, param, state.ddf_buf.data());
+            }
         }
 
         std::size_t cells_per_step() const

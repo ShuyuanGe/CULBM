@@ -44,13 +44,16 @@ namespace culbm::sim::single
 
     using PlainKernel = void (*)(PlainParam);
     using BlockingKernel = void (*)(BlockingParam);
+    using PlainDdfKernel = void (*)(PlainParam, ddf_t*);
+    using BlockingDdfKernel = void (*)(BlockingParam, ddf_t*);
 
     struct PullKernels
     {
         static constexpr Mode mode = Mode::pull;
         static PullKernels make(int q, std::string_view kind);
         Equilibrium equilibrium;
-        PlainKernel step, dump;
+        PlainKernel step, dump_macro;
+        PlainDdfKernel dump_ddf;
     };
 
     struct TwistKernels
@@ -58,13 +61,15 @@ namespace culbm::sim::single
         static constexpr Mode mode = Mode::twist;
         static TwistKernels make(int q, std::string_view kind);
         Equilibrium equilibrium;
-        PlainKernel step_even, step_odd, dump_even, dump_odd;
+        PlainKernel step_even, step_odd, dump_macro_even, dump_macro_odd;
+        PlainDdfKernel dump_ddf_even, dump_ddf_odd;
     };
 
     struct BlockingKernels
     {
         static BlockingKernels make(int q, std::string_view kind, Mode buffer, bool hints);
         Equilibrium equilibrium;
-        BlockingKernel single, first, middle_even, middle_odd, last_even, last_odd, dump;
+        BlockingKernel single, first, middle_even, middle_odd, last_even, last_odd, dump_macro;
+        BlockingDdfKernel dump_ddf;
     };
 }

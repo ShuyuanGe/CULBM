@@ -101,6 +101,7 @@ Pass vectors in brackets, for example `[96,1,1]`.
 | `--init <path>` | Optional folder with `flag.dat`, `rho.dat`, `vx.dat`, `vy.dat`, `vz.dat`. Omitting this flag triggers uniform default initialization. | empty |
 | `--output <path>` | Output directory for binary dumps; required when dumping. | |
 | `--dump-rho`, `--dump-vx`, `--dump-vy`, `--dump-vz` | When present, dump per-field snapshots every `--batch-steps` steps as `rho_<step>.dat`, `vx_<step>.dat`, … | disabled |
+| `--dump-ddf` | Dump raw full-domain DDF snapshots as `ddf_<step>.dat`. | disabled |
 
 Supported combinations:
 
@@ -112,6 +113,8 @@ Supported combinations:
 | `esotwist` | `blocking` | `ring` |
 
 `single` uses one full-domain buffer, `double` uses two, and `ring` uses a rolling buffer.
+
+DDF snapshots contain zero-centered FP32 values after each update in `(Q, Nz, Ny, Nx)` order, including boundary cells.
 
 Blocking requires a compatible GPU and driver on Linux x86-64. Multi-step blocking does not support general periodic fluid-domain halos.
 
