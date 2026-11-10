@@ -1,0 +1,18 @@
+[project]
+name = "l2lbm-artifact"
+version = "1.0.0"
+description = "Reproduction tools for the L2LBM PPoPP 2027 artifact"
+requires-python = ">=3.12"
+dependencies = [
+    "matplotlib>=3.11.2",
+    "numpy>=2.5.4",
+]
+
+[tool.ruff]
+line-length = 140
+respect-gitignore = false
+extend-exclude = ["code", "data", "paper", "build", "results", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E501"]

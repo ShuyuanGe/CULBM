@@ -1,0 +1,1 @@
+"""Offline paper figure generators."""

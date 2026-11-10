@@ -1,0 +1,11 @@
+Prebuilt cuLBM third-party notices
+
+The executables include CUDA Runtime 12.9, GCC libstdc++/libgcc runtime code,
+CCCL 3.5 headers and CLI11 2.6.1. Their notices are in licenses/.
+
+CUDA Runtime: licenses/CUDA.txt
+CCCL: licenses/CCCL.txt
+CLI11: licenses/CLI11.txt
+GCC runtimes: licenses/GCC-GPL3.txt and licenses/GCC-runtime-exception.txt
+
+NVIDIA driver libraries and system glibc are supplied by the target machine.

@@ -1,6 +1,11 @@
-add_library(physical SHARED resource.cpp capture.cpp)
+if(CULBM_STANDALONE)
+    add_library(physical STATIC resource.cpp capture.cpp)
+    target_link_options(physical INTERFACE "LINKER:--export-dynamic-symbol=ioctl")
+else()
+    add_library(physical SHARED resource.cpp capture.cpp)
+endif()
 add_library(culbm::physical ALIAS physical)
 
 target_include_directories(physical PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)
-target_link_libraries(physical PUBLIC CUDA::cudart CCCL::CCCL)
+target_link_libraries(physical PUBLIC ${CULBM_CUDART} CCCL::CCCL)
 target_link_libraries(physical PRIVATE culbm::gpu)

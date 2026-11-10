@@ -13,6 +13,13 @@ cmake -S . -B build
 cmake --build build
 ```
 
+For Linux standalone executables with CUDA and C++ runtimes included:
+
+```bash
+cmake -S . -B build-standalone -DCULBM_STANDALONE=ON
+cmake --build build-standalone --target culbm-single culbm-tune
+```
+
 Without a build environment, create one with Conda and [env/build.yml](env/build.yml):
 
 ```bash

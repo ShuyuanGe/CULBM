@@ -1,0 +1,9 @@
+data/
+paper/
+results/
+build/
+.venv/
+.ruff_cache/
+__pycache__/
+prebuilt/bin/
+prebuilt/manifest.json

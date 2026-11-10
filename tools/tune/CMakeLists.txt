@@ -14,3 +14,7 @@ add_executable(culbm-tune-model-check tests/selector_check.cpp selector.cpp)
 target_include_directories(culbm-tune-model-check PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 enable_testing()
 add_test(NAME culbm-tune-model COMMAND culbm-tune-model-check)
+
+if(CULBM_STANDALONE)
+    culbm_remove_rpath(culbm-tune)
+endif()
