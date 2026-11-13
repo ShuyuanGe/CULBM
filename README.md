@@ -113,7 +113,7 @@ Supported combinations:
 
 `single` uses one full-domain buffer, `double` uses two, and `ring` uses a rolling buffer.
 
-Blocking requires a compatible GPU and driver on Linux x86-64. Multi-step blocking does not support general periodic fluid-domain halos.
+Blocking requires Linux x86-64 and a compatible NVIDIA GPU with driver >= 550.40.53. Multi-step blocking does not support general periodic fluid-domain halos.
 
 ### `culbm-multi`
 

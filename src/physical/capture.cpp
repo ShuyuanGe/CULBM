@@ -2,7 +2,7 @@
 #include "gpu/error.hpp"
 #include <cerrno>
 #include <cstdarg>
-#include <cstring>
+#include <cstddef>
 #include <stdexcept>
 #include <vector>
 #include <sys/ioctl.h>
@@ -16,77 +16,92 @@ namespace culbm::physical::detail
     {
         // Linux x86-64 private RM/UVM ABI; decoding depends on the command numbers,
         // field offsets, widths and meanings below.
+        // These structs are read-only views of driver-owned ioctl buffers.
         static_assert(sizeof(void*) == 8);
-        constexpr unsigned rm_type = 'F';
-
-        // nv_ioctl_xfer_t (16 bytes): cmd(u32)@0, size(u32)@4, ptr(u64)@8.
-        // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/src/nvidia/arch/nvalloc/unix/include/nv-ioctl.h#L49-L54
-        namespace rm_xfer
+        namespace abi
         {
-            constexpr unsigned code = 211;
-            constexpr std::size_t command = 0, bytes = 4, params = 8;
-        }
+            // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/src/nvidia/arch/nvalloc/unix/include/nv-ioctl-numbers.h#L25-L33
+            constexpr unsigned NV_IOCTL_MAGIC = 'F', NV_ESC_IOCTL_XFER_CMD = 211;
+            // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/src/nvidia/arch/nvalloc/unix/include/nv_escape.h#L24-L28
+            constexpr unsigned NV_ESC_RM_ALLOC = 0x2b, NV_ESC_RM_FREE = 0x29;
 
-        // Packet size selects NVOS21/NVOS64.
-        // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/src/common/sdk/nvidia/inc/nvos.h#L464-L490
-        namespace rm_alloc
-        {
-            constexpr unsigned code = 0x2b, local_memory_class = 0x40;
-            constexpr std::size_t client = 0, object = 8, class_id = 12, params = 16;
-            struct Layout { unsigned packet_bytes; std::size_t params_size_offset, status_offset; };
-            constexpr Layout nvos21{32, 24, 28}, nvos64{48, 32, 40};
-        }
+            // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/src/nvidia/arch/nvalloc/unix/include/nv-ioctl.h#L35-L47
+            struct nv_ioctl_xfer_t { std::uint32_t cmd, size; std::uint64_t ptr; };
 
-        // Only the client/object prefix is needed to forget RM_FREE observations.
-        // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/src/common/sdk/nvidia/inc/nvos.h#L162-L168
-        namespace rm_free
-        {
-            constexpr unsigned code = 0x29;
-            constexpr std::size_t prefix_bytes = 12, client = 0, object = 8;
-        }
+            // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/src/common/sdk/nvidia/inc/class/cl0040.h#L29-L30
+            constexpr std::uint32_t NV01_MEMORY_LOCAL_USER = 0x40;
 
-        // NV_MEMORY_ALLOCATION_PARAMS.offset returns the first PA; attr[28:27] == 2
-        // reports physical contiguity.
-        // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/src/common/sdk/nvidia/inc/nvos.h#L1600-L1634
-        namespace memory_alloc
-        {
-            constexpr std::size_t flags = 8, attr = 24, bytes = 64, physical = 80;
-            constexpr std::size_t required_bytes = physical + sizeof(std::uint64_t);
-            constexpr std::uint32_t virtual_flag = 0x00080000, physicality_mask = 3u << 27, contiguous = 2u << 27;
-        }
+            // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/src/common/sdk/nvidia/inc/nvos.h
+            constexpr std::uint32_t NVOS64_FLAGS_FINN_SERIALIZED = 1;
+            constexpr std::uint32_t NVOS32_ALLOC_FLAGS_VIRTUAL = 0x80000;
+            constexpr std::uint32_t NVOS32_ATTR_PHYSICALITY_MASK = 3u << 27, NVOS32_ATTR_PHYSICALITY_CONTIGUOUS = 2;
 
-        // Skip the unused GPU attribute array to read the mapping's RM object fields.
-        // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/kernel-open/nvidia-uvm/uvm_ioctl.h#L366-L378
-        // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/kernel-open/nvidia-uvm/uvm_types.h#L49-L96
-        namespace uvm_map
-        {
-            constexpr unsigned code = 33;
-            constexpr std::size_t base = 0, bytes = 8, offset = 16;
-            constexpr std::size_t count = 9240, client = 9252, object = 9256, status = 9260;
-        }
+            // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/src/common/sdk/nvidia/inc/nvos.h#L412-L440
+            struct NVOS21_PARAMETERS
+            {
+                std::uint32_t hRoot, hObjectParent, hObjectNew, hClass;
+                std::uint64_t pAllocParms;
+                std::uint32_t paramsSize, status;
+            };
+            struct NVOS64_PARAMETERS
+            {
+                std::uint32_t hRoot, hObjectParent, hObjectNew, hClass;
+                std::uint64_t pAllocParms, pRightsRequested;
+                std::uint32_t paramsSize, flags, status;
+            };
 
-        // Only the base/length prefix is needed to forget overlapping mappings.
-        // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/kernel-open/nvidia-uvm/uvm_ioctl.h#L736-L742
-        namespace uvm_unmap
-        {
-            constexpr unsigned code = 66;
-            constexpr std::size_t base = 0, bytes = 8;
-        }
+            // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/src/common/sdk/nvidia/inc/nvos.h#L147-L156
+            struct NVOS00_PARAMETERS_PREFIX { std::uint32_t hRoot, hObjectParent, hObjectOld; };
 
-        // Only base is needed; length/status layouts may differ.
-        // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/610.43.02/kernel-open/nvidia-uvm/uvm_ioctl.h#L384-L388
-        namespace uvm_free
-        {
-            constexpr unsigned code = 34;
-            constexpr std::size_t base = 0;
-        }
+            /*
+             * offset is the first physical address.
+             * https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/src/common/sdk/nvidia/inc/nvos.h#L1498-L1530
+             */
+            struct NV_MEMORY_ALLOCATION_PARAMS_PREFIX
+            {
+                std::uint32_t owner, type, flags, width, height;
+                std::int32_t pitch;
+                std::uint32_t attr, attr2, format, comprCovg, zcullCovg;
+                std::uint64_t rangeLo, rangeHi, size, alignment, offset;
+            };
 
-        template <typename T>
-        T read(const void* data, std::size_t offset)
-        {
-            T value;
-            std::memcpy(&value, static_cast<const char*>(data) + offset, sizeof(T));
-            return value;
+            // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/kernel-open/nvidia-uvm/uvm_ioctl.h
+            constexpr unsigned UVM_MAP_EXTERNAL_ALLOCATION = 33, UVM_FREE = 34, UVM_UNMAP_EXTERNAL = 66;
+
+            /*
+             * Oldest published version tag with 256 GPU entries: 550.40.53.
+             * Earlier tags use 32 entries.
+             * https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/kernel-open/nvidia-uvm/uvm_ioctl.h#L449-L463
+             */
+            struct UVM_MAP_EXTERNAL_ALLOCATION_PARAMS
+            {
+                std::uint64_t base, length, offset;
+                // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/kernel-open/nvidia-uvm/uvm_types.h#L147-L157
+                std::byte perGpuAttributes[256 * 36]; // 256 UvmGpuMappingAttributes, 36 bytes each.
+                std::uint64_t gpuAttributesCount;
+                std::int32_t rmCtrlFd;
+                std::uint32_t hClient, hMemory, rmStatus;
+            };
+
+            // https://github.com/NVIDIA/open-gpu-kernel-modules/blob/550.40.53/kernel-open/nvidia-uvm/uvm_ioctl.h#L895-L904
+            struct UVM_UNMAP_EXTERNAL_PARAMS_PREFIX { std::uint64_t base, length; };
+
+            static_assert(sizeof(nv_ioctl_xfer_t) == 16 && offsetof(nv_ioctl_xfer_t, ptr) == 8);
+            static_assert(sizeof(NVOS21_PARAMETERS) == 32 && offsetof(NVOS21_PARAMETERS, hObjectNew) == 8 &&
+                          offsetof(NVOS21_PARAMETERS, hClass) == 12 && offsetof(NVOS21_PARAMETERS, pAllocParms) == 16 &&
+                          offsetof(NVOS21_PARAMETERS, paramsSize) == 24 && offsetof(NVOS21_PARAMETERS, status) == 28);
+            static_assert(sizeof(NVOS64_PARAMETERS) == 48 && offsetof(NVOS64_PARAMETERS, hObjectNew) == 8 &&
+                          offsetof(NVOS64_PARAMETERS, hClass) == 12 && offsetof(NVOS64_PARAMETERS, pAllocParms) == 16 &&
+                          offsetof(NVOS64_PARAMETERS, paramsSize) == 32 && offsetof(NVOS64_PARAMETERS, flags) == 36 &&
+                          offsetof(NVOS64_PARAMETERS, status) == 40);
+            static_assert(sizeof(NVOS00_PARAMETERS_PREFIX) == 12 && offsetof(NVOS00_PARAMETERS_PREFIX, hObjectOld) == 8);
+            static_assert(sizeof(NV_MEMORY_ALLOCATION_PARAMS_PREFIX) == 88 && offsetof(NV_MEMORY_ALLOCATION_PARAMS_PREFIX, flags) == 8 &&
+                          offsetof(NV_MEMORY_ALLOCATION_PARAMS_PREFIX, attr) == 24 && offsetof(NV_MEMORY_ALLOCATION_PARAMS_PREFIX, size) == 64 &&
+                          offsetof(NV_MEMORY_ALLOCATION_PARAMS_PREFIX, offset) == 80);
+            static_assert(sizeof(UVM_MAP_EXTERNAL_ALLOCATION_PARAMS) == 9264 && offsetof(UVM_MAP_EXTERNAL_ALLOCATION_PARAMS, gpuAttributesCount) == 9240 &&
+                          offsetof(UVM_MAP_EXTERNAL_ALLOCATION_PARAMS, hClient) == 9252 && offsetof(UVM_MAP_EXTERNAL_ALLOCATION_PARAMS, hMemory) == 9256 &&
+                          offsetof(UVM_MAP_EXTERNAL_ALLOCATION_PARAMS, rmStatus) == 9260);
+            static_assert(sizeof(UVM_UNMAP_EXTERNAL_PARAMS_PREFIX) == 16);
         }
 
         struct Memory { std::uint32_t client, object; std::uint64_t physical, bytes; bool contiguous; };
@@ -101,71 +116,85 @@ namespace culbm::physical::detail
 
         void observe_rm(Capture& capture, unsigned command, unsigned packet_bytes, const void* params)
         {
-            if (command == rm_xfer::code)
+            if (command == abi::NV_ESC_IOCTL_XFER_CMD)
             {
-                command = read<std::uint32_t>(params, rm_xfer::command);
-                packet_bytes = read<std::uint32_t>(params, rm_xfer::bytes);
-                params = reinterpret_cast<const void*>(read<std::uint64_t>(params, rm_xfer::params));
+                auto& transfer = *reinterpret_cast<const abi::nv_ioctl_xfer_t*>(params);
+                command = transfer.cmd;
+                packet_bytes = transfer.size;
+                params = reinterpret_cast<const void*>(transfer.ptr);
             }
-            if (command == rm_alloc::code)
+            if (command == abi::NV_ESC_RM_ALLOC)
             {
-                const rm_alloc::Layout* layout;
-                if (packet_bytes == rm_alloc::nvos21.packet_bytes)      layout = &rm_alloc::nvos21;
-                else if (packet_bytes == rm_alloc::nvos64.packet_bytes) layout = &rm_alloc::nvos64;
-                else return;
-
-                if (read<std::uint32_t>(params, layout->status_offset) != 0 ||
-                    read<std::uint32_t>(params, rm_alloc::class_id) != rm_alloc::local_memory_class) return;
-                const auto params_bytes = read<std::uint32_t>(params, layout->params_size_offset);
-                const auto* memory_params = reinterpret_cast<const void*>(read<std::uint64_t>(params, rm_alloc::params));
-                // Zero means unspecified; a supplied length must cover our last field.
-                if (memory_params == nullptr || (params_bytes != 0 && params_bytes < memory_alloc::required_bytes)) return;
-                if (read<std::uint32_t>(memory_params, memory_alloc::flags) & memory_alloc::virtual_flag) return;
-                const auto attr = read<std::uint32_t>(memory_params, memory_alloc::attr);
-                capture.allocations.push_back({
-                    .client = read<std::uint32_t>(params, rm_alloc::client),
-                    .object = read<std::uint32_t>(params, rm_alloc::object),
-                    .physical = read<std::uint64_t>(memory_params, memory_alloc::physical),
-                    .bytes = read<std::uint64_t>(memory_params, memory_alloc::bytes),
-                    .contiguous = (attr & memory_alloc::physicality_mask) == memory_alloc::contiguous
-                });
+                const auto record = [&](const auto& allocation, bool serialized) {
+                    if (allocation.status != 0 || allocation.hClass != abi::NV01_MEMORY_LOCAL_USER) return;
+                    // FINN-serialized parameters cannot be read as a native struct.
+                    if (serialized) { capture.failed = true; return; }
+                    // A zero paramsSize is unspecified; otherwise it must cover the prefix.
+                    if (allocation.pAllocParms == 0 ||
+                        (allocation.paramsSize != 0 && allocation.paramsSize < sizeof(abi::NV_MEMORY_ALLOCATION_PARAMS_PREFIX))) return;
+                    auto& memory = *reinterpret_cast<const abi::NV_MEMORY_ALLOCATION_PARAMS_PREFIX*>(allocation.pAllocParms);
+                    if (memory.flags & abi::NVOS32_ALLOC_FLAGS_VIRTUAL) return;
+                    capture.allocations.push_back({
+                        .client = allocation.hRoot,
+                        .object = allocation.hObjectNew,
+                        .physical = memory.offset,
+                        .bytes = memory.size,
+                        .contiguous = (memory.attr & abi::NVOS32_ATTR_PHYSICALITY_MASK) == (abi::NVOS32_ATTR_PHYSICALITY_CONTIGUOUS << 27)
+                    });
+                };
+                if (packet_bytes == sizeof(abi::NVOS21_PARAMETERS))
+                    record(*reinterpret_cast<const abi::NVOS21_PARAMETERS*>(params), false);
+                else if (packet_bytes == sizeof(abi::NVOS64_PARAMETERS))
+                {
+                    auto& allocation = *reinterpret_cast<const abi::NVOS64_PARAMETERS*>(params);
+                    record(allocation, allocation.flags & abi::NVOS64_FLAGS_FINN_SERIALIZED);
+                }
             }
-            else if (command == rm_free::code && packet_bytes >= rm_free::prefix_bytes)
+            else if (command == abi::NV_ESC_RM_FREE && packet_bytes >= sizeof(abi::NVOS00_PARAMETERS_PREFIX))
             {
-                const auto client = read<std::uint32_t>(params, rm_free::client);
-                const auto object = read<std::uint32_t>(params, rm_free::object);
-                std::erase_if(capture.allocations, [&](const auto& a) { return a.client == client && a.object == object; });
-                std::erase_if(capture.mappings, [&](const auto& m) { return m.client == client && m.object == object; });
+                auto& free = *reinterpret_cast<const abi::NVOS00_PARAMETERS_PREFIX*>(params);
+                const auto matches = [&](const auto& record) { return record.client == free.hRoot && record.object == free.hObjectOld; };
+                std::erase_if(capture.allocations, matches);
+                std::erase_if(capture.mappings, matches);
             }
         }
 
         void observe_uvm(Capture& capture, unsigned long request, const void* argument)
         {
-            if (request == uvm_map::code)
+            if (request == abi::UVM_MAP_EXTERNAL_ALLOCATION)
             {
-                if (read<std::uint32_t>(argument, uvm_map::status) == 0 && read<std::uint64_t>(argument, uvm_map::count) == 1)
-                    capture.mappings.push_back({read<std::uint64_t>(argument, uvm_map::base),
-                        read<std::uint64_t>(argument, uvm_map::bytes), read<std::uint64_t>(argument, uvm_map::offset),
-                        read<std::uint32_t>(argument, uvm_map::client), read<std::uint32_t>(argument, uvm_map::object)});
+                auto& map = *reinterpret_cast<const abi::UVM_MAP_EXTERNAL_ALLOCATION_PARAMS*>(argument);
+                if (map.rmStatus == 0 && map.gpuAttributesCount == 1)
+                    capture.mappings.push_back({
+                        .base = map.base,
+                        .bytes = map.length,
+                        .offset = map.offset,
+                        .client = map.hClient,
+                        .object = map.hMemory
+                    });
             }
-            else if (request == uvm_unmap::code)
+            else if (request == abi::UVM_UNMAP_EXTERNAL)
             {
-                const auto base = read<std::uint64_t>(argument, uvm_unmap::base);
-                const auto bytes = read<std::uint64_t>(argument, uvm_unmap::bytes);
-                std::erase_if(capture.mappings, [&](const auto& m) {
-                    return bytes != 0 && (m.base <= base ? base - m.base < m.bytes : m.base - base < bytes);
+                auto& range = *reinterpret_cast<const abi::UVM_UNMAP_EXTERNAL_PARAMS_PREFIX*>(argument);
+                if (range.length == 0) return;
+                std::erase_if(capture.mappings, [&](const auto& mapping) {
+                    // Compare differences rather than endpoints to avoid address overflow.
+                    if (mapping.base <= range.base)
+                        return range.base - mapping.base < mapping.bytes;
+                    else
+                        return mapping.base - range.base < range.length;
                 });
             }
-            else if (request == uvm_free::code)
+            else if (request == abi::UVM_FREE)
             {
-                const auto base = read<std::uint64_t>(argument, uvm_free::base);
+                const auto base = *reinterpret_cast<const std::uint64_t*>(argument);
                 std::erase_if(capture.mappings, [&](const auto& m) { return m.base == base; });
             }
         }
 
         void observe(Capture& capture, unsigned long request, const void* argument)
         {
-            if (_IOC_TYPE(request) == rm_type)
+            if (_IOC_TYPE(request) == abi::NV_IOCTL_MAGIC)
                 observe_rm(capture, _IOC_NR(request), _IOC_SIZE(request), argument);
             else
                 observe_uvm(capture, request, argument);
